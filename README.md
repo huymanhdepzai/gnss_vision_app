@@ -1,57 +1,97 @@
 # GNSS-Vision Navigation Assistant (DATN Project)
 
+Hệ thống hỗ trợ dẫn đường thông minh tích hợp đa cảm biến (Multi-sensor Fusion), kết hợp dữ liệu vệ tinh GNSS, cảm biến quán tính (IMU) và Thị giác máy tính (Computer Vision) để cung cấp giải pháp điều hướng chính xác trong các môi trường đô thị phức tạp.
 
-## 🌟 Tính năng cốt lõi
+---
 
-### 1. Bản đồ & Dẫn đường (Map Module)
-*   **Tích hợp Goong Maps & Mapbox:** Hiển thị bản đồ mượt mà, hỗ trợ tìm kiếm địa điểm (Autocomplete) và lấy chi tiết địa điểm.
-*   **Dẫn đường thời gian thực:** Lấy dữ liệu lộ trình từ Goong Direction API và vẽ polyline trực quan.
-*   **Tương tác thông minh:** Chế độ xem Explore và Navigation linh hoạt, tự động xoay camera theo hướng di chuyển.
+## 🌟 Tính năng cốt lõi (Core Features)
 
-### 2. Hệ thống Thị giác máy tính (Vision Module)
-*   **Optical Flow (Lucas-Kanade):** Theo dõi chuyển động của các điểm đặc trưng trên mặt đường để tính toán vector di chuyển (Visual Odometry).
-*   **YOLOv8 Object Detection:** Nhận diện phương tiện (ô tô, xe máy, xe buýt, xe tải) và người đi bộ trong thời gian thực.
-*   **Cảnh báo vùng nguy hiểm:** Tự động tạo "vùng cấm" (Forbidden Zones) xung quanh các vật thể do AI phát hiện để loại bỏ nhiễu cho hệ thống điều hướng.
+### 1. Hệ thống Bản đồ & Dẫn đường Thông minh
+*   **Hybrid Map Engine:** Tích hợp **Mapbox Maps SDK** cho khả năng hiển thị vector mượt mà và **Goong API** để tối ưu hóa dữ liệu tìm kiếm, định tuyến (Routing) tại thị trường Việt Nam.
+*   **Chế độ xem AR Navigation:** Hỗ trợ la bàn AR thời gian thực, tự động cập nhật góc xoay (Bearing) và độ nghiêng (Tilt) dựa trên hướng di chuyển thực tế.
+*   **Hệ thống Tìm kiếm (POI):** Tích hợp Autocomplete gợi ý địa điểm và lấy chi tiết tọa độ chính xác từ Goong Detail API.
 
-### 3. Bộ lọc hợp nhất cảm biến (Sensor Fusion)
-*   **Adaptive Kalman-like Filter:** Hợp nhất dữ liệu từ GPS (Heading/Speed), IMU (Accelerometer) và Vision (Optical Flow).
-*   **Trọng số động:** Tự động ưu tiên Vision khi tín hiệu GPS yếu (trong hầm, đô thị dày đặc) và ưu tiên GPS khi điều kiện ánh sáng kém.
+### 2. Thị giác máy tính & AI (Vision Module)
+*   **Visual Odometry (Optical Flow):** Sử dụng thuật toán **Lucas-Kanade** (qua OpenCV) để theo dõi các điểm đặc trưng (Features) trên mặt đường. Hệ thống tính toán vector di chuyển để bù đắp sai số hướng khi tín hiệu GPS bị nhiễu.
+*   **Nhận diện vật thể YOLOv8:** Tích hợp mô hình YOLOv8n (Nano) chạy trên TFLite để nhận diện thời gian thực các đối tượng: ô tô, xe máy, xe buýt, xe tải, người đi bộ và xe đạp.
+*   **Vùng cấm động (Dynamic Forbidden Zones):** Tự động tạo các Mask bảo vệ xung quanh vật thể AI phát hiện. Điều này loại bỏ các điểm đặc trưng chuyển động (như xe phía trước) khỏi thuật toán Optical Flow, đảm bảo chỉ tính toán dựa trên các vật thể tĩnh (mặt đường).
+
+### 3. Bộ lọc Hợp nhất Cảm biến (Sensor Fusion)
+*   **Adaptive Weighting Filter:** Thuật toán tự động điều chỉnh trọng số tin cậy (Confidence Weight). Khi độ chính xác GPS thấp (Accuracy > 15m), hệ thống sẽ ưu tiên dữ liệu từ Vision.
+*   **Xử lý rung chấn IMU:** Tích hợp bộ lọc gia tốc kế để phát hiện các biến động đột ngột (như đi qua ổ gà hoặc phanh gấp), giúp làm mượt dữ liệu hướng (Heading) và vận tốc.
+
+### 4. Giám sát Vệ tinh 3D (GNSS Visualization)
+*   **3D Globe UI:** Hiển thị vị trí thực tế của các chòm sao vệ tinh (GPS, GLONASS, Galileo, BeiDou) trên quả địa cầu 3D tương tác.
+*   **Skyplot Radar:** Biểu đồ radar hiển thị góc ngẩng, góc phương vị và cường độ tín hiệu (SNR/CNo) của từng vệ tinh trong tầm nhìn.
+
+---
 
 ## 🚀 Tối ưu hóa hiệu năng (Performance Optimization)
 
-Để đảm bảo ứng dụng chạy mượt mà trên thiết bị di động với các thuật toán nặng, dự án đã áp dụng các kỹ thuật:
+Để xử lý đồng thời AI, OpenCV và Map trên thiết bị di động, dự án áp dụng các kỹ thuật:
 
-*   **Surgical UI Rebuilds:** Sử dụng `ValueNotifier` và `ValueListenableBuilder` để chỉ vẽ lại (re-render) đúng khu vực chứa video và HUD, tránh rebuild toàn bộ màn hình mỗi frame (30fps).
-*   **Downscaling & Encoding:** Nguồn video được nén xuống độ phân giải **240px** và chất lượng JPEG **50%** để giảm tải cho CPU khi giải mã và xử lý OpenCV.
-*   **AI Throttling:** Chạy nhận diện YOLOv8 mỗi **10 frame** và áp dụng kỹ thuật "ghi nhớ vật thể" để giữ an toàn trong các frame trung gian.
-*   **Smart Frame Skipping:** Thuật toán tự động bỏ qua các frame video nếu tốc độ xử lý của phần cứng không đuổi kịp tốc độ phát thực tế.
-*   **Memory Management:** Quản lý nghiêm ngặt bộ nhớ đệm OpenCV (Mat objects), đảm bảo `dispose()` ngay lập tức sau khi sử dụng để tránh rò rỉ bộ nhớ (Memory Leak).
+*   **Kiến trúc Đa luồng (Flutter Isolates):** Tách biệt luồng UI chính và luồng xử lý video (Worker Isolate). Dữ liệu ảnh thô được truyền qua `SendPort/ReceivePort` để tính toán OpenCV mà không gây "jank" giao diện.
+*   **Surgical UI Rebuilds:** Sử dụng `ValueNotifier` và `ValueListenableBuilder` để chỉ vẽ lại các widget nhỏ (như chỉ số tốc độ, hướng, frame video) thay vì rebuild toàn bộ màn hình mỗi 33ms.
+*   **AI Throttling & Memory Management:** 
+    *   Chạy nhận diện AI mỗi 10 frame thay vì mọi frame để tiết kiệm pin.
+    *   Sử dụng cơ chế `dispose()` nghiêm ngặt cho đối tượng `cv.Mat` trong OpenCV để tránh rò rỉ bộ nhớ (Memory Leak).
+*   **Video Downscaling:** Luồng video được nén xuống độ phân giải **240p** và chất lượng JPEG **50%** trước khi đưa vào Isolate để giảm tải cho CPU khi giải mã.
 
-## 🛠 Công nghệ sử dụng
+---
 
-*   **Ngôn ngữ:** Dart (Flutter Framework)
-*   **Thị giác máy tính:** `opencv_dart` (FFI binding)
-*   **Trí tuệ nhân tạo:** `flutter_vision` (TFLite YOLOv8)
-*   **Bản đồ:** `mapbox_maps_flutter`, Goong API
-*   **Cảm biến:** `geolocator`, `sensors_plus`
+## 🛠 Công nghệ sử dụng (Tech Stack)
 
-## 📂 Cấu trúc thư mục chính
+*   **Framework:** Flutter (Dart) - Hỗ trợ đa nền tảng.
+*   **Computer Vision:** `opencv_dart` (FFI bindings cho OpenCV C++).
+*   **AI/Deep Learning:** `flutter_vision` (TFLite engine), Model YOLOv8n.
+*   **Map Services:** `mapbox_maps_flutter`, Goong Direction & Place API.
+*   **Sensors:** `geolocator` (GPS), `sensors_plus` (Accelerometer/IMU).
+*   **Graphics:** `flutter_earth_globe` (Render 3D WebGL).
+
+---
+
+## 📂 Cấu trúc dự án (Project Structure)
 
 ```text
 lib/
-├── controllers/    # Xử lý Logic và điều khiển luồng dữ liệu (FlowController)
-├── fusion/         # Thuật toán hợp nhất cảm biến (SensorFusion)
-├── screens/        # Giao diện người dùng (Map, Vision HUD)
-├── vision/         # Lõi xử lý OpenCV (CVCore)
-└── widgets/        # Các thành phần giao diện tùy chỉnh (FlowPainter)
+├── controllers/    # FlowController: Quản lý Isolate, vòng đời Video và dữ liệu cảm biến
+├── fusion/         # SensorFusion: Thuật toán hợp nhất dữ liệu GPS/IMU/Vision
+├── screens/        # Giao diện chính: MapHome, Vision (FlowScreen), SatelliteView
+├── vision/         # CVCore: Lõi xử lý OpenCV, Optical Flow và Forbidden Zones
+├── widgets/        # FlowPainter: Vẽ HUD, Bounding Box AI và điểm đặc trưng
+└── main.dart       # Khởi tạo ứng dụng và cấu hình quyền (Permissions)
 ```
 
-## ⚙️ Cài đặt
+---
 
-1.  Cài đặt Flutter SDK (^3.10.4).
-2.  Cấu hình API Key của Goong và Mapbox trong file `.env`.
-3.  Đảm bảo file model `yolov8n.tflite` và `labels.txt` nằm trong thư mục `assets/`.
-4.  Chạy lệnh: `flutter pub get` và `flutter run`.
+## ⚙️ Cài đặt & Triển khai (Installation)
+
+### 1. Yêu cầu hệ thống
+*   Flutter SDK: `^3.10.4`
+*   Android API Level: `24` (Nougat) trở lên.
+*   Thiết bị vật lý (Yêu cầu để chạy Camera và GPS).
+
+### 2. Cấu hình Môi trường
+Tạo file `.env` tại thư mục gốc và cấu hình các mã API:
+```env
+MAPBOX_ACCESS_TOKEN=your_mapbox_token_here
+GOONG_API_KEY=your_goong_api_key_here
+GOONG_MAPTILES_KEY=your_goong_maptiles_key_here
+```
+
+### 3. Chuẩn bị Assets
+Đảm bảo các file sau đã có trong thư mục `assets/`:
+*   `yolov8n.tflite` (Model AI)
+*   `labels.txt` (Danh sách nhãn vật thể)
+
+### 4. Chạy ứng dụng
+```bash
+# Lấy các thư viện phụ thuộc
+flutter pub get
+
+# Chạy trên thiết bị (Debug mode)
+flutter run
+```
 
 ---
-*Dự án được thực hiện phục vụ cho mục đích Đồ án tốt nghiệp (DATN).*
+*Dự án thực hiện phục vụ mục đích Đồ án tốt nghiệp (DATN).*
