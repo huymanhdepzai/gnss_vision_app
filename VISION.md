@@ -1,4 +1,4 @@
-# Báo cáo Kỹ thuật Chuyên sâu: Hệ thống Thị giác máy tính (Vision System)
+# Báo cáo Hệ thống Thị giác máy tính (Vision System)
 
 Tài liệu này phân tích chi tiết các giải pháp kỹ thuật và thuật toán trong lõi xử lý hình ảnh của dự án **GNSS-Vision Navigation Assistant**. Hệ thống được thiết kế để giải quyết bài toán định vị hướng di chuyển khi tín hiệu vệ tinh bị nhiễu hoặc mất hoàn toàn.
 
