@@ -4,7 +4,7 @@ Hệ thống hỗ trợ dẫn đường thông minh tích hợp đa cảm biến
 
 ---
 
-## 🌟 Tính năng cốt lõi (Core Features)
+## Tính năng cốt lõi (Core Features)
 
 ### 1. Hệ thống Bản đồ & Dẫn đường Thông minh
 *   **Hybrid Map Engine:** Tích hợp **Mapbox Maps SDK** cho khả năng hiển thị vector mượt mà và **Goong API** để tối ưu hóa dữ liệu tìm kiếm, định tuyến (Routing) tại thị trường Việt Nam.
@@ -26,7 +26,7 @@ Hệ thống hỗ trợ dẫn đường thông minh tích hợp đa cảm biến
 
 ---
 
-## 🚀 Tối ưu hóa hiệu năng (Performance Optimization)
+## Tối ưu hóa hiệu năng (Performance Optimization)
 
 Để xử lý đồng thời AI, OpenCV và Map trên thiết bị di động, dự án áp dụng các kỹ thuật:
 
@@ -39,7 +39,7 @@ Hệ thống hỗ trợ dẫn đường thông minh tích hợp đa cảm biến
 
 ---
 
-## 🛠 Công nghệ sử dụng (Tech Stack)
+## Công nghệ sử dụng (Tech Stack)
 
 *   **Framework:** Flutter (Dart) - Hỗ trợ đa nền tảng.
 *   **Computer Vision:** `opencv_dart` (FFI bindings cho OpenCV C++).
@@ -50,7 +50,7 @@ Hệ thống hỗ trợ dẫn đường thông minh tích hợp đa cảm biến
 
 ---
 
-## 📂 Cấu trúc dự án (Project Structure)
+## Cấu trúc dự án (Project Structure)
 
 ```text
 lib/
@@ -64,7 +64,7 @@ lib/
 
 ---
 
-## ⚙️ Cài đặt & Triển khai (Installation)
+##  Cài đặt & Triển khai (Installation)
 
 ### 1. Yêu cầu hệ thống
 *   Flutter SDK: `^3.10.4`
