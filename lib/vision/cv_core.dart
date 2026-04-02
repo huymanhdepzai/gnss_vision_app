@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:math' as math;
 import 'package:opencv_dart/opencv_dart.dart' as cv;
 
 class CVCore {
@@ -9,51 +10,68 @@ class CVCore {
   Offset _vectorVelocity = Offset.zero;
 
   final double _posAlpha = 0.15;
-  final double _velAlpha = 0.05; // Độ đầm/nặng của vô lăng
+  final double _velAlpha = 0.15;
 
-  Map<String, dynamic> processFrame(cv.Mat frame) {
+  List<Rect> _lastKnownObstacles = [];
+  int _framesSinceLastYolo = 0;
+
+  Map<String, dynamic> processFrame(cv.Mat frame, {List<Rect> aiObstacles = const []}) {
     List<Offset> trackedPoints = [];
     Offset rawMoveVector = Offset.zero;
-    List<Rect> staticRois = [];
+    List<Rect> forbiddenZones = [];
+
+    // Khởi tạo các biến Mat để có thể dispose tập trung
+    cv.Mat? frameGray;
+    cv.Mat? mask;
 
     try {
-      cv.Mat frameGray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY);
+      frameGray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY);
 
-      // KHUNG LƯỚI & HÌNH THANG (UI Setup)
-      int roiWidth = frameGray.cols;
-      int roiHeight = (frameGray.rows ~/ 2) + 40;
-      int roiX = 0;
-      int roiY = frameGray.rows - roiHeight;
+      int frameW = frameGray.cols;
+      int frameH = frameGray.rows;
 
-      double cellW = roiWidth / 3;
-      double cellH = roiHeight / 2;
-      for (int r = 0; r < 2; r++) {
-        for (int c = 0; c < 3; c++) {
-          staticRois.add(Rect.fromLTWH(roiX + (c * cellW), roiY + (r * cellH), cellW, cellH));
+      // 1. CẬP NHẬT VÙNG CẤM (FORBIDDEN ZONES) TỪ AI
+
+      if (aiObstacles.isNotEmpty) {
+        _lastKnownObstacles = List.from(aiObstacles);
+        _framesSinceLastYolo = 0;
+      } else {
+        _framesSinceLastYolo++;
+        if (_framesSinceLastYolo > 15) { // Giữ ký ức lâu hơn một chút
+          _lastKnownObstacles.clear();
         }
       }
 
-      // ==========================================================
-      // BƯỚC 1: TÍNH TOÁN OPTICAL FLOW (Luôn luôn tính nếu có điểm)
-      // ==========================================================
+      for (var box in _lastKnownObstacles) {
+        if (box.width > frameW * 0.7 || box.height > frameH * 0.7) continue;
+        
+        // Mở rộng vùng cấm một chút để đảm bảo an toàn
+        double expansion = 0.1;
+        double left = (box.left - box.width * expansion).clamp(0.0, frameW.toDouble());
+        double top = (box.top - box.height * expansion).clamp(0.0, frameH.toDouble());
+        double right = (box.right + box.width * expansion).clamp(0.0, frameW.toDouble());
+        double bottom = (box.bottom + box.height * expansion).clamp(0.0, frameH.toDouble());
+
+        forbiddenZones.add(Rect.fromLTRB(left, top, right, bottom));
+      }
+
       List<cv.Point2f> goodNewPoints = [];
 
-      if (_p0 != null && _oldGray != null) {
-        // Nâng maxLevel lên 3 để thuật toán bám dính tốt hơn khi xe chạy tốc độ cao
+      // 2. OPTICAL FLOW (LUCAS-KANADE)
+      if (_p0 != null && _oldGray != null && _p0!.isNotEmpty) {
         var (p1, status, err) = cv.calcOpticalFlowPyrLK(
-          _oldGray!,
-          frameGray,
-          _p0!,
-          cv.VecPoint2f(),
-          winSize: (21, 21), // Mở rộng cửa sổ tìm kiếm lên 21x21
-          maxLevel: 3,
+          _oldGray!, frameGray, _p0!, cv.VecPoint2f(),
+          winSize: (15, 15), // Giảm winSize để tăng tốc
+          maxLevel: 1,       // Giảm maxLevel vì ảnh đã nhỏ (240px)
         );
 
         List<cv.Point2f> oldPoints = _p0!.toList();
-        List<List<double>> colDx = [[], [], []];
-        List<List<double>> colDy = [[], [], []];
 
         if (status != null && p1 != null) {
+          double sumDx = 0;
+          double sumDy = 0;
+          int validFlowCount = 0;
+
           for (int i = 0; i < status.length; i++) {
             if (status[i] == 1) {
               double nx = p1[i].x;
@@ -61,172 +79,96 @@ class CVCore {
               double ox = oldPoints[i].x;
               double oy = oldPoints[i].y;
 
-              if (nx >= 0 && nx < frameGray.cols && ny >= 0 && ny < frameGray.rows) {
+              // Kiểm tra xem điểm mới có nằm trong vùng cấm không
+              bool isInsideForbidden = false;
+              for (var zone in forbiddenZones) {
+                if (zone.contains(Offset(nx, ny))) {
+                  isInsideForbidden = true;
+                  break;
+                }
+              }
+
+              if (nx >= 0 && nx < frameW && ny >= 0 && ny < frameH && !isInsideForbidden) {
                 trackedPoints.add(Offset(nx, ny));
                 goodNewPoints.add(cv.Point2f(nx, ny));
 
-                // Chuẩn hóa phối cảnh
-                double yRatio = (oy - roiY) / roiHeight;
-                yRatio = yRatio.clamp(0.2, 1.0);
-
-                double dx = (ox - nx) / yRatio;
-                double dy = (oy - ny) / yRatio;
-
-                if (ox >= roiX && ox < roiX + roiWidth && oy >= roiY && oy < roiY + roiHeight) {
-                  int col = ((ox - roiX) / cellW).floor().clamp(0, 2);
-                  colDx[col].add(dx);
-                  colDy[col].add(dy);
-                }
+                sumDx += (ox - nx);
+                sumDy += (oy - ny);
+                validFlowCount++;
               }
             }
           }
+
+          if (validFlowCount > 0) {
+            double finalDx = sumDx / validFlowCount;
+            double finalDy = sumDy / validFlowCount;
+
+            // Loại bỏ nhiễu nhỏ
+            if (finalDx.abs() < 0.2) finalDx = 0.0;
+            rawMoveVector = Offset(finalDx, finalDy);
+
+            // Bộ lọc mượt (Smoothing)
+            Offset targetVelocity = Offset(rawMoveVector.dx - _smoothedVector.dx, rawMoveVector.dy - _smoothedVector.dy);
+            _vectorVelocity = Offset((_vectorVelocity.dx * (1 - _velAlpha)) + (targetVelocity.dx * _velAlpha), (_vectorVelocity.dy * (1 - _velAlpha)) + (targetVelocity.dy * _velAlpha));
+            _smoothedVector = Offset(_smoothedVector.dx + _vectorVelocity.dx * _posAlpha, _smoothedVector.dy + _vectorVelocity.dy * _posAlpha);
+          }
+          
+          p1.dispose();
+          status.dispose();
+          err?.dispose();
         }
-
-        // BỘ LỌC MAD (Sát thủ điểm rác)
-        List<double> filterByMAD(List<double> list) {
-          if (list.length < 5) return list;
-          list.sort();
-          double median = list[list.length ~/ 2];
-
-          List<double> deviations = list.map((x) => (x - median).abs()).toList();
-          deviations.sort();
-          double mad = deviations[deviations.length ~/ 2];
-
-          if (mad == 0.0) mad = 0.001;
-          return list.where((x) => (x - median).abs() <= 1.5 * mad).toList();
-        }
-
-        double? getCleanAverage(List<double> rawList) {
-          List<double> cleanList = filterByMAD(rawList);
-          if (cleanList.isEmpty) return null;
-          double sum = 0;
-          for (var v in cleanList) sum += v;
-          return sum / cleanList.length;
-        }
-
-        double? mDxLeft = getCleanAverage(colDx[0]);
-        double? mDxCenter = getCleanAverage(colDx[1]);
-        double? mDxRight = getCleanAverage(colDx[2]);
-
-        double finalDx = 0;
-        int dxVotes = 0;
-
-        if (mDxCenter != null) { finalDx += mDxCenter; dxVotes += 1; }
-        if (mDxLeft != null && mDxRight != null) { finalDx += (mDxLeft + mDxRight) / 2; dxVotes += 1; }
-
-        if (dxVotes > 0) {
-          finalDx /= dxVotes;
-        } else if (mDxLeft != null) {
-          finalDx = mDxLeft;
-        } else if (mDxRight != null) {
-          finalDx = mDxRight;
-        }
-
-        double? mDyLeft = getCleanAverage(colDy[0]);
-        double? mDyCenter = getCleanAverage(colDy[1]);
-        double? mDyRight = getCleanAverage(colDy[2]);
-
-        List<double> validDy = [];
-        if (mDyLeft != null) validDy.add(mDyLeft);
-        if (mDyCenter != null) validDy.add(mDyCenter);
-        if (mDyRight != null) validDy.add(mDyRight);
-
-        double finalDy = 0;
-        if (validDy.isNotEmpty) {
-          validDy.sort();
-          finalDy = validDy[validDy.length ~/ 2];
-        }
-
-        if (finalDy > 0) finalDy = -0.1;
-
-        rawMoveVector = Offset(finalDx, finalDy);
-        if (rawMoveVector.distance < 0.2) {
-          rawMoveVector = Offset.zero;
-        }
-
-        // ==========================================================
-        // 🌟 THUẬT TOÁN ĐỘNG HỌC KÉP (DOUBLE INERTIA MODEL) 🌟
-        // ==========================================================
-        // 1. Tính gia tốc của chuyển động (Tốc độ xoay vô lăng)
-        Offset targetVelocity = Offset(
-            rawMoveVector.dx - _smoothedVector.dx,
-            rawMoveVector.dy - _smoothedVector.dy
-        );
-
-        // 2. Làm mượt gia tốc (Vô lăng không thể bị khựng đột ngột)
-        _vectorVelocity = Offset(
-            (_vectorVelocity.dx * (1 - _velAlpha)) + (targetVelocity.dx * _velAlpha),
-            (_vectorVelocity.dy * (1 - _velAlpha)) + (targetVelocity.dy * _velAlpha)
-        );
-
-        // 3. Cập nhật vị trí vô lăng dựa trên gia tốc đã làm mượt
-        _smoothedVector = Offset(
-            _smoothedVector.dx + _vectorVelocity.dx * _posAlpha,
-            _smoothedVector.dy + _vectorVelocity.dy * _posAlpha
-        );
       }
 
-      // ==========================================================
-      // BƯỚC 2: QUẢN LÝ ĐIỂM THEO DÕI (ZERO-BLACKOUT)
-      // ==========================================================
-      // Nếu là khung hình đầu tiên, HOẶC số lượng điểm còn lại quá ít (< 100)
-      if (_p0 == null || goodNewPoints.length < 100) {
+      // 3. TÁI TẠO ĐIỂM ĐẶC TRƯNG (KHI CẦN THIẾT)
+      if (_p0 == null || _p0!.isEmpty || goodNewPoints.length < 30) {
+        mask = cv.Mat.zeros(frameH, frameW, cv.MatType.CV_8UC1);
+        
+        // Chỉ tìm điểm ở nửa dưới bức ảnh (mặt đường)
+        int roiY = (frameH * 0.5).toInt();
+        cv.rectangle(mask, cv.Rect(0, roiY, frameW, frameH - roiY), cv.Scalar.fromRgb(255, 255, 255), thickness: -1);
 
-        cv.Mat mask = cv.Mat.zeros(frameGray.rows, frameGray.cols, cv.MatType.CV_8UC1);
-        int topY = frameGray.rows ~/ 2 + 20;
-        int bottomY = frameGray.rows - 40;
-        int topWidth = frameGray.cols ~/ 3;
-        int topLeftX = (frameGray.cols - topWidth) ~/ 2;
+        // Loại bỏ vùng AI đã cảnh báo khỏi mask
+        for (var zone in forbiddenZones) {
+          cv.rectangle(mask, cv.Rect(zone.left.toInt(), zone.top.toInt(), zone.width.toInt(), zone.height.toInt()), cv.Scalar.fromRgb(0, 0, 0), thickness: -1);
+        }
 
-        var pts = cv.VecVecPoint.fromList([
-          [
-            cv.Point(topLeftX, topY),
-            cv.Point(topLeftX + topWidth, topY),
-            cv.Point(frameGray.cols, bottomY),
-            cv.Point(0, bottomY)
-          ]
-        ]);
-
-        cv.fillPoly(mask, pts, cv.Scalar.fromRgb(255, 255, 255));
-
-        // Rải lại điểm MỚI trên khung hình HIỆN TẠI
+        if (_p0 != null) _p0!.dispose();
         _p0 = cv.goodFeaturesToTrack(
             frameGray,
-            300,
-            0.05,
-            5.0,
+            60, // Giảm số lượng điểm xuống 60 để cực nhanh
+            0.03,
+            10.0,
             mask: mask
         );
-
-        // Cực kỳ quan trọng: Nếu là khung hình đầu tiên thì chưa có Vector
-        if (_oldGray == null) {
-          _smoothedVector = Offset.zero;
-          _vectorVelocity = Offset.zero;
-        }
       } else {
-        // Cập nhật các điểm sống sót để dùng cho vòng lặp sau
+        if (_p0 != null) _p0!.dispose();
         _p0 = cv.VecPoint2f.fromList(goodNewPoints);
       }
 
-      // Cập nhật ảnh quá khứ thành ảnh hiện tại
+      if (_oldGray != null) _oldGray!.dispose();
       _oldGray = frameGray.clone();
 
     } catch (e) {
-      print("Lỗi OpenCV: $e");
+      print("Lỗi CVCore: $e");
+    } finally {
+      frameGray?.dispose();
+      mask?.dispose();
     }
 
     return {
       'points': trackedPoints,
-      'center': null,
       'vector': _smoothedVector,
-      'staticRois': staticRois,
+      'forbiddenZones': forbiddenZones,
     };
   }
 
   void resetTracking() {
-    _oldGray = null; // Ép hệ thống tạo lại điểm từ đầu
+    _oldGray?.dispose();
+    _oldGray = null;
+    _p0?.dispose();
     _p0 = null;
     _smoothedVector = Offset.zero;
     _vectorVelocity = Offset.zero;
+    _lastKnownObstacles.clear();
   }
 }

@@ -1,11 +1,7 @@
-import 'dart:async';
-import 'dart:typed_data';
-import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:opencv_dart/opencv_dart.dart' as cv;
 
-import '../vision/cv_core.dart';
+import '../controllers/flow_controller.dart';
 import '../widgets/flow_painter.dart';
 
 class FlowScreen extends StatefulWidget {
@@ -16,342 +12,447 @@ class FlowScreen extends StatefulWidget {
 }
 
 class _FlowScreenState extends State<FlowScreen> {
-  final CVCore _cvCore = CVCore();
-  cv.VideoCapture? _cap;
+  final FlowController _controller = FlowController();
+  bool _isDebugMode = false;
 
-  List<Offset> _pointsToDraw = [];
-  Offset? _objectCenter;
-  Offset _moveVector = Offset.zero;
-  Size _imageSize = Size.zero;
-// Thay thế Rect? _staticRoi; bằng dòng dưới
-  List<Rect>? _staticRois;
-  // CÁC BIẾN QUẢN LÝ TRẠNG THÁI VIDEO
-  bool _isPlaying = false;
-  bool _isPaused = false;
-  bool _isDraggingSlider = false;
-
-  double _totalFrames = 1.0;
-  double _currentFrame = 0.0;
-  double _fps = 30.0;
-  double _playbackSpeed = 1.0; // Tốc độ phát (0.5x, 1.0x, 2.0x)
-
-  Uint8List? _currentFrameBytes;
-  double _steeringAngle = 0.0;
-
-  Future<void> _pickAndPlayVideo() async {
-    final picker = ImagePicker();
-    final XFile? video = await picker.pickVideo(source: ImageSource.gallery);
-
-    if (video != null) {
-      _processVideo(video.path);
-    }
-  }
-
-  Future<void> _processVideo(String path) async {
-    // Đóng video cũ nếu có
-    if (_cap != null && _cap!.isOpened) {
-      _cap!.release();
-      _isPlaying = false;
-    }
-
-    _cap = cv.VideoCapture.fromFile(path);
-
-    if (!_cap!.isOpened) {
-      print("Không thể mở video");
-      return;
-    }
-
-    // LẤY THÔNG TIN VIDEO
-    _totalFrames = _cap!.get(cv.CAP_PROP_FRAME_COUNT);
-    _fps = _cap!.get(cv.CAP_PROP_FPS);
-    if (_fps <= 0) _fps = 30.0; // Dự phòng nếu video không có meta fps
-
-    setState(() {
-      _isPlaying = true;
-      _isPaused = false;
-      _currentFrame = 0.0;
-      _playbackSpeed = 1.0;
-    });
-
-    while (_isPlaying) {
-      // 1. TẠM DỪNG HOẶC ĐANG KÉO SLIDER
-      if (_isPaused || _isDraggingSlider) {
-        await Future.delayed(const Duration(milliseconds: 50));
-        continue;
-      }
-
-      // 2. ĐỌC KHUNG HÌNH
-      var (ret, frame) = _cap!.read();
-
-      // Nếu hết video
-      if (!ret || frame.isEmpty) {
-        setState(() {
-          _isPaused = true; // Chuyển sang pause thay vì tắt hẳn để người dùng có thể tua lại
-          _currentFrame = _totalFrames;
-        });
-        continue;
-      }
-
-      // Cập nhật vị trí thanh trượt
-      _currentFrame = _cap!.get(cv.CAP_PROP_POS_FRAMES);
-
-      // 3. XỬ LÝ OPTICAL FLOW
-      Map<String, dynamic> result = _cvCore.processFrame(frame);
-      var (success, encodedFrame) = cv.imencode(".jpg", frame);
-
-      if (success) {
-        setState(() {
-          _pointsToDraw = result['points'];
-          _objectCenter = result['center'];
-          _moveVector = result['vector'];
-          _staticRois = result['staticRois'];
-          _currentFrameBytes = encodedFrame;
-          _imageSize = Size(frame.cols.toDouble(), frame.rows.toDouble());
-
-          if (_moveVector.distance > 0.1) {
-            _steeringAngle = math.atan2(_moveVector.dy, _moveVector.dx) + (math.pi / 2);
-          } else {
-            _steeringAngle = 0.0;
-          }
-        });
-      }
-
-      // 4. KIỂM SOÁT TỐC ĐỘ PHÁT (Tua nhanh / chậm)
-      int delayMs = (1000 / (_fps * _playbackSpeed)).round();
-      await Future.delayed(Duration(milliseconds: delayMs));
-    }
-
-    _cap?.release();
-  }
-
-  // HÀM TUA VIDEO TỚI VỊ TRÍ BẤT KỲ
-  void _seekTo(double frameNum) {
-    if (_cap != null && _cap!.isOpened) {
-      // Đặt lại vị trí đọc của OpenCV
-      _cap!.set(cv.CAP_PROP_POS_FRAMES, frameNum);
-
-      // Xóa bộ nhớ đệm Optical Flow để tránh mũi tên bị giật loạn xạ khi nhảy cóc
-      _cvCore.resetTracking();
-
-      // Nếu đang Pause, ta đọc ép 1 frame để hiển thị ra màn hình cho người dùng xem trước
-      if (_isPaused || _isDraggingSlider) {
-        var (ret, frame) = _cap!.read();
-        if (ret && frame.isEmpty) {
-          var (success, encodedFrame) = cv.imencode(".jpg", frame);
-          if (success) {
-            setState(() { _currentFrameBytes = encodedFrame; });
-          }
-          // Trả lại đúng vị trí frame để play tiếp không bị mất 1 frame
-          _cap!.set(cv.CAP_PROP_POS_FRAMES, frameNum);
-        }
-      }
-    }
-  }
-
-  // HÀM ĐỔI TỐC ĐỘ (Vòng lặp: 1x -> 1.5x -> 2x -> 0.5x -> 1x)
-  void _cycleSpeed() {
-    setState(() {
-      if (_playbackSpeed == 1.0) _playbackSpeed = 1.5;
-      else if (_playbackSpeed == 1.5) _playbackSpeed = 2.0;
-      else if (_playbackSpeed == 2.0) _playbackSpeed = 0.5;
-      else _playbackSpeed = 1.0;
-    });
-  }
-
-  // Đổi giây sang định dạng MM:SS
-  String _formatTime(double totalFrames, double fps) {
-    if (fps == 0) return "00:00";
-    int totalSeconds = (totalFrames / fps).round();
-    int m = totalSeconds ~/ 60;
-    int s = totalSeconds % 60;
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  @override
+  void initState() {
+    super.initState();
+    // Chúng ta không cần lắng nghe controller.addListener nữa vì đã dùng ValueNotifier
+    _controller.init();
   }
 
   @override
   void dispose() {
-    _isPlaying = false;
-    _cap?.release();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final topPadding = MediaQuery.of(context).padding.top;
+
     return Scaffold(
-      backgroundColor: Colors.black87,
-      appBar: AppBar(
-        title: const Text("Autonomous Navigation"),
-        backgroundColor: Colors.black,
-        elevation: 0,
-      ),
-      body: Column(
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
         children: [
-          // ==============================
-          // NỬA TRÊN: MÀN HÌNH CAMERA/VIDEO
-          // ==============================
-          Expanded(
-            flex: 3,
-            child: Container(
-              color: Colors.black,
-              child: _currentFrameBytes != null && _imageSize != Size.zero
-                  ? Center(
-                child: AspectRatio(
-                  aspectRatio: _imageSize.width / _imageSize.height,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Image.memory(
-                        _currentFrameBytes!,
-                        fit: BoxFit.fill,
-                        gaplessPlayback: true,
-                      ),
-                      CustomPaint(
-                        painter: FlowPainter(
-                          points: _pointsToDraw,
-                          imageSize: _imageSize,
-                          staticRois: _staticRois, // Cập nhật tên biến
-                        ),
-                      ),
-                    ],
+          // 1. CHƯƠNG TRÌNH PHÁT VIDEO / CAMERA (Dùng ValueListenableBuilder để chỉ rebuild khu vực này)
+          ValueListenableBuilder(
+            valueListenable: _controller.frameNotifier,
+            builder: (context, bytes, child) {
+              return _buildVideoBackground(bytes);
+            },
+          ),
+
+          // 2. HUD - LA BÀN AR
+          ValueListenableBuilder(
+            valueListenable: _controller.headingNotifier,
+            builder: (context, heading, child) {
+              if (_controller.frameNotifier.value == null) return const SizedBox.shrink();
+              return _buildAROverlay(heading);
+            },
+          ),
+
+          // 3. THANH TRẠNG THÁI PHÍA TRÊN
+          Positioned(
+            top: topPadding + 10,
+            left: 16,
+            right: 16,
+            child: _buildTopStatusPanel(),
+          ),
+
+          // 4. BẢNG ĐIỀU KHIỂN PHÍA DƯỚI
+          Positioned(
+            bottom: 30,
+            left: 16,
+            right: 16,
+            child: _buildBottomControlPanel(theme),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVideoBackground(var bytes) {
+    if (bytes != null && _controller.imageSize != Size.zero) {
+      return Center(
+        child: RepaintBoundary(
+          child: FittedBox(
+            fit: BoxFit.contain,
+            child: SizedBox(
+              width: _controller.imageSize.width,
+              height: _controller.imageSize.height,
+              child: Stack(
+                children: [
+                  Image.memory(
+                    bytes,
+                    fit: BoxFit.contain,
+                    gaplessPlayback: true,
+                    filterQuality: FilterQuality.low,
                   ),
-                ),
-              )
-                  : const Center(
-                child: Icon(Icons.videocam_off, color: Colors.white54, size: 60),
+                  CustomPaint(
+                    painter: FlowPainter(
+                      points: _controller.pointsToDraw,
+                      imageSize: _controller.imageSize,
+                      staticRois: _controller.staticRois,
+                      aiObstacles: _controller.aiObstacles, // Dùng aiObstacles thay vì forbiddenZones để vẽ khung đỏ
+                      isDebugMode: _isDebugMode,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-
-          // ==============================
-          // NỬA DƯỚI: DASHBOARD ĐIỀU HƯỚNG & CONTROL
-          // ==============================
-          Expanded(
-            flex: 3,
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.grey[900],
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(30),
-                  topRight: Radius.circular(30),
-                ),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-
-                  // 1. LA BÀN ĐIỀU HƯỚNG
-                  Column(
-                    children: [
-                      AnimatedRotation(
-                        turns: _steeringAngle / (2 * math.pi),
-                        duration: const Duration(milliseconds: 100),
-                        child: Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.black,
-                              border: Border.all(color: Colors.cyanAccent.withOpacity(0.5), width: 3),
-                              boxShadow: [
-                                BoxShadow(color: Colors.cyanAccent.withOpacity(0.2), blurRadius: 15, spreadRadius: 5)
-                              ]
-                          ),
-                          child: const Center(
-                            child: Icon(Icons.navigation, color: Colors.redAccent, size: 45),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        _moveVector.distance < 0.1 ? "HOLDING" : "MOVING",
-                        style: TextStyle(
-                            color: _moveVector.distance < 0.1 ? Colors.white54 : Colors.greenAccent,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16
-                        ),
-                      )
-                    ],
-                  ),
-
-                  // 2. VIDEO TIMELINE (THANH TRƯỢT)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      children: [
-                        Text(_formatTime(_currentFrame, _fps), style: const TextStyle(color: Colors.white)),
-                        Expanded(
-                          child: Slider(
-                            value: _currentFrame.clamp(0.0, _totalFrames > 0 ? _totalFrames : 1.0),
-                            min: 0.0,
-                            max: _totalFrames > 0 ? _totalFrames : 1.0,
-                            activeColor: Colors.cyanAccent,
-                            inactiveColor: Colors.white24,
-                            onChangeStart: (val) {
-                              setState(() { _isDraggingSlider = true; });
-                            },
-                            onChanged: (val) {
-                              setState(() { _currentFrame = val; });
-                              _seekTo(val); // Cập nhật hình ảnh lập tức khi kéo
-                            },
-                            onChangeEnd: (val) {
-                              setState(() { _isDraggingSlider = false; });
-                            },
-                          ),
-                        ),
-                        Text(_formatTime(_totalFrames, _fps), style: const TextStyle(color: Colors.white)),
-                      ],
-                    ),
-                  ),
-
-                  // 3. CÁC NÚT ĐIỀU KHIỂN (Play/Pause, Tốc độ)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      // Nút tải Video
-                      IconButton(
-                        icon: const Icon(Icons.video_library),
-                        color: Colors.white54,
-                        iconSize: 30,
-                        onPressed: _isPlaying && !_isPaused ? null : _pickAndPlayVideo,
-                      ),
-
-                      // Nút Tốc Độ Phát
-                      TextButton(
-                        onPressed: _isPlaying ? _cycleSpeed : null,
-                        style: TextButton.styleFrom(backgroundColor: Colors.white10, shape: const StadiumBorder()),
-                        child: Text("${_playbackSpeed}x", style: const TextStyle(color: Colors.white, fontSize: 16)),
-                      ),
-
-                      // Nút Play / Pause khổng lồ
-                      Container(
-                        decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.redAccent.withOpacity(0.8)),
-                        child: IconButton(
-                          icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
-                          color: Colors.white,
-                          iconSize: 45,
-                          onPressed: () {
-                            if (_isPlaying) {
-                              setState(() { _isPaused = !_isPaused; });
-                            }
-                          },
-                        ),
-                      ),
-
-                      // Nút Reset Tracking
-                      IconButton(
-                        icon: const Icon(Icons.restart_alt),
-                        color: Colors.white54,
-                        iconSize: 30,
-                        onPressed: () { _cvCore.resetTracking(); },
-                      ),
-                    ],
-                  )
-                ],
-              ),
+        ),
+      );
+    }
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.videocam_off_outlined, color: Colors.white24, size: 64),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            "Ready to Stream",
+            style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600, letterSpacing: 1.1),
+          ),
+          const SizedBox(height: 32),
+          ElevatedButton.icon(
+            onPressed: _controller.pickAndPlayVideo,
+            icon: const Icon(Icons.add_to_photos_rounded),
+            label: const Text("CHỌN NGUỒN VIDEO"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.cyanAccent.withOpacity(0.8),
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
             ),
           )
         ],
       ),
     );
+  }
+
+  Widget _buildAROverlay(double heading) {
+    return IgnorePointer(
+      child: Stack(
+        children: [
+          // Dùng Positioned để neo la bàn xuống góc dưới cùng bên phải,
+          // ngay phía trên bảng điều khiển.
+          Positioned(
+            bottom: 150, // Điều chỉnh độ cao so với đáy màn hình
+            right: 24,   // Cách mép phải 24px
+            child: Opacity(
+              opacity: 0.6, // Tăng độ nét lên một chút vì la bàn đã nhỏ lại
+              child: AnimatedRotation(
+                turns: heading / 360.0,
+                duration: const Duration(milliseconds: 150),
+                child: Container(
+                  width: 100, // Thu nhỏ kích thước từ 200 xuống 100
+                  height: 100,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.black.withOpacity(0.3), // Thêm nền mờ để nổi bật mũi tên
+                    border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Mũi tên đỏ chỉ hướng
+                      const Icon(Icons.navigation_rounded, color: Colors.redAccent, size: 50),
+
+                      // Vẽ 4 vạch đánh dấu (Bắc, Nam, Đông, Tây)
+                      ...List.generate(4, (index) {
+                        return Transform.rotate(
+                          angle: (index * 90) * 3.14159 / 180,
+                          child: const Align(
+                            alignment: Alignment.topCenter,
+                            child: Padding(
+                              padding: EdgeInsets.all(4.0),
+                              child: SizedBox(
+                                  height: 8,
+                                  width: 2,
+                                  child: DecoratedBox(decoration: BoxDecoration(color: Colors.white54))
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopStatusPanel() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
+          ),
+          child: Row(
+            children: [
+              ValueListenableBuilder(
+                valueListenable: _controller.speedNotifier,
+                builder: (context, speed, child) {
+                  return _buildStatItem(
+                    label: "TỐC ĐỘ",
+                    value: _controller.isDemoMode ? "DEMO" : "${(speed * 3.6).toStringAsFixed(0)}",
+                    unit: "KM/H",
+                    color: Colors.white,
+                  );
+                },
+              ),
+              const Spacer(),
+              Container(width: 1, height: 40, color: Colors.white10),
+              const Spacer(),
+              ValueListenableBuilder(
+                valueListenable: _controller.headingNotifier,
+                builder: (context, heading, child) {
+                  return _buildStatItem(
+                    label: "HƯỚNG",
+                    value: "${heading.toStringAsFixed(0)}°",
+                    unit: _getDirectionString(heading),
+                    color: Colors.cyanAccent,
+                  );
+                },
+              ),
+              const Spacer(),
+              Container(width: 1, height: 40, color: Colors.white10),
+              const Spacer(),
+              _buildSystemIndicators(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem({required String label, required String value, required String unit, required Color color}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(value, style: TextStyle(color: color, fontSize: 28, fontWeight: FontWeight.bold)),
+            const SizedBox(width: 4),
+            Text(unit, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSystemIndicators() {
+    return ListenableBuilder(
+      listenable: _controller,
+      builder: (context, child) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Row(
+              children: [
+                _indicatorIcon(
+                  icon: Icons.satellite_alt_rounded,
+                  isActive: _controller.hasValidGps,
+                  activeColor: Colors.greenAccent,
+                ),
+                const SizedBox(width: 12),
+                _controller.isModelLoaded
+                    ? _indicatorIcon(icon: Icons.psychology_rounded, isActive: true, activeColor: Colors.cyanAccent)
+                    : const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orangeAccent)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _controller.isModelLoaded ? "AI ACTIVE" : "AI LOADING",
+              style: TextStyle(
+                color: _controller.isModelLoaded ? Colors.cyanAccent.withOpacity(0.7) : Colors.orangeAccent.withOpacity(0.7),
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _indicatorIcon({required IconData icon, required bool isActive, required Color activeColor}) {
+    return Icon(icon, color: isActive ? activeColor : Colors.white24, size: 20);
+  }
+
+  Widget _buildBottomControlPanel(ThemeData theme) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ValueListenableBuilder(
+          valueListenable: _controller.progressNotifier,
+          builder: (context, progress, child) {
+            return _buildProgressBar(progress);
+          },
+        ),
+        const SizedBox(height: 16),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
+              ),
+              child: ListenableBuilder(
+                listenable: _controller,
+                builder: (context, child) {
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _circleIconButton(
+                        icon: Icons.folder_copy_rounded,
+                        onPressed: _controller.pickAndPlayVideo,
+                      ),
+                      _circleIconButton(
+                        icon: _isDebugMode ? Icons.grid_view_rounded : Icons.grid_view_outlined,
+                        color: _isDebugMode ? Colors.cyanAccent : Colors.white70,
+                        onPressed: () => setState(() => _isDebugMode = !_isDebugMode),
+                      ),
+                      _buildPlayButton(),
+                      _buildSpeedToggle(),
+                      _circleIconButton(
+                        icon: Icons.refresh_rounded,
+                        onPressed: _controller.resetTracking,
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProgressBar(double progress) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(_controller.formatTime(progress, _controller.fps), style: const TextStyle(color: Colors.white38, fontSize: 11, fontFeatures: [FontFeature.tabularFigures()])),
+              Text(_controller.formatTime(_controller.totalFrames, _controller.fps), style: const TextStyle(color: Colors.white38, fontSize: 11, fontFeatures: [FontFeature.tabularFigures()])),
+            ],
+          ),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 4,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+              activeTrackColor: Colors.cyanAccent,
+              inactiveTrackColor: Colors.white10,
+              thumbColor: Colors.white,
+            ),
+            child: Slider(
+              value: progress.clamp(0.0, _controller.totalFrames > 0 ? _controller.totalFrames : 1.0),
+              min: 0.0,
+              max: _controller.totalFrames > 0 ? _controller.totalFrames : 1.0,
+              onChanged: (val) {
+                _controller.progressNotifier.value = val;
+                _controller.seekTo(val);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlayButton() {
+    return GestureDetector(
+      onTap: _controller.togglePause,
+      child: Container(
+        height: 56,
+        width: 56,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(color: Colors.cyanAccent.withOpacity(0.3), blurRadius: 15, spreadRadius: 2),
+          ],
+        ),
+        child: Icon(
+          _controller.isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+          color: Colors.black,
+          size: 32,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSpeedToggle() {
+    return GestureDetector(
+      onTap: _controller.isPlaying ? _controller.cycleSpeed : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          "${_controller.playbackSpeed}x",
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+        ),
+      ),
+    );
+  }
+
+  Widget _circleIconButton({required IconData icon, required VoidCallback onPressed, Color color = Colors.white70}) {
+    return IconButton(
+      icon: Icon(icon),
+      color: color,
+      iconSize: 24,
+      onPressed: onPressed,
+      splashRadius: 24,
+    );
+  }
+
+  String _getDirectionString(double heading) {
+    if (heading >= 337.5 || heading < 22.5) return "NORTH";
+    if (heading >= 22.5 && heading < 67.5) return "NE";
+    if (heading >= 67.5 && heading < 112.5) return "EAST";
+    if (heading >= 112.5 && heading < 157.5) return "SE";
+    if (heading >= 157.5 && heading < 202.5) return "SOUTH";
+    if (heading >= 202.5 && heading < 247.5) return "SW";
+    if (heading >= 247.5 && heading < 292.5) return "WEST";
+    if (heading >= 292.5 && heading < 337.5) return "NW";
+    return "N/A";
   }
 }
