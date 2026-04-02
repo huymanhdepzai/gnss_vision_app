@@ -94,4 +94,3 @@ flutter run
 ```
 
 ---
-*Dự án thực hiện phục vụ mục đích Đồ án tốt nghiệp (DATN).*

@@ -3,6 +3,16 @@ allprojects {
         google()
         mavenCentral()
     }
+    val localProperties = java.util.Properties()
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { localProperties.load(it) }
+    }
+
+    val mapboxToken = localProperties.getProperty("SDK_REGISTRY_TOKEN")
+    if (mapboxToken != null) {
+        extra.set("SDK_REGISTRY_TOKEN", mapboxToken)
+    }
 }
 
 val newBuildDir: Directory =

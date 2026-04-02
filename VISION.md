@@ -1,7 +1,5 @@
 # Báo cáo Hệ thống Thị giác máy tính (Vision System)
 
-Tài liệu này phân tích chi tiết các giải pháp kỹ thuật và thuật toán trong lõi xử lý hình ảnh của dự án **GNSS-Vision Navigation Assistant**. Hệ thống được thiết kế để giải quyết bài toán định vị hướng di chuyển khi tín hiệu vệ tinh bị nhiễu hoặc mất hoàn toàn.
-
 ---
 
 ## 1. Kiến trúc xử lý đa luồng (Tri-Isolate Architecture)
@@ -42,9 +40,7 @@ Trong đó $\alpha = 0.15$ giúp cân bằng giữa độ nhạy và độ ổn 
 
 ---
 
-## 3. Đột phá kỹ thuật: Dynamic Forbidden Zones (Vùng cấm động)
-
-Đây là điểm đặc biệt nhất của dự án: **Sự kết hợp giữa Deep Learning và Computer Vision cổ điển.**
+## 3. Dynamic Forbidden Zones (Vùng cấm động)
 
 *   **Vấn đề:** Khi một chiếc ô tô hoặc xe máy đi phía trước camera, các điểm đặc trưng Shi-Tomasi sẽ bám vào chiếc xe đó. Nếu xe đó rẽ trái, hệ thống Vision sẽ hiểu nhầm là bạn đang rẽ phải.
 *   **Giải pháp:** 
@@ -57,7 +53,7 @@ Trong đó $\alpha = 0.15$ giúp cân bằng giữa độ nhạy và độ ổn 
 
 ## 4. Cơ chế Sensor Fusion (Hợp nhất cảm biến)
 
-Dữ liệu Vision sau khi xử lý sẽ được hợp nhất với GPS tại `sensor_fusion.dart` theo logic:
+Dữ liệu Vision sau khi xử lý sẽ được hợp nhất với GPS  theo logic:
 
 *   **Tình huống GPS tốt (Accuracy < 10m):** GPS giữ vai trò điều hướng chính, Vision đóng vai trò làm mượt góc xoay (Smoothing).
 *   **Tình huống GPS yếu (Hầm, Đô thị dày đặc):** 
@@ -67,11 +63,10 @@ Dữ liệu Vision sau khi xử lý sẽ được hợp nhất với GPS tại `
 
 ---
 
-## 5. Các con số tối ưu hóa ấn tượng
+## 5. Các con số tối ưu hóa 
 
 *   **Độ phân giải xử lý:** 240p (Đủ để nhận diện đặc trưng nhưng giảm 80% tải CPU so với 1080p).
 *   **Tần suất AI:** 3 Hz (Chạy mỗi 10 frames) - Giúp tiết kiệm 70% pin nhưng vẫn đảm bảo vùng cấm được cập nhật đủ nhanh.
 *   **Độ trễ hệ thống:** < 50ms từ lúc camera nhận hình ảnh đến lúc hiển thị trên HUD.
 
 ---
-*Báo cáo được biên soạn chi tiết cho Đồ án tốt nghiệp (DATN) - GNSS-Vision Project.*
