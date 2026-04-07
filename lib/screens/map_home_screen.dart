@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:demo_app/screens/satellite_screen_v2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:geolocator/geolocator.dart' as geo;
@@ -363,7 +364,7 @@ class _MapHomeScreenState extends State<MapHomeScreen> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const SatelliteScreen()),
+                  MaterialPageRoute(builder: (context) => const SatelliteScreenV2()),
                 );
               },
               child: const Icon(Icons.satellite_alt_rounded, color: Colors.orange),
