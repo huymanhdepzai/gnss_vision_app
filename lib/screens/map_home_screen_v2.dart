@@ -8,10 +8,13 @@ import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
+import 'package:provider/provider.dart';
 import 'dart:convert';
 
 import '../core/app_theme.dart';
 import '../core/page_transitions.dart';
+import '../controllers/theme_provider.dart';
+import '../widgets/theme_toggle_switch.dart';
 import 'satellite_screen_v2.dart';
 import 'flow_screen_v2.dart';
 
@@ -434,103 +437,117 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
   }
 
   Widget _buildModernDrawer() {
-    return Drawer(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      width: MediaQuery.of(context).size.width * 0.8,
-      child: Stack(
-        children: [
-          // Background Glass Effect
-          Positioned.fill(
-            child: ClipRRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppTheme.backgroundDark.withOpacity(0.9),
-                        AppTheme.surfaceDark.withOpacity(0.85),
-                      ],
-                    ),
-                    border: Border(
-                      right: BorderSide(
-                        color: Colors.white.withOpacity(0.1),
-                        width: 1,
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        final isDark = themeProvider.isDarkMode;
+
+        return Drawer(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          width: MediaQuery.of(context).size.width * 0.8,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: ClipRRect(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: isDark
+                              ? [
+                                  AppTheme.backgroundDark.withOpacity(0.9),
+                                  AppTheme.surfaceDark.withOpacity(0.85),
+                                ]
+                              : [
+                                  AppTheme.surfaceLight.withOpacity(0.95),
+                                  AppTheme.cardLight.withOpacity(0.9),
+                                ],
+                        ),
+                        border: Border(
+                          right: BorderSide(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.1)
+                                : Colors.grey.withOpacity(0.2),
+                            width: 1,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
-
-          // Drawer Content
-          SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildDrawerHeader(),
-                const SizedBox(height: 30),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Text(
-                    "DEMO FUNCTIONS",
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
+              SafeArea(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildDrawerHeader(themeProvider),
+                    const SizedBox(height: 30),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Text(
+                        "DEMO FUNCTIONS",
+                        style: TextStyle(
+                          color: isDark
+                              ? Colors.white.withOpacity(0.4)
+                              : Colors.black.withOpacity(0.5),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 20),
+                    _buildDrawerItem(
+                      icon: Icons.auto_awesome_rounded,
+                      title: "GNSS-Vision (V2)",
+                      subtitle: "Sensor fusion & AI Object detection",
+                      color: AppTheme.primaryColor,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          PageTransition(
+                            child: const FlowScreenV2(),
+                            type: PageTransitionType.slideUp,
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDrawerItem(
+                      icon: Icons.satellite_alt_rounded,
+                      title: "Satellite View (V2)",
+                      subtitle: "Real-time 3D Globe & GNSS Status",
+                      color: AppTheme.warningColor,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          PageTransition(
+                            child: const SatelliteScreenV2(),
+                            type: PageTransitionType.fadeSlide,
+                            duration: const Duration(milliseconds: 600),
+                          ),
+                        );
+                      },
+                    ),
+                    const Spacer(),
+                    _buildDrawerFooter(),
+                  ],
                 ),
-                const SizedBox(height: 20),
-                _buildDrawerItem(
-                  icon: Icons.auto_awesome_rounded,
-                  title: "GNSS-Vision (V2)",
-                  subtitle: "Sensor fusion & AI Object detection",
-                  color: AppTheme.primaryColor,
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      PageTransition(
-                        child: const FlowScreenV2(),
-                        type: PageTransitionType.slideUp,
-                      ),
-                    );
-                  },
-                ),
-                _buildDrawerItem(
-                  icon: Icons.satellite_alt_rounded,
-                  title: "Satellite View (V2)",
-                  subtitle: "Real-time 3D Globe & GNSS Status",
-                  color: AppTheme.warningColor,
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      PageTransition(
-                        child: const SatelliteScreenV2(),
-                        type: PageTransitionType.fadeSlide,
-                        duration: const Duration(milliseconds: 600),
-                      ),
-                    );
-                  },
-                ),
-                const Spacer(),
-                _buildDrawerFooter(),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildDrawerHeader() {
+  Widget _buildDrawerHeader(ThemeProvider themeProvider) {
+    final isDark = themeProvider.isDarkMode;
+
     return Container(
       padding: const EdgeInsets.all(30),
       child: Column(
@@ -549,13 +566,17 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                 ),
               ],
             ),
-            child: const Icon(Icons.explore_rounded, color: Colors.white, size: 32),
+            child: const Icon(
+              Icons.explore_rounded,
+              color: Colors.white,
+              size: 32,
+            ),
           ),
           const SizedBox(height: 20),
-          const Text(
+          Text(
             "Navigation AI",
             style: TextStyle(
-              color: Colors.white,
+              color: isDark ? Colors.white : AppTheme.textDark,
               fontSize: 24,
               fontWeight: FontWeight.bold,
               letterSpacing: 1,
@@ -565,7 +586,9 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
           Text(
             "Next-Gen Mobility System",
             style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
+              color: isDark
+                  ? Colors.white.withOpacity(0.5)
+                  : Colors.black.withOpacity(0.5),
               fontSize: 13,
               fontWeight: FontWeight.w300,
             ),
@@ -582,163 +605,278 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
     required Color color,
     required VoidCallback onTap,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.mediumImpact();
-            onTap();
-          },
-          borderRadius: BorderRadius.circular(20),
-          splashColor: color.withOpacity(0.1),
-          highlightColor: color.withOpacity(0.05),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        final isDark = themeProvider.isDarkMode;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                onTap();
+              },
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.05),
-                width: 1,
+              splashColor: color.withOpacity(0.1),
+              highlightColor: color.withOpacity(0.05),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withOpacity(0.05)
+                        : Colors.grey.withOpacity(0.15),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: color.withOpacity(0.2),
+                            blurRadius: 10,
+                            spreadRadius: -2,
+                          ),
+                        ],
+                      ),
+                      child: Icon(icon, color: color, size: 22),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: TextStyle(
+                              color: isDark ? Colors.white : AppTheme.textDark,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle,
+                            style: TextStyle(
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.4)
+                                  : Colors.black.withOpacity(0.5),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: isDark
+                          ? Colors.white.withOpacity(0.2)
+                          : Colors.black.withOpacity(0.3),
+                      size: 14,
+                    ),
+                  ],
+                ),
               ),
             ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: color.withOpacity(0.2),
-                        blurRadius: 10,
-                        spreadRadius: -2,
-                      ),
-                    ],
-                  ),
-                  child: Icon(icon, color: color, size: 22),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.4),
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: Colors.white.withOpacity(0.2),
-                  size: 14,
-                ),
-              ],
-            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   Widget _buildDrawerFooter() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.settings_rounded, color: Colors.white60, size: 18),
-          ),
-          const SizedBox(width: 16),
-          const Text(
-            "Settings v2.0",
-            style: TextStyle(
-              color: Colors.white54,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        final isDark = themeProvider.isDarkMode;
+
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(
+                color: isDark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.grey.withOpacity(0.2),
+                width: 1,
+              ),
             ),
           ),
-        ],
-      ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppTheme.primaryColor.withOpacity(0.2),
+                              AppTheme.secondaryColor.withOpacity(0.15),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.primaryColor.withOpacity(0.2),
+                              blurRadius: 8,
+                              spreadRadius: -2,
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          Icons.palette_outlined,
+                          color: AppTheme.primaryColor,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        "Theme Mode",
+                        style: TextStyle(
+                          color: isDark ? Colors.white : AppTheme.textDark,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const ThemeToggleSwitch(width: 75, height: 38),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.05)
+                      : Colors.black.withOpacity(0.03),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isDark ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+                      size: 14,
+                      color: isDark
+                          ? AppTheme.secondaryColor
+                          : AppTheme.warningColor,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      isDark ? "Dark Mode Active" : "Light Mode Active",
+                      style: TextStyle(
+                        color: isDark
+                            ? Colors.white.withOpacity(0.6)
+                            : Colors.black.withOpacity(0.6),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
   Widget _buildModernSearchBar() {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppTheme.backgroundDark.withOpacity(0.7),
-              Colors.transparent,
-            ],
-            stops: const [0.0, 1.0],
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        final isDark = themeProvider.isDarkMode;
+
+        return Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: isDark
+                    ? [
+                        AppTheme.backgroundDark.withOpacity(0.8),
+                        Colors.transparent,
+                      ]
+                    : [
+                        Colors.white.withOpacity(0.95),
+                        Colors.white.withOpacity(0.7),
+                        Colors.transparent,
+                      ],
+              ),
+            ),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              MediaQuery.of(context).padding.top + 10,
+              16,
+              20,
+            ),
+            child: Column(
+              children: [
+                _buildSearchInput(themeProvider),
+                if (_searchResults.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _buildSearchResults(themeProvider),
+                ],
+              ],
+            ),
           ),
-        ),
-        padding: EdgeInsets.fromLTRB(
-          16,
-          MediaQuery.of(context).padding.top + 10,
-          16,
-          20,
-        ),
-        child: Column(
-          children: [
-            _buildSearchInput(),
-            if (_searchResults.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _buildSearchResults(),
-            ],
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildSearchInput() {
+  Widget _buildSearchInput(ThemeProvider themeProvider) {
+    final isDark = themeProvider.isDarkMode;
+    final textColor = isDark ? Colors.white : AppTheme.textDark;
+    final hintTextStyle = isDark
+        ? Colors.white.withOpacity(0.4)
+        : Colors.black.withOpacity(0.5);
+
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withOpacity(0.15),
-            Colors.white.withOpacity(0.05),
-          ],
-        ),
+        color: isDark
+            ? Colors.white.withOpacity(0.08)
+            : Colors.white.withOpacity(0.9),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.15)
+              : Colors.grey.withOpacity(0.25),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.primaryColor.withOpacity(0.1),
+            color: isDark
+                ? AppTheme.primaryColor.withOpacity(0.1)
+                : Colors.black.withOpacity(0.05),
             blurRadius: 20,
             spreadRadius: -5,
           ),
+          if (!isDark)
+            BoxShadow(
+              color: Colors.white.withOpacity(0.8),
+              blurRadius: 10,
+              spreadRadius: -2,
+            ),
         ],
       ),
       child: ClipRRect(
@@ -755,29 +893,34 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: isDark
+                            ? Colors.white.withOpacity(0.1)
+                            : Colors.black.withOpacity(0.05),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.menu_rounded,
-                        color: Colors.white70,
+                        color: isDark ? Colors.white70 : Colors.black54,
                         size: 20,
                       ),
                     ),
                   ),
-                if (_currentState == MapState.explore) const SizedBox(width: 12),
+                if (_currentState == MapState.explore)
+                  const SizedBox(width: 12),
                 if (_currentState == MapState.placeDetail)
                   GestureDetector(
                     onTap: _resetToExplore,
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: isDark
+                            ? Colors.white.withOpacity(0.1)
+                            : Colors.black.withOpacity(0.05),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.arrow_back_ios_new_rounded,
-                        color: Colors.white70,
+                        color: isDark ? Colors.white70 : Colors.black54,
                         size: 18,
                       ),
                     ),
@@ -794,7 +937,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                       ),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.search_rounded,
                       color: Colors.white,
                       size: 20,
@@ -805,13 +948,10 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                   child: TextField(
                     controller: _searchController,
                     onChanged: _onSearchChanged,
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                    style: TextStyle(color: textColor, fontSize: 16),
                     decoration: InputDecoration(
                       hintText: "Tìm kiếm điểm đến...",
-                      hintStyle: TextStyle(
-                        color: Colors.white.withOpacity(0.4),
-                        fontSize: 16,
-                      ),
+                      hintStyle: TextStyle(color: hintTextStyle, fontSize: 16),
                       border: InputBorder.none,
                       isDense: true,
                     ),
@@ -838,12 +978,14 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: isDark
+                            ? Colors.white.withOpacity(0.1)
+                            : Colors.black.withOpacity(0.05),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.close_rounded,
-                        color: Colors.white60,
+                        color: isDark ? Colors.white60 : Colors.black45,
                         size: 16,
                       ),
                     ),
@@ -891,23 +1033,38 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
     );
   }
 
-  Widget _buildSearchResults() {
+  Widget _buildSearchResults(ThemeProvider themeProvider) {
+    final isDark = themeProvider.isDarkMode;
+    final textColor = isDark ? Colors.white : AppTheme.textDark;
+    final subtextColor = isDark
+        ? Colors.white.withOpacity(0.5)
+        : Colors.black.withOpacity(0.6);
+
     return AnimatedSize(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutCubic,
       child: Container(
         constraints: const BoxConstraints(maxHeight: 350),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white.withOpacity(0.12),
-              Colors.white.withOpacity(0.05),
-            ],
-          ),
+          color: isDark
+              ? Colors.white.withOpacity(0.08)
+              : Colors.white.withOpacity(0.95),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withOpacity(0.15)
+                : Colors.grey.withOpacity(0.2),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isDark
+                  ? Colors.black.withOpacity(0.3)
+                  : Colors.black.withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
@@ -917,8 +1074,12 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
               shrinkWrap: true,
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: _searchResults.length,
-              separatorBuilder: (_, __) =>
-                  Divider(height: 1, color: Colors.white.withOpacity(0.1)),
+              separatorBuilder: (_, __) => Divider(
+                height: 1,
+                color: isDark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.grey.withOpacity(0.15),
+              ),
               itemBuilder: (context, index) {
                 var place = _searchResults[index];
                 String mainText =
@@ -981,10 +1142,10 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                                     mainText,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontWeight: FontWeight.w600,
                                       fontSize: 15,
-                                      color: Colors.white,
+                                      color: textColor,
                                     ),
                                   ),
                                   if (secondaryText.isNotEmpty) ...[
@@ -994,7 +1155,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        color: Colors.white.withOpacity(0.5),
+                                        color: subtextColor,
                                         fontSize: 13,
                                       ),
                                     ),
@@ -1003,9 +1164,11 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                               ),
                             ),
                             Icon(
-                              Icons.north_west_rounded,
-                              color: Colors.white.withOpacity(0.3),
-                              size: 18,
+                              Icons.arrow_forward_ios_rounded,
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.3)
+                                  : Colors.black.withOpacity(0.3),
+                              size: 14,
                             ),
                           ],
                         ),

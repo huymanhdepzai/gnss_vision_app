@@ -3,10 +3,13 @@ import 'dart:ui';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../core/app_theme.dart';
 import '../core/page_transitions.dart';
 import '../controllers/flow_controller.dart';
+import '../controllers/theme_provider.dart';
 import '../widgets/flow_painter.dart';
+import 'dart:ui' as ui;
 
 class FlowScreenV2 extends StatefulWidget {
   const FlowScreenV2({Key? key}) : super(key: key);
@@ -83,23 +86,31 @@ class _FlowScreenV2State extends State<FlowScreenV2>
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
 
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundDark,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          _buildVideoBackground(),
-          _buildAmbientEffects(),
-          _buildAROverlay(),
-          _buildTopPanel(topPadding),
-          _buildBottomPanel(),
-          _buildCompassOverlay(),
-        ],
-      ),
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        final isDark = themeProvider.isDarkMode;
+
+        return Scaffold(
+          backgroundColor: isDark
+              ? AppTheme.backgroundDark
+              : AppTheme.backgroundLight,
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              _buildVideoBackground(isDark),
+              _buildAmbientEffects(isDark),
+              _buildAROverlay(),
+              _buildTopPanel(topPadding, isDark),
+              _buildBottomPanel(isDark),
+              _buildCompassOverlay(isDark),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildVideoBackground() {
+  Widget _buildVideoBackground(bool isDark) {
     return ValueListenableBuilder(
       valueListenable: _controller.frameNotifier,
       builder: (context, bytes, child) {
@@ -135,12 +146,20 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             ),
           );
         }
-        return _buildPlaceholder();
+        return _buildPlaceholder(isDark);
       },
     );
   }
 
-  Widget _buildPlaceholder() {
+  Widget _buildPlaceholder(bool isDark) {
+    final textColor = isDark ? Colors.white : AppTheme.textDark;
+    final subtextColor = isDark
+        ? Colors.white.withOpacity(0.7)
+        : Colors.black.withOpacity(0.7);
+    final hintColor = isDark
+        ? Colors.white.withOpacity(0.4)
+        : Colors.black.withOpacity(0.5);
+
     return FadeTransition(
       opacity: _fadeAnimation,
       child: Center(
@@ -165,7 +184,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                   ),
                   child: Icon(
                     Icons.videocam_off_rounded,
-                    color: Colors.white.withOpacity(0.3),
+                    color: hintColor,
                     size: 80,
                   ),
                 );
@@ -175,7 +194,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             Text(
               "Ready to Stream",
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
+                color: subtextColor,
                 fontSize: 24,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 2,
@@ -185,7 +204,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             Text(
               "Select a video to begin analysis",
               style: TextStyle(
-                color: Colors.white.withOpacity(0.4),
+                color: hintColor,
                 fontSize: 14,
                 letterSpacing: 1,
               ),
@@ -241,7 +260,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
     );
   }
 
-  Widget _buildAmbientEffects() {
+  Widget _buildAmbientEffects(bool isDark) {
     return Stack(
       children: [
         AnimatedBuilder(
@@ -307,12 +326,16 @@ class _FlowScreenV2State extends State<FlowScreenV2>
     );
   }
 
-  Widget _buildCompassOverlay() {
+  Widget _buildCompassOverlay(bool isDark) {
     return ValueListenableBuilder(
       valueListenable: _controller.headingNotifier,
       builder: (context, heading, child) {
         if (_controller.frameNotifier.value == null)
           return const SizedBox.shrink();
+
+        final bgGradient = isDark
+            ? [Colors.black.withOpacity(0.5), Colors.black.withOpacity(0.3)]
+            : [Colors.white.withOpacity(0.85), Colors.white.withOpacity(0.7)];
 
         return Positioned(
           bottom: 200,
@@ -330,10 +353,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        Colors.black.withOpacity(0.5),
-                        Colors.black.withOpacity(0.3),
-                      ],
+                      colors: bgGradient,
                     ),
                     border: Border.all(
                       color: AppTheme.secondaryColor.withOpacity(0.3),
@@ -344,6 +364,13 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                         color: AppTheme.secondaryColor.withOpacity(0.2),
                         blurRadius: 15,
                         spreadRadius: -5,
+                      ),
+                      BoxShadow(
+                        color: isDark
+                            ? Colors.transparent
+                            : Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
@@ -373,7 +400,9 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                                 height: 6,
                                 width: 2,
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.4),
+                                  color: isDark
+                                      ? Colors.white.withOpacity(0.4)
+                                      : Colors.black.withOpacity(0.3),
                                   borderRadius: BorderRadius.circular(1),
                                 ),
                               ),
@@ -392,7 +421,18 @@ class _FlowScreenV2State extends State<FlowScreenV2>
     );
   }
 
-  Widget _buildTopPanel(double topPadding) {
+  Widget _buildTopPanel(double topPadding, bool isDark) {
+    final textColor = isDark ? Colors.white : AppTheme.textDark;
+    final subtextColor = isDark
+        ? Colors.white.withOpacity(0.4)
+        : Colors.black.withOpacity(0.5);
+    final bordercolor = isDark
+        ? Colors.white.withOpacity(0.1)
+        : Colors.grey.withOpacity(0.2);
+    final bgColors = isDark
+        ? [Colors.black.withOpacity(0.4), Colors.black.withOpacity(0.2)]
+        : [Colors.white.withOpacity(0.85), Colors.white.withOpacity(0.65)];
+
     return Positioned(
       top: topPadding + 10,
       left: 16,
@@ -411,16 +451,19 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      Colors.black.withOpacity(0.4),
-                      Colors.black.withOpacity(0.2),
-                    ],
+                    colors: bgColors,
                   ),
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.1),
-                    width: 1,
-                  ),
+                  border: Border.all(color: bordercolor, width: 1),
+                  boxShadow: [
+                    BoxShadow(
+                      color: isDark
+                          ? Colors.transparent
+                          : Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Row(
                   children: [
@@ -432,8 +475,13 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                       unit: "KM/H",
                       color: AppTheme.secondaryColor,
                       icon: Icons.speed_rounded,
+                      isDark: isDark,
                     ),
-                    Container(width: 1, height: 40, color: Colors.white10),
+                    Container(
+                      width: 1,
+                      height: 40,
+                      color: isDark ? Colors.white10 : Colors.black12,
+                    ),
                     _buildStatItem(
                       label: "HƯỚNG",
                       value:
@@ -443,9 +491,14 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                       ),
                       color: AppTheme.primaryColor,
                       icon: Icons.explore_rounded,
+                      isDark: isDark,
                     ),
-                    Container(width: 1, height: 40, color: Colors.white10),
-                    Expanded(child: _buildSystemIndicators()),
+                    Container(
+                      width: 1,
+                      height: 40,
+                      color: isDark ? Colors.white10 : Colors.black12,
+                    ),
+                    Expanded(child: _buildSystemIndicators(isDark)),
                   ],
                 ),
               ),
@@ -466,7 +519,13 @@ class _FlowScreenV2State extends State<FlowScreenV2>
     required String unit,
     required Color color,
     required IconData icon,
+    required bool isDark,
   }) {
+    final textColor = isDark ? Colors.white : AppTheme.textDark;
+    final subtextColor = isDark
+        ? Colors.white.withOpacity(0.4)
+        : Colors.black.withOpacity(0.5);
+
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -485,7 +544,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
               Text(
                 label,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.4),
+                  color: subtextColor,
                   fontSize: 9,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1,
@@ -526,7 +585,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
     );
   }
 
-  Widget _buildSystemIndicators() {
+  Widget _buildSystemIndicators(bool isDark) {
     return ListenableBuilder(
       listenable: _controller,
       builder: (context, child) {
@@ -540,6 +599,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                   icon: Icons.satellite_alt_rounded,
                   isActive: _controller.hasValidGps,
                   activeColor: AppTheme.successColor,
+                  isDark: isDark,
                 ),
                 const SizedBox(width: 12),
                 _buildIndicatorIcon(
@@ -547,6 +607,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                   isActive: _controller.isModelLoaded,
                   activeColor: AppTheme.secondaryColor,
                   isLoading: !_controller.isModelLoaded,
+                  isDark: isDark,
                 ),
               ],
             ),
@@ -581,6 +642,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
     required IconData icon,
     required bool isActive,
     required Color activeColor,
+    required bool isDark,
     bool isLoading = false,
   }) {
     if (isLoading) {
@@ -601,7 +663,9 @@ class _FlowScreenV2State extends State<FlowScreenV2>
           decoration: BoxDecoration(
             color: isActive
                 ? activeColor.withOpacity(0.2)
-                : Colors.white.withOpacity(0.05),
+                : (isDark
+                      ? Colors.white.withOpacity(0.05)
+                      : Colors.black.withOpacity(0.05)),
             borderRadius: BorderRadius.circular(8),
             boxShadow: isActive
                 ? [
@@ -617,7 +681,9 @@ class _FlowScreenV2State extends State<FlowScreenV2>
           ),
           child: Icon(
             icon,
-            color: isActive ? activeColor : Colors.white24,
+            color: isActive
+                ? activeColor
+                : (isDark ? Colors.white24 : Colors.black26),
             size: 16,
           ),
         );
@@ -625,7 +691,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
     );
   }
 
-  Widget _buildBottomPanel() {
+  Widget _buildBottomPanel(bool isDark) {
     return Positioned(
       bottom: 30,
       left: 16,
@@ -638,31 +704,45 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             ValueListenableBuilder(
               valueListenable: _controller.progressNotifier,
               builder: (context, progress, child) {
-                return _buildProgressBar(progress);
+                return _buildProgressBar(progress, isDark);
               },
             ),
             const SizedBox(height: 16),
-            _buildControlsPanel(),
+            _buildControlsPanel(isDark),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildProgressBar(double progress) {
+  Widget _buildProgressBar(double progress, bool isDark) {
+    final textColor = isDark
+        ? Colors.white.withOpacity(0.5)
+        : Colors.black.withOpacity(0.6);
+    final bgColors = isDark
+        ? [Colors.black.withOpacity(0.4), Colors.black.withOpacity(0.2)]
+        : [Colors.white.withOpacity(0.9), Colors.white.withOpacity(0.7)];
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.1)
+        : Colors.grey.withOpacity(0.2);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Colors.black.withOpacity(0.4),
-            Colors.black.withOpacity(0.2),
-          ],
+          colors: bgColors,
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.transparent : Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -672,7 +752,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
               Text(
                 _controller.formatTime(progress, _controller.fps),
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
+                  color: textColor,
                   fontSize: 11,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
@@ -683,7 +763,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                   _controller.fps,
                 ),
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
+                  color: textColor,
                   fontSize: 11,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
@@ -697,8 +777,8 @@ class _FlowScreenV2State extends State<FlowScreenV2>
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
               overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
               activeTrackColor: AppTheme.secondaryColor,
-              inactiveTrackColor: Colors.white10,
-              thumbColor: Colors.white,
+              inactiveTrackColor: isDark ? Colors.white10 : Colors.black12,
+              thumbColor: isDark ? Colors.white : AppTheme.primaryColor,
               overlayColor: AppTheme.secondaryColor.withOpacity(0.3),
             ),
             child: Slider(
@@ -719,7 +799,14 @@ class _FlowScreenV2State extends State<FlowScreenV2>
     );
   }
 
-  Widget _buildControlsPanel() {
+  Widget _buildControlsPanel(bool isDark) {
+    final bgColor = isDark
+        ? [Colors.black.withOpacity(0.6), Colors.black.withOpacity(0.4)]
+        : [Colors.white.withOpacity(0.9), Colors.white.withOpacity(0.7)];
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.1)
+        : Colors.grey.withOpacity(0.2);
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(30),
       child: BackdropFilter(
@@ -730,13 +817,19 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Colors.black.withOpacity(0.6),
-                Colors.black.withOpacity(0.4),
-              ],
+              colors: bgColor,
             ),
             borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(color: borderColor),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.transparent
+                    : Colors.black.withOpacity(0.05),
+                blurRadius: 15,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: ListenableBuilder(
             listenable: _controller,
@@ -747,6 +840,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                   _buildControlButton(
                     icon: Icons.folder_copy_rounded,
                     onTap: _controller.pickAndPlayVideo,
+                    isDark: isDark,
                   ),
                   _buildControlButton(
                     icon: _isDebugMode
@@ -754,14 +848,16 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                         : Icons.grid_view_outlined,
                     color: _isDebugMode
                         ? AppTheme.secondaryColor
-                        : Colors.white54,
+                        : (isDark ? Colors.white54 : Colors.black54),
                     onTap: () => setState(() => _isDebugMode = !_isDebugMode),
+                    isDark: isDark,
                   ),
                   _buildPlayButton(),
-                  _buildSpeedButton(),
+                  _buildSpeedButton(isDark),
                   _buildControlButton(
                     icon: Icons.refresh_rounded,
                     onTap: _controller.resetTracking,
+                    isDark: isDark,
                   ),
                 ],
               );
@@ -776,6 +872,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
     required IconData icon,
     Color? color,
     required VoidCallback onTap,
+    required bool isDark,
   }) {
     return GestureDetector(
       onTap: () {
@@ -785,10 +882,16 @@ class _FlowScreenV2State extends State<FlowScreenV2>
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
+          color: isDark
+              ? Colors.white.withOpacity(0.1)
+              : Colors.black.withOpacity(0.05),
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Icon(icon, color: color ?? Colors.white70, size: 22),
+        child: Icon(
+          icon,
+          color: color ?? (isDark ? Colors.white70 : Colors.black54),
+          size: 22,
+        ),
       ),
     );
   }
@@ -822,7 +925,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
     );
   }
 
-  Widget _buildSpeedButton() {
+  Widget _buildSpeedButton(bool isDark) {
     return GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
@@ -831,14 +934,20 @@ class _FlowScreenV2State extends State<FlowScreenV2>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
+          color: isDark
+              ? Colors.white.withOpacity(0.1)
+              : Colors.black.withOpacity(0.05),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.1)),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.grey.withOpacity(0.2),
+          ),
         ),
         child: Text(
           "${_controller.playbackSpeed}x",
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: isDark ? Colors.white : AppTheme.textDark,
             fontWeight: FontWeight.bold,
             fontSize: 14,
           ),
