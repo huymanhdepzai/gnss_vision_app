@@ -14,7 +14,9 @@ import 'dart:convert';
 import '../core/app_theme.dart';
 import '../core/page_transitions.dart';
 import '../controllers/theme_provider.dart';
+import '../controllers/voice_controller.dart';
 import '../widgets/theme_toggle_switch.dart';
+import '../widgets/voice_toggle_switch.dart';
 import 'satellite_screen_v2.dart';
 import 'flow_screen_v2.dart';
 
@@ -62,6 +64,44 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
     super.initState();
     _initAnimations();
     _getUserLocation();
+    _initVoiceController();
+  }
+
+  void _initVoiceController() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final voiceController = context.read<VoiceController>();
+      voiceController.onCommandRecognized = _handleVoiceCommand;
+      if (voiceController.isEnabled) {
+        voiceController.initialize();
+      }
+    });
+  }
+
+  void _handleVoiceCommand(String command) {
+    switch (command) {
+      case 'gnss-vision':
+        Navigator.push(
+          context,
+          PageTransition(
+            child: const FlowScreenV2(),
+            type: PageTransitionType.slideUp,
+          ),
+        );
+        break;
+      case 'satellite':
+        Navigator.push(
+          context,
+          PageTransition(
+            child: const SatelliteScreenV2(),
+            type: PageTransitionType.fadeSlide,
+            duration: const Duration(milliseconds: 600),
+          ),
+        );
+        break;
+      case 'home':
+        Navigator.popUntil(context, (route) => route.isFirst);
+        break;
+    }
   }
 
   void _initAnimations() {
@@ -488,7 +528,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
-                        "DEMO FUNCTIONS",
+                        "CHỨC NĂNG CHÍNH",
                         style: TextStyle(
                           color: isDark
                               ? Colors.white.withOpacity(0.4)
@@ -502,8 +542,8 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                     const SizedBox(height: 20),
                     _buildDrawerItem(
                       icon: Icons.auto_awesome_rounded,
-                      title: "GNSS-Vision (V2)",
-                      subtitle: "Sensor fusion & AI Object detection",
+                      title: "GNSS-Vision",
+                      subtitle: "Cảm biến & nhận dạng đối tượng AI",
                       color: AppTheme.primaryColor,
                       onTap: () {
                         Navigator.pop(context);
@@ -518,8 +558,8 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                     ),
                     _buildDrawerItem(
                       icon: Icons.satellite_alt_rounded,
-                      title: "Satellite View (V2)",
-                      subtitle: "Real-time 3D Globe & GNSS Status",
+                      title: "Vệ Tinh 3D",
+                      subtitle: "Trạng thái vệ tinh",
                       color: AppTheme.warningColor,
                       onTap: () {
                         Navigator.pop(context);
@@ -574,7 +614,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
           ),
           const SizedBox(height: 20),
           Text(
-            "Navigation AI",
+            "GNSS VISION",
             style: TextStyle(
               color: isDark ? Colors.white : AppTheme.textDark,
               fontSize: 24,
@@ -584,7 +624,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
           ),
           const SizedBox(height: 4),
           Text(
-            "Next-Gen Mobility System",
+            "Hệ Thống Di Động Thế Hệ Mới",
             style: TextStyle(
               color: isDark
                   ? Colors.white.withOpacity(0.5)
@@ -675,13 +715,13 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                         ],
                       ),
                     ),
-                    Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      color: isDark
-                          ? Colors.white.withOpacity(0.2)
-                          : Colors.black.withOpacity(0.3),
-                      size: 14,
-                    ),
+                    // Icon(
+                    //   Icons.arrow_forward_ios_rounded,
+                    //   color: isDark
+                    //       ? Colors.white.withOpacity(0.2)
+                    //       : Colors.black.withOpacity(0.3),
+                    //   size: 14,
+                    // ),
                   ],
                 ),
               ),
@@ -693,8 +733,8 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
   }
 
   Widget _buildDrawerFooter() {
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, child) {
+    return Consumer2<ThemeProvider, VoiceController>(
+      builder: (context, themeProvider, voiceController, child) {
         final isDark = themeProvider.isDarkMode;
 
         return Container(
@@ -742,7 +782,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        "Theme Mode",
+                        "Chế Độ Giao Diện",
                         style: TextStyle(
                           color: isDark ? Colors.white : AppTheme.textDark,
                           fontSize: 15,
@@ -752,6 +792,55 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                     ],
                   ),
                   const ThemeToggleSwitch(width: 75, height: 38),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: voiceController.isEnabled
+                              ? AppTheme.successColor.withOpacity(0.15)
+                              : Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: voiceController.isEnabled
+                                  ? AppTheme.successColor.withOpacity(0.2)
+                                  : Colors.grey.withOpacity(0.1),
+                              blurRadius: 8,
+                              spreadRadius: -2,
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          voiceController.isListening
+                              ? Icons.mic
+                              : (voiceController.isEnabled
+                                    ? Icons.mic_none
+                                    : Icons.mic_off),
+                          color: voiceController.isEnabled
+                              ? AppTheme.successColor
+                              : Colors.grey,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        "Điều Khiển Giọng Nói",
+                        style: TextStyle(
+                          color: isDark ? Colors.white : AppTheme.textDark,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const VoiceToggleSwitch(width: 75, height: 38),
                 ],
               ),
               const SizedBox(height: 12),
@@ -778,7 +867,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      isDark ? "Dark Mode Active" : "Light Mode Active",
+                      isDark ? "Chế độ tối đang bật" : "Chế độ sáng đang bật",
                       style: TextStyle(
                         color: isDark
                             ? Colors.white.withOpacity(0.6)
@@ -790,6 +879,44 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                   ],
                 ),
               ),
+              if (voiceController.isEnabled) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.successColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppTheme.successColor.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        voiceController.isListening
+                            ? Icons.record_voice_over
+                            : Icons.info_outline,
+                        size: 14,
+                        color: AppTheme.successColor,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        voiceController.statusMessage,
+                        style: TextStyle(
+                          color: AppTheme.successColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         );
@@ -950,6 +1077,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                     onChanged: _onSearchChanged,
                     style: TextStyle(color: textColor, fontSize: 16),
                     decoration: InputDecoration(
+                      fillColor: Colors.transparent,
                       hintText: "Tìm kiếm điểm đến...",
                       hintStyle: TextStyle(color: hintTextStyle, fontSize: 16),
                       border: InputBorder.none,

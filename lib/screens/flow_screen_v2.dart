@@ -192,7 +192,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             ),
             const SizedBox(height: 32),
             Text(
-              "Ready to Stream",
+              "Sẵn Sàng Phân Tích",
               style: TextStyle(
                 color: subtextColor,
                 fontSize: 24,
@@ -202,7 +202,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             ),
             const SizedBox(height: 8),
             Text(
-              "Select a video to begin analysis",
+              "Chọn video để bắt đầu phân tích",
               style: TextStyle(
                 color: hintColor,
                 fontSize: 14,
@@ -621,7 +621,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                _controller.isModelLoaded ? "AI ACTIVE" : "AI LOADING",
+                _controller.isModelLoaded ? "AI HOẠT ĐỘNG" : "AI ĐANG TẢI",
                 style: TextStyle(
                   color: _controller.isModelLoaded
                       ? AppTheme.successColor.withOpacity(0.8)

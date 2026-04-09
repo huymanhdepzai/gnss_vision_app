@@ -223,7 +223,7 @@ class _SplashScreenState extends State<SplashScreen>
           shaderCallback: (bounds) =>
               AppTheme.primaryGradient.createShader(bounds),
           child: const Text(
-            "NAVIGATION",
+            "GNSS VISION",
             style: TextStyle(
               fontSize: 36,
               fontWeight: FontWeight.bold,
@@ -234,7 +234,7 @@ class _SplashScreenState extends State<SplashScreen>
         ),
         const SizedBox(height: 8),
         Text(
-          "GNSS + VISION FUSION",
+          "Hệ Thống Di Động Thế Hệ Mới",
           style: TextStyle(
             fontSize: 14,
             letterSpacing: 4,
@@ -267,7 +267,7 @@ class _SplashScreenState extends State<SplashScreen>
           ),
           const SizedBox(height: 16),
           Text(
-            "Loading...",
+            "Đang tải...",
             style: TextStyle(
               fontSize: 12,
               color: Colors.white.withOpacity(0.4),

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'core/app_theme.dart';
 import 'controllers/theme_provider.dart';
+import 'controllers/voice_controller.dart';
 import 'screens/splash_screen.dart';
 
 void main() async {
@@ -14,6 +15,7 @@ void main() async {
   await Future.wait([
     Permission.camera.request(),
     Permission.locationWhenInUse.request(),
+    Permission.microphone.request(),
   ]);
 
   runApp(const MyApp());
@@ -24,8 +26,11 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => VoiceController()),
+      ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           return MaterialApp(
