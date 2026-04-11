@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +18,7 @@ import '../widgets/theme_toggle_switch.dart';
 import '../widgets/voice_toggle_switch.dart';
 import 'satellite_screen_v2.dart';
 import 'flow_screen_v2.dart';
+import 'trip_manager_screen.dart';
 
 enum MapState { explore, placeDetail, navigating }
 
@@ -30,7 +30,7 @@ class MapHomeScreenV2 extends StatefulWidget {
 }
 
 class _MapHomeScreenV2State extends State<MapHomeScreenV2>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   MapboxMap? _mapboxMap;
   CircleAnnotationManager? _circleAnnotationManager;
@@ -63,6 +63,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initAnimations();
     _getUserLocation();
     _initVoiceController();
@@ -119,7 +120,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
-    )..repeat(reverse: true);
+    );
 
     _fabScaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
@@ -141,16 +142,36 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
     );
 
     _fabAnimationController.forward();
+    _startPulseAnimation();
+  }
+
+  void _startPulseAnimation() {
+    _pulseController.repeat(reverse: true);
+  }
+
+  void _stopPulseAnimation() {
+    _pulseController.stop();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _stopPulseAnimation();
+    } else if (state == AppLifecycleState.resumed) {
+      _startPulseAnimation();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     _debounce?.cancel();
     _fabAnimationController.dispose();
     _sheetAnimationController.dispose();
+    _stopPulseAnimation();
     _pulseController.dispose();
-    _positionStream?.cancel(); // Hủy lắng nghe vị trí khi thoát
+    _positionStream?.cancel();
     super.dispose();
   }
 
@@ -172,7 +193,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
         desiredAccuracy: geo.LocationAccuracy.high,
       );
       _updateLocationState(position);
-      
+
       // Di chuyển camera đến vị trí vừa lấy được
       if (_mapboxMap != null) {
         _updateCamera(_currentLocation, 16.0);
@@ -182,14 +203,15 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
     }
 
     // Bắt đầu lắng nghe thay đổi vị trí liên tục
-    _positionStream = geo.Geolocator.getPositionStream(
-      locationSettings: const geo.LocationSettings(
-        accuracy: geo.LocationAccuracy.high,
-        distanceFilter: 5, // Cập nhật mỗi khi di chuyển 5 mét
-      ),
-    ).listen((geo.Position position) {
-      _updateLocationState(position);
-    });
+    _positionStream =
+        geo.Geolocator.getPositionStream(
+          locationSettings: const geo.LocationSettings(
+            accuracy: geo.LocationAccuracy.high,
+            distanceFilter: 5, // Cập nhật mỗi khi di chuyển 5 mét
+          ),
+        ).listen((geo.Position position) {
+          _updateLocationState(position);
+        });
   }
 
   void _updateLocationState(geo.Position position) {
@@ -1111,39 +1133,51 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                     ),
                   ),
                 const SizedBox(width: 8),
-                AnimatedBuilder(
-                  animation: _pulseController,
-                  builder: (context, child) {
-                    return Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: const LinearGradient(
-                          colors: [
-                            AppTheme.primaryColor,
-                            AppTheme.secondaryColor,
-                          ],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.primaryColor.withOpacity(
-                              0.4 * _pulseAnimation.value,
-                            ),
-                            blurRadius: 15,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                      child: const CircleAvatar(
-                        radius: 18,
-                        backgroundColor: Colors.transparent,
-                        child: Icon(
-                          Icons.person_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.mediumImpact();
+                    Navigator.push(
+                      context,
+                      PageTransition(
+                        child: const TripManagerScreen(),
+                        type: PageTransitionType.slideLeft,
                       ),
                     );
                   },
+                  child: AnimatedBuilder(
+                    animation: _pulseController,
+                    builder: (context, child) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [
+                              AppTheme.primaryColor,
+                              AppTheme.secondaryColor,
+                            ],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.primaryColor.withOpacity(
+                                0.4 * _pulseAnimation.value,
+                              ),
+                              blurRadius: 15,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: const CircleAvatar(
+                          radius: 18,
+                          backgroundColor: Colors.transparent,
+                          child: Icon(
+                            Icons.person_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ],
             ),

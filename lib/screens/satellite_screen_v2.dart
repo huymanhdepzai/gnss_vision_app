@@ -262,7 +262,7 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
           ),
           label: 'Vị trí của bạn',
           isLabelVisible: true,
-          style: const PointStyle(color: Colors.cyanAccent, size: 10),
+          style: const PointStyle(color: Colors.cyanAccent, size: 2),
         ),
       );
       _activePointIds.add(userId);
