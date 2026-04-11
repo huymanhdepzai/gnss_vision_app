@@ -12,11 +12,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
 
-  await Future.wait([
-    Permission.camera.request(),
-    Permission.locationWhenInUse.request(),
-    Permission.microphone.request(),
-  ]);
+  await [
+    Permission.camera,
+    Permission.locationWhenInUse,
+    Permission.microphone,
+  ].request();
 
   runApp(const MyApp());
 }

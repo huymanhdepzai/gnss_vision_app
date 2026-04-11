@@ -1,0 +1,3 @@
+-keep class com.mapbox.** { *; }
+-keep class com.mapbox.maps.** { *; }
+-dontwarn com.mapbox.**

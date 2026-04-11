@@ -146,12 +146,10 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
 
   void _initGlobeController() {
     _globeController = FlutterEarthGlobeController(
-      rotationSpeed: 0.05,
+      rotationSpeed: 0.02, // Giảm tốc độ tự động xoay để cảm giác mượt hơn khi dùng tay trượt
       isRotating: true,
       zoom: 0.5,
-      surface: const NetworkImage(
-        'https://unpkg.com/three-globe/example/img/earth-night.jpg',
-      ),
+      surface: const AssetImage('assets/images/earth-night.jpg'),
     );
 
     _globeController.onLoaded = () {
@@ -160,6 +158,14 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
         _updateGlobePoints();
       }
     };
+
+    // Fallback: Nếu sau 2 giây không thấy gọi onLoaded, tự động kích hoạt
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted && !_isGlobeLoaded) {
+        setState(() => _isGlobeLoaded = true);
+        _updateGlobePoints();
+      }
+    });
   }
 
   @override
@@ -436,51 +442,57 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
 
   List<Widget> _buildAmbientGlows() {
     return [
-      AnimatedBuilder(
-        animation: _glowController,
-        builder: (context, child) {
-          return Positioned(
-            top: -150 + _glowController.value * 20,
-            right: -100,
-            child: Container(
-              width: 350,
-              height: 350,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    Colors.blueAccent.withOpacity(0.15 * _glowController.value),
-                    Colors.transparent,
-                  ],
+      Positioned(
+        top: -150,
+        right: -100,
+        child: AnimatedBuilder(
+          animation: _glowController,
+          builder: (context, child) {
+            return Transform.translate(
+              offset: Offset(0, _glowController.value * 20),
+              child: Container(
+                width: 350,
+                height: 350,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.blueAccent.withOpacity(0.15 * _glowController.value),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
-      AnimatedBuilder(
-        animation: _glowController,
-        builder: (context, child) {
-          return Positioned(
-            bottom: 200,
-            left: -50,
-            child: Container(
-              width: 250,
-              height: 250,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    Colors.purpleAccent.withOpacity(
-                      0.1 * (1 - _glowController.value),
-                    ),
-                    Colors.transparent,
-                  ],
+      Positioned(
+        bottom: 200,
+        left: -50,
+        child: AnimatedBuilder(
+          animation: _glowController,
+          builder: (context, child) {
+            return Transform.translate(
+              offset: Offset(0, _glowController.value * -15),
+              child: Container(
+                width: 250,
+                height: 250,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.purpleAccent.withOpacity(
+                        0.1 * (1 - _glowController.value),
+                      ),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     ];
   }
@@ -796,16 +808,23 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
             );
           },
         ),
-        if (_isGlobeLoaded)
-          SizedBox(
+        Opacity(
+          opacity: _isGlobeLoaded ? 1.0 : 0.0,
+          child: SizedBox(
             width: MediaQuery.of(context).size.width,
             height: MediaQuery.of(context).size.width,
-            child: FlutterEarthGlobe(controller: _globeController, radius: 140),
-          )
-        else
+            child: FlutterEarthGlobe(
+              controller: _globeController,
+              radius: 140,
+              // isInteractive: true, // Cho phép xoay và thu phóng bằng tay
+            ),
+          ),
+        ),
+        if (!_isGlobeLoaded)
           _buildLoadingIndicator(),
 
-        if (_isGlobeLoaded) _buildOrbitalRings(),
+        if (_isGlobeLoaded) 
+          _buildOrbitalRings(),
         _buildViewToggle(),
       ],
     );
@@ -813,13 +832,15 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
 
   Widget _buildOrbitalRings() {
     return Positioned.fill(
-      child: AnimatedBuilder(
-        animation: _floatingController,
-        builder: (context, child) {
-          return CustomPaint(
-            painter: OrbitalRingsPainter(_floatingController.value),
-          );
-        },
+      child: IgnorePointer(
+        child: AnimatedBuilder(
+          animation: _floatingController,
+          builder: (context, child) {
+            return CustomPaint(
+              painter: OrbitalRingsPainter(_floatingController.value),
+            );
+          },
+        ),
       ),
     );
   }

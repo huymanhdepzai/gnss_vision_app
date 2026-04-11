@@ -39,6 +39,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
 
   Position _currentLocation = Position(105.804817, 21.028511);
   bool _isLocationLoaded = false;
+  StreamSubscription<geo.Position>? _positionStream;
 
   String _destinationName = "";
   String _destinationAddress = "";
@@ -149,6 +150,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
     _fabAnimationController.dispose();
     _sheetAnimationController.dispose();
     _pulseController.dispose();
+    _positionStream?.cancel(); // Hủy lắng nghe vị trí khi thoát
     super.dispose();
   }
 
@@ -162,18 +164,47 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
       if (permission == geo.LocationPermission.denied) return;
     }
 
-    geo.Position position = await geo.Geolocator.getCurrentPosition(
-      desiredAccuracy: geo.LocationAccuracy.high,
-    );
+    if (permission == geo.LocationPermission.deniedForever) return;
 
+    // Lấy vị trí hiện tại ngay lập tức để hiển thị trước
+    try {
+      geo.Position position = await geo.Geolocator.getCurrentPosition(
+        desiredAccuracy: geo.LocationAccuracy.high,
+      );
+      _updateLocationState(position);
+      
+      // Di chuyển camera đến vị trí vừa lấy được
+      if (_mapboxMap != null) {
+        _updateCamera(_currentLocation, 16.0);
+      }
+    } catch (e) {
+      debugPrint("Lỗi lấy vị trí ban đầu: $e");
+    }
+
+    // Bắt đầu lắng nghe thay đổi vị trí liên tục
+    _positionStream = geo.Geolocator.getPositionStream(
+      locationSettings: const geo.LocationSettings(
+        accuracy: geo.LocationAccuracy.high,
+        distanceFilter: 5, // Cập nhật mỗi khi di chuyển 5 mét
+      ),
+    ).listen((geo.Position position) {
+      _updateLocationState(position);
+    });
+  }
+
+  void _updateLocationState(geo.Position position) {
+    if (!mounted) return;
     setState(() {
       _currentLocation = Position(position.longitude, position.latitude);
       _isLocationLoaded = true;
     });
 
-    if (_mapboxMap != null && _circleAnnotationManager != null) {
-      _updateCamera(_currentLocation, 16.0);
-      _drawMarkers();
+    // Cập nhật marker trên bản đồ
+    _drawMarkers();
+
+    // Nếu đang dẫn đường, tự động di chuyển camera theo người dùng
+    if (_currentState == MapState.navigating && _mapboxMap != null) {
+      _updateCamera(_currentLocation, 17.0);
     }
   }
 
@@ -752,133 +783,94 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
           child: Column(
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppTheme.primaryColor.withOpacity(0.2),
-                              AppTheme.secondaryColor.withOpacity(0.15),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.primaryColor.withOpacity(0.2),
-                              blurRadius: 8,
-                              spreadRadius: -2,
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.palette_outlined,
-                          color: AppTheme.primaryColor,
-                          size: 20,
-                        ),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppTheme.primaryColor.withOpacity(0.2),
+                          AppTheme.secondaryColor.withOpacity(0.15),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Text(
-                        "Chế Độ Giao Diện",
-                        style: TextStyle(
-                          color: isDark ? Colors.white : AppTheme.textDark,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.primaryColor.withOpacity(0.2),
+                          blurRadius: 8,
+                          spreadRadius: -2,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.palette_outlined,
+                      color: AppTheme.primaryColor,
+                      size: 20,
+                    ),
                   ),
-                  const ThemeToggleSwitch(width: 75, height: 38),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      "Giao diện",
+                      style: TextStyle(
+                        color: isDark ? Colors.white : AppTheme.textDark,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const ThemeToggleSwitch(width: 70, height: 36),
                 ],
               ),
               const SizedBox(height: 16),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: voiceController.isEnabled
+                          ? AppTheme.successColor.withOpacity(0.15)
+                          : Colors.grey.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
                           color: voiceController.isEnabled
-                              ? AppTheme.successColor.withOpacity(0.15)
+                              ? AppTheme.successColor.withOpacity(0.2)
                               : Colors.grey.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: voiceController.isEnabled
-                                  ? AppTheme.successColor.withOpacity(0.2)
-                                  : Colors.grey.withOpacity(0.1),
-                              blurRadius: 8,
-                              spreadRadius: -2,
-                            ),
-                          ],
+                          blurRadius: 8,
+                          spreadRadius: -2,
                         ),
-                        child: Icon(
-                          voiceController.isListening
-                              ? Icons.mic
-                              : (voiceController.isEnabled
-                                    ? Icons.mic_none
-                                    : Icons.mic_off),
-                          color: voiceController.isEnabled
-                              ? AppTheme.successColor
-                              : Colors.grey,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        "Điều Khiển Giọng Nói",
-                        style: TextStyle(
-                          color: isDark ? Colors.white : AppTheme.textDark,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
+                    child: Icon(
+                      voiceController.isListening
+                          ? Icons.mic
+                          : (voiceController.isEnabled
+                                ? Icons.mic_none
+                                : Icons.mic_off),
+                      color: voiceController.isEnabled
+                          ? AppTheme.successColor
+                          : Colors.grey,
+                      size: 20,
+                    ),
                   ),
-                  const VoiceToggleSwitch(width: 75, height: 38),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      "Giọng Nói",
+                      style: TextStyle(
+                        color: isDark ? Colors.white : AppTheme.textDark,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const VoiceToggleSwitch(width: 70, height: 36),
                 ],
               ),
               const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withOpacity(0.05)
-                      : Colors.black.withOpacity(0.03),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isDark ? Icons.nightlight_round : Icons.wb_sunny_rounded,
-                      size: 14,
-                      color: isDark
-                          ? AppTheme.secondaryColor
-                          : AppTheme.warningColor,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      isDark ? "Chế độ tối đang bật" : "Chế độ sáng đang bật",
-                      style: TextStyle(
-                        color: isDark
-                            ? Colors.white.withOpacity(0.6)
-                            : Colors.black.withOpacity(0.6),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
               if (voiceController.isEnabled) ...[
                 const SizedBox(height: 8),
                 Container(
