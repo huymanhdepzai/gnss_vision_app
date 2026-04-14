@@ -6,11 +6,12 @@ import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'core/app_theme.dart';
-import 'controllers/theme_provider.dart';
-import 'controllers/voice_controller.dart';
-import 'controllers/trip_controller.dart';
-import 'services/trip_service.dart';
-import 'screens/splash_screen.dart';
+import 'core/utils/injection_container.dart';
+import 'core/providers/theme_provider.dart';
+import 'features/voice/presentation/controllers/voice_controller.dart';
+import 'features/trip/presentation/controllers/trip_controller.dart';
+import 'features/trip/data/datasources/trip_service.dart';
+import 'core/pages/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,6 +19,8 @@ void main() async {
 
   await Hive.initFlutter();
   await TripService.initialize();
+
+  await init();
 
   await [
     Permission.camera,
