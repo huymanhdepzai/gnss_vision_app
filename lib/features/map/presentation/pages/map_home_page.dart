@@ -18,6 +18,10 @@ import '../../../../shared/widgets/theme_toggle_switch.dart';
 import '../../../../shared/widgets/voice_toggle_switch.dart';
 import '../../../vision/presentation/pages/satellite_page.dart';
 import '../../../vision/presentation/pages/flow_page.dart';
+import '../../../map/presentation/controllers/navigation_controller.dart';
+import '../../../vision/presentation/pages/navigation_vision_page.dart';
+import '../../../map/domain/entities/navigation_route.dart';
+import '../../../map/domain/entities/navigation_step.dart';
 import '../../../trip/presentation/pages/trip_manager_page.dart';
 
 enum MapState { explore, placeDetail, navigating }
@@ -48,6 +52,9 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
   String _distance = "Đang tính...";
   String _duration = "-- phút";
 
+  String? _routeGeoJson;
+  bool _isRouteActive = false;
+
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
   List<dynamic> _searchResults = [];
@@ -67,6 +74,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
     _initAnimations();
     _getUserLocation();
     _initVoiceController();
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   }
 
   void _initVoiceController() {
@@ -82,13 +90,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
   void _handleVoiceCommand(String command) {
     switch (command) {
       case 'gnss-vision':
-        Navigator.push(
-          context,
-          PageTransition(
-            child: const FlowScreenV2(),
-            type: PageTransitionType.slideUp,
-          ),
-        );
+        _navigateToVision();
         break;
       case 'satellite':
         Navigator.push(
@@ -159,6 +161,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
       _stopPulseAnimation();
     } else if (state == AppLifecycleState.resumed) {
       _startPulseAnimation();
+      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     }
   }
 
@@ -247,6 +250,42 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
       _updateCamera(_currentLocation, 16.0);
       _drawMarkers();
     }
+
+    if (_isRouteActive && _routeGeoJson != null) {
+      await _drawRouteLine();
+    }
+  }
+
+  Future<void> _drawRouteLine() async {
+    if (_mapboxMap == null || _routeGeoJson == null) return;
+    try {
+      await _clearRouteOnly();
+      await _mapboxMap?.style.addSource(
+        GeoJsonSource(id: "route_source", data: _routeGeoJson!),
+      );
+      var lineLayerJson = """{
+        "type": "line",
+        "id": "route_layer",
+        "source": "route_source",
+        "paint": {
+          "line-join": "round",
+          "line-cap": "round",
+          "line-color": "#00D4FF",
+          "line-width": 6.0,
+          "line-blur": 2.0
+        }
+      }""";
+      await _mapboxMap?.style.addPersistentStyleLayer(lineLayerJson, null);
+    } catch (e) {
+      debugPrint("Lỗi vẽ đường đi: $e");
+    }
+  }
+
+  Future<void> _clearRouteOnly() async {
+    try {
+      await _mapboxMap?.style.removeStyleLayer("route_layer");
+      await _mapboxMap?.style.removeStyleSource("route_source");
+    } catch (e) {}
   }
 
   void _updateCamera(Position position, double zoom) {
@@ -380,10 +419,40 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
 
       if (jsonResponse['routes'] != null && jsonResponse['routes'].isNotEmpty) {
         var route = jsonResponse['routes'][0]['overview_polyline']['points'];
+        final leg = jsonResponse['routes'][0]['legs'][0];
+
+        String durationText;
+        double durationValue;
+        final durData = leg['duration'];
+        if (durData is Map) {
+          durationText = durData['text']?.toString() ?? '-- phút';
+          durationValue = (durData['value'] as num?)?.toDouble() ?? 0;
+        } else if (durData is num) {
+          durationValue = durData.toDouble();
+          final mins = (durationValue / 60).round();
+          durationText = '$mins phút';
+        } else {
+          durationText = '-- phút';
+          durationValue = 0;
+        }
+
+        String distanceText;
+        double distanceValue;
+        final distData = leg['distance'];
+        if (distData is Map) {
+          distanceText = distData['text']?.toString() ?? 'Đang tính...';
+          distanceValue = (distData['value'] as num?)?.toDouble() ?? 0;
+        } else if (distData is num) {
+          distanceValue = distData.toDouble();
+          distanceText = '${(distanceValue / 1000).toStringAsFixed(1)} km';
+        } else {
+          distanceText = 'Đang tính...';
+          distanceValue = 0;
+        }
 
         setState(() {
-          _duration = jsonResponse['routes'][0]['legs'][0]['duration']['text'];
-          _distance = jsonResponse['routes'][0]['legs'][0]['distance']['text'];
+          _duration = durationText;
+          _distance = distanceText;
         });
 
         PolylinePoints polylinePoints = PolylinePoints();
@@ -391,6 +460,93 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
         List<List<double>> coordinates = result
             .map((point) => [point.longitude, point.latitude])
             .toList();
+
+        final navController = context.read<NavigationController>();
+        List<NavigationStep> navSteps = [];
+        final stepsJson =
+            jsonResponse['routes'][0]['legs'][0]['steps'] as List<dynamic>? ??
+            [];
+        for (final stepJson in stepsJson) {
+          final step = stepJson as Map<String, dynamic>;
+
+          String maneuverType = 'depart';
+          String? maneuverModifier;
+          final maneuverData = step['maneuver'];
+          if (maneuverData is Map<String, dynamic>) {
+            maneuverType = maneuverData['type']?.toString() ?? 'depart';
+            maneuverModifier = maneuverData['modifier']?.toString();
+          } else if (maneuverData is String) {
+            maneuverType = maneuverData;
+          }
+
+          final startLoc = step['start_location'];
+          double startLat = 0, startLng = 0;
+          if (startLoc is Map<String, dynamic>) {
+            startLat = startLoc['lat']?.toDouble() ?? 0;
+            startLng = startLoc['lng']?.toDouble() ?? 0;
+          }
+
+          final endLoc = step['end_location'];
+          double endLat = 0, endLng = 0;
+          if (endLoc is Map<String, dynamic>) {
+            endLat = endLoc['lat']?.toDouble() ?? 0;
+            endLng = endLoc['lng']?.toDouble() ?? 0;
+          }
+
+          double stepDist = 0;
+          final distData = step['distance'];
+          if (distData is Map) {
+            stepDist = (distData['value'] as num?)?.toDouble() ?? 0;
+          } else if (distData is num) {
+            stepDist = distData.toDouble();
+          }
+
+          double stepDur = 0;
+          final durData = step['duration'];
+          if (durData is Map) {
+            stepDur = (durData['value'] as num?)?.toDouble() ?? 0;
+          } else if (durData is num) {
+            stepDur = durData.toDouble();
+          }
+
+          String instruction =
+              step['html_instructions']?.toString() ??
+              step['html_instruction']?.toString() ??
+              step['instruction']?.toString() ??
+              '';
+
+          navSteps.add(
+            NavigationStep(
+              instruction: instruction,
+              distance: stepDist,
+              duration: stepDur,
+              maneuverType: _parseManeuverType(maneuverType),
+              maneuverModifier: maneuverModifier,
+              startLatitude: startLat,
+              startLongitude: startLng,
+              endLatitude: endLat,
+              endLongitude: endLng,
+              name: step['name']?.toString(),
+            ),
+          );
+        }
+
+        navController.startNavigation(
+          NavigationRoute(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            totalDistance: distanceValue,
+            totalDuration: durationValue,
+            distanceText: distanceText,
+            durationText: durationText,
+            steps: navSteps,
+            polyline: coordinates,
+            originLatitude: _currentLocation.lat.toDouble(),
+            originLongitude: _currentLocation.lng.toDouble(),
+            destinationLatitude: _destinationLocation!.lat.toDouble(),
+            destinationLongitude: _destinationLocation!.lng.toDouble(),
+            destinationName: _destinationName,
+          ),
+        );
 
         String geojson =
             '''{
@@ -406,24 +562,10 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
           ]
         }''';
 
-        await _clearRoute();
+        _routeGeoJson = geojson;
+        _isRouteActive = true;
 
-        await _mapboxMap?.style.addSource(
-          GeoJsonSource(id: "route_source", data: geojson),
-        );
-        var lineLayerJson = """{
-          "type": "line",
-          "id": "route_layer",
-          "source": "route_source",
-          "paint": {
-            "line-join": "round",
-            "line-cap": "round",
-            "line-color": "#00D4FF",
-            "line-width": 6.0,
-            "line-blur": 2.0
-          }
-        }""";
-        await _mapboxMap?.style.addPersistentStyleLayer(lineLayerJson, null);
+        await _drawRouteLine();
 
         _mapboxMap?.setCamera(
           CameraOptions(
@@ -438,10 +580,49 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
   }
 
   Future<void> _clearRoute() async {
+    _routeGeoJson = null;
+    _isRouteActive = false;
     try {
       await _mapboxMap?.style.removeStyleLayer("route_layer");
       await _mapboxMap?.style.removeStyleSource("route_source");
     } catch (e) {}
+  }
+
+  static ManeuverType _parseManeuverType(String type) {
+    switch (type) {
+      case 'depart':
+        return ManeuverType.depart;
+      case 'arrive':
+        return ManeuverType.arrive;
+      case 'turn':
+        return ManeuverType.turn;
+      case 'fork':
+        return ManeuverType.fork;
+      case 'roundabout':
+        return ManeuverType.roundabout;
+      case 'merge':
+        return ManeuverType.merge;
+      case 'on ramp':
+      case 'on_ramp':
+        return ManeuverType.onRamp;
+      case 'off ramp':
+      case 'off_ramp':
+        return ManeuverType.offRamp;
+      case 'ferry':
+        return ManeuverType.ferry;
+      case 'continue':
+        return ManeuverType.continueStraight;
+      case 'end of road':
+      case 'end_of_road':
+        return ManeuverType.endOfRoad;
+      case 'new name':
+      case 'new_name':
+        return ManeuverType.newName;
+      case 'notification':
+        return ManeuverType.notification;
+      default:
+        return ManeuverType.continueStraight;
+    }
   }
 
   void _startNavigation() {
@@ -466,9 +647,43 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
     );
   }
 
+  void _startNavigationVision() {
+    HapticFeedback.heavyImpact();
+    Navigator.push(
+      context,
+      PageTransition(
+        child: const NavigationVisionPage(),
+        type: PageTransitionType.slideUp,
+      ),
+    );
+  }
+
+  void _navigateToVision() {
+    if (_currentState == MapState.navigating) {
+      Navigator.push(
+        context,
+        PageTransition(
+          child: const NavigationVisionPage(),
+          type: PageTransitionType.slideUp,
+        ),
+      );
+    } else {
+      Navigator.push(
+        context,
+        PageTransition(
+          child: const FlowScreenV2(),
+          type: PageTransitionType.slideUp,
+        ),
+      );
+    }
+  }
+
   void _resetToExplore() {
     HapticFeedback.lightImpact();
     _sheetAnimationController.reverse();
+
+    final navController = context.read<NavigationController>();
+    navController.stopNavigation();
 
     Future.delayed(const Duration(milliseconds: 300), () {
       setState(() {
@@ -600,13 +815,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                       color: AppTheme.primaryColor,
                       onTap: () {
                         Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          PageTransition(
-                            child: const FlowScreenV2(),
-                            type: PageTransitionType.slideUp,
-                          ),
-                        );
+                        _navigateToVision();
                       },
                     ),
                     _buildDrawerItem(
@@ -1339,12 +1548,12 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
   }
 
   Widget _buildModernPlaceSheet() {
-    return SlideTransition(
-      position: _sheetSlideAnimation,
-      child: Positioned(
-        bottom: 0,
-        left: 0,
-        right: 0,
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: SlideTransition(
+        position: _sheetSlideAnimation,
         child: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -1697,13 +1906,17 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                         elevation: 8,
                         onPressed: () {
                           HapticFeedback.heavyImpact();
-                          Navigator.push(
-                            context,
-                            PageTransition(
-                              child: const FlowScreenV2(),
-                              type: PageTransitionType.slideUp,
-                            ),
-                          );
+                          if (_currentState == MapState.navigating) {
+                            _startNavigationVision();
+                          } else {
+                            Navigator.push(
+                              context,
+                              PageTransition(
+                                child: const FlowScreenV2(),
+                                type: PageTransitionType.slideUp,
+                              ),
+                            );
+                          }
                         },
                         icon: Container(
                           padding: const EdgeInsets.all(4),

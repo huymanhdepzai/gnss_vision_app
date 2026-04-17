@@ -11,6 +11,9 @@ import 'core/providers/theme_provider.dart';
 import 'features/voice/presentation/controllers/voice_controller.dart';
 import 'features/trip/presentation/controllers/trip_controller.dart';
 import 'features/trip/data/datasources/trip_service.dart';
+import 'features/map/presentation/controllers/navigation_controller.dart';
+import 'features/map/data/datasources/goong_directions_data_source.dart';
+import 'features/map/data/repositories/navigation_repository_impl.dart';
 import 'core/pages/splash_screen.dart';
 
 void main() async {
@@ -43,6 +46,11 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => VoiceController()),
         ChangeNotifierProvider(create: (_) => TripController()),
+        ChangeNotifierProvider(
+          create: (_) => NavigationController(
+            NavigationRepositoryImpl(GoongDirectionsDataSourceImpl()),
+          ),
+        ),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
