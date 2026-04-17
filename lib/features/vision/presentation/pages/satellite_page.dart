@@ -9,6 +9,7 @@ import 'package:flutter_earth_globe/flutter_earth_globe_controller.dart';
 import 'package:flutter_earth_globe/point.dart';
 import 'package:flutter_earth_globe/globe_coordinates.dart';
 import 'package:flutter_earth_globe/point_connection.dart';
+import 'satellite_detail_page.dart';
 
 // ============================================================
 // SATELLITE SCREEN V2 - MODERN 3D UI
@@ -1079,38 +1080,55 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
           scale: val,
           child: Opacity(
             opacity: val.clamp(0.0, 1.0),
-            child: Container(
-              width: 110,
-              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withOpacity(0.08),
-                    Colors.white.withOpacity(0.02),
+            child: GestureDetector(
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                Navigator.push(
+                  context,
+                  PageRouteBuilder(
+                    pageBuilder: (context, animation, secondaryAnimation) =>
+                        SatelliteDetailScreen(satellite: sat, themeColor: color),
+                    transitionsBuilder:
+                        (context, animation, secondaryAnimation, child) {
+                      return FadeTransition(opacity: animation, child: child);
+                    },
+                    transitionDuration: const Duration(milliseconds: 400),
+                  ),
+                );
+              },
+              child: Container(
+                width: 110,
+                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withOpacity(0.08),
+                      Colors.white.withOpacity(0.02),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: color.withOpacity(0.3), width: 1),
+                  boxShadow: sat.usedInFix
+                      ? [
+                          BoxShadow(
+                            color: color.withOpacity(0.15),
+                            blurRadius: 15,
+                            spreadRadius: -5,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildCardHeader(sat, color),
+                    _buildSignalBar(sat, color),
+                    _buildCardFooter(sat, color),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: color.withOpacity(0.3), width: 1),
-                boxShadow: sat.usedInFix
-                    ? [
-                        BoxShadow(
-                          color: color.withOpacity(0.15),
-                          blurRadius: 15,
-                          spreadRadius: -5,
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildCardHeader(sat, color),
-                  _buildSignalBar(sat, color),
-                  _buildCardFooter(sat, color),
-                ],
               ),
             ),
           ),
@@ -1123,24 +1141,33 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          "#${sat.prn}",
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
+        Hero(
+          tag: 'sat_prn_${sat.prn}',
+          child: Material(
+            color: Colors.transparent,
+            child: Text(
+              "#${sat.prn}",
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
           ),
         ),
-        Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Icon(
-            sat.usedInFix ? Icons.bolt_rounded : Icons.bolt_outlined,
-            color: color,
-            size: 12,
+        Hero(
+          tag: 'sat_icon_${sat.prn}',
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(
+              sat.usedInFix ? Icons.bolt_rounded : Icons.bolt_outlined,
+              color: color,
+              size: 12,
+            ),
           ),
         ),
       ],
