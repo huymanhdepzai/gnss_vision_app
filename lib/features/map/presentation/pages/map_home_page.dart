@@ -14,8 +14,6 @@ import '../../../../core/app_theme.dart';
 import '../../../../core/page_transitions.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../voice/presentation/controllers/voice_controller.dart';
-import '../../../../shared/widgets/theme_toggle_switch.dart';
-import '../../../../shared/widgets/voice_toggle_switch.dart';
 import '../../../vision/presentation/pages/satellite_page.dart';
 import '../../../vision/presentation/pages/flow_page.dart';
 import '../../../map/presentation/controllers/navigation_controller.dart';
@@ -23,6 +21,7 @@ import '../../../vision/presentation/pages/navigation_vision_page.dart';
 import '../../../map/domain/entities/navigation_route.dart';
 import '../../../map/domain/entities/navigation_step.dart';
 import '../../../trip/presentation/pages/trip_manager_page.dart';
+import '../widgets/app_drawer.dart';
 
 enum MapState { explore, placeDetail, navigating }
 
@@ -713,7 +712,19 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
 
     return Scaffold(
       key: _scaffoldKey,
-      drawer: _buildModernDrawer(),
+      drawer: AppDrawer(
+        onNavigateToVision: _navigateToVision,
+        onNavigateToSatellite: () {
+          Navigator.push(
+            context,
+            PageTransition(
+              child: const SatelliteScreenV2(),
+              type: PageTransitionType.fadeSlide,
+              duration: const Duration(milliseconds: 600),
+            ),
+          );
+        },
+      ),
       body: Stack(
         children: [
           MapWidget(
@@ -744,409 +755,6 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
     );
   }
 
-  Widget _buildModernDrawer() {
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, child) {
-        final isDark = themeProvider.isDarkMode;
-
-        return Drawer(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          width: MediaQuery.of(context).size.width * 0.8,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: ClipRRect(
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: isDark
-                              ? [
-                                  AppTheme.backgroundDark.withOpacity(0.9),
-                                  AppTheme.surfaceDark.withOpacity(0.85),
-                                ]
-                              : [
-                                  AppTheme.surfaceLight.withOpacity(0.95),
-                                  AppTheme.cardLight.withOpacity(0.9),
-                                ],
-                        ),
-                        border: Border(
-                          right: BorderSide(
-                            color: isDark
-                                ? Colors.white.withOpacity(0.1)
-                                : Colors.grey.withOpacity(0.2),
-                            width: 1,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              SafeArea(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildDrawerHeader(themeProvider),
-                    const SizedBox(height: 30),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        "CHỨC NĂNG CHÍNH",
-                        style: TextStyle(
-                          color: isDark
-                              ? Colors.white.withOpacity(0.4)
-                              : Colors.black.withOpacity(0.5),
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    _buildDrawerItem(
-                      icon: Icons.auto_awesome_rounded,
-                      title: "GNSS-Vision",
-                      subtitle: "Cảm biến & nhận dạng đối tượng AI",
-                      color: AppTheme.primaryColor,
-                      onTap: () {
-                        Navigator.pop(context);
-                        _navigateToVision();
-                      },
-                    ),
-                    _buildDrawerItem(
-                      icon: Icons.satellite_alt_rounded,
-                      title: "Vệ Tinh 3D",
-                      subtitle: "Trạng thái vệ tinh",
-                      color: AppTheme.warningColor,
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          PageTransition(
-                            child: const SatelliteScreenV2(),
-                            type: PageTransitionType.fadeSlide,
-                            duration: const Duration(milliseconds: 600),
-                          ),
-                        );
-                      },
-                    ),
-                    const Spacer(),
-                    _buildDrawerFooter(),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildDrawerHeader(ThemeProvider themeProvider) {
-    final isDark = themeProvider.isDarkMode;
-
-    return Container(
-      padding: const EdgeInsets.all(30),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              gradient: AppTheme.primaryGradient,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.primaryColor.withOpacity(0.4),
-                  blurRadius: 15,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.explore_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            "GNSS VISION",
-            style: TextStyle(
-              color: isDark ? Colors.white : AppTheme.textDark,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            "Hệ Thống Di Động Thế Hệ Mới",
-            style: TextStyle(
-              color: isDark
-                  ? Colors.white.withOpacity(0.5)
-                  : Colors.black.withOpacity(0.5),
-              fontSize: 13,
-              fontWeight: FontWeight.w300,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDrawerItem({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, child) {
-        final isDark = themeProvider.isDarkMode;
-
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                HapticFeedback.mediumImpact();
-                onTap();
-              },
-              borderRadius: BorderRadius.circular(20),
-              splashColor: color.withOpacity(0.1),
-              highlightColor: color.withOpacity(0.05),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withOpacity(0.05)
-                        : Colors.grey.withOpacity(0.15),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: color.withOpacity(0.2),
-                            blurRadius: 10,
-                            spreadRadius: -2,
-                          ),
-                        ],
-                      ),
-                      child: Icon(icon, color: color, size: 22),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: TextStyle(
-                              color: isDark ? Colors.white : AppTheme.textDark,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            subtitle,
-                            style: TextStyle(
-                              color: isDark
-                                  ? Colors.white.withOpacity(0.4)
-                                  : Colors.black.withOpacity(0.5),
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Icon(
-                    //   Icons.arrow_forward_ios_rounded,
-                    //   color: isDark
-                    //       ? Colors.white.withOpacity(0.2)
-                    //       : Colors.black.withOpacity(0.3),
-                    //   size: 14,
-                    // ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildDrawerFooter() {
-    return Consumer2<ThemeProvider, VoiceController>(
-      builder: (context, themeProvider, voiceController, child) {
-        final isDark = themeProvider.isDarkMode;
-
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            border: Border(
-              top: BorderSide(
-                color: isDark
-                    ? Colors.white.withOpacity(0.1)
-                    : Colors.grey.withOpacity(0.2),
-                width: 1,
-              ),
-            ),
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppTheme.primaryColor.withOpacity(0.2),
-                          AppTheme.secondaryColor.withOpacity(0.15),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.primaryColor.withOpacity(0.2),
-                          blurRadius: 8,
-                          spreadRadius: -2,
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.palette_outlined,
-                      color: AppTheme.primaryColor,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      "Giao diện",
-                      style: TextStyle(
-                        color: isDark ? Colors.white : AppTheme.textDark,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const ThemeToggleSwitch(width: 70, height: 36),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: voiceController.isEnabled
-                          ? AppTheme.successColor.withOpacity(0.15)
-                          : Colors.grey.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: voiceController.isEnabled
-                              ? AppTheme.successColor.withOpacity(0.2)
-                              : Colors.grey.withOpacity(0.1),
-                          blurRadius: 8,
-                          spreadRadius: -2,
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      voiceController.isListening
-                          ? Icons.mic
-                          : (voiceController.isEnabled
-                                ? Icons.mic_none
-                                : Icons.mic_off),
-                      color: voiceController.isEnabled
-                          ? AppTheme.successColor
-                          : Colors.grey,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      "Giọng Nói",
-                      style: TextStyle(
-                        color: isDark ? Colors.white : AppTheme.textDark,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const VoiceToggleSwitch(width: 70, height: 36),
-                ],
-              ),
-              const SizedBox(height: 12),
-              if (voiceController.isEnabled) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.successColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppTheme.successColor.withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        voiceController.isListening
-                            ? Icons.record_voice_over
-                            : Icons.info_outline,
-                        size: 14,
-                        color: AppTheme.successColor,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        voiceController.statusMessage,
-                        style: TextStyle(
-                          color: AppTheme.successColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildModernSearchBar() {
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, child) {
@@ -1163,21 +771,23 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                 end: Alignment.bottomCenter,
                 colors: isDark
                     ? [
-                        AppTheme.backgroundDark.withOpacity(0.8),
+                        AppTheme.backgroundDark.withOpacity(0.95),
+                        AppTheme.backgroundDark.withOpacity(0.7),
                         Colors.transparent,
                       ]
                     : [
-                        Colors.white.withOpacity(0.95),
-                        Colors.white.withOpacity(0.7),
+                        Colors.white.withOpacity(0.98),
+                        Colors.white.withOpacity(0.85),
+                        Colors.white.withOpacity(0.4),
                         Colors.transparent,
                       ],
               ),
             ),
             padding: EdgeInsets.fromLTRB(
               16,
-              MediaQuery.of(context).padding.top + 10,
+              MediaQuery.of(context).padding.top + 8,
               16,
-              20,
+              28,
             ),
             child: Column(
               children: [
@@ -1197,112 +807,102 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
   Widget _buildSearchInput(ThemeProvider themeProvider) {
     final isDark = themeProvider.isDarkMode;
     final textColor = isDark ? Colors.white : AppTheme.textDark;
-    final hintTextStyle = isDark
-        ? Colors.white.withOpacity(0.4)
-        : Colors.black.withOpacity(0.5);
 
     return Container(
       decoration: BoxDecoration(
         color: isDark
-            ? Colors.white.withOpacity(0.08)
-            : Colors.white.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(20),
+            ? Colors.white.withOpacity(0.06)
+            : Colors.white.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
           color: isDark
-              ? Colors.white.withOpacity(0.15)
-              : Colors.grey.withOpacity(0.25),
-          width: 1,
+              ? Colors.white.withOpacity(0.08)
+              : AppTheme.primaryColor.withOpacity(0.12),
+          width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
             color: isDark
-                ? AppTheme.primaryColor.withOpacity(0.1)
-                : Colors.black.withOpacity(0.05),
-            blurRadius: 20,
-            spreadRadius: -5,
+                ? AppTheme.primaryColor.withOpacity(0.06)
+                : Colors.black.withOpacity(0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 6),
           ),
+          if (isDark)
+            BoxShadow(
+              color: AppTheme.secondaryColor.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 2),
+            ),
           if (!isDark)
             BoxShadow(
-              color: Colors.white.withOpacity(0.8),
-              blurRadius: 10,
-              spreadRadius: -2,
+              color: Colors.white.withOpacity(0.9),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
             ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             child: Row(
               children: [
                 if (_currentState == MapState.explore)
-                  GestureDetector(
+                  _buildSearchIconButton(
                     onTap: () => _scaffoldKey.currentState?.openDrawer(),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.white.withOpacity(0.1)
-                            : Colors.black.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.menu_rounded,
-                        color: isDark ? Colors.white70 : Colors.black54,
-                        size: 20,
-                      ),
-                    ),
+                    icon: Icons.menu_rounded,
+                    isDark: isDark,
                   ),
-                if (_currentState == MapState.explore)
-                  const SizedBox(width: 12),
+                if (_currentState == MapState.explore) const SizedBox(width: 8),
                 if (_currentState == MapState.placeDetail)
-                  GestureDetector(
+                  _buildSearchIconButton(
                     onTap: _resetToExplore,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.white.withOpacity(0.1)
-                            : Colors.black.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        color: isDark ? Colors.white70 : Colors.black54,
-                        size: 18,
-                      ),
-                    ),
+                    icon: Icons.arrow_back_ios_new_rounded,
+                    isDark: isDark,
                   )
-                else
+                else if (_currentState == MapState.explore)
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppTheme.primaryColor.withOpacity(0.3),
-                          AppTheme.secondaryColor.withOpacity(0.3),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
+                      gradient: AppTheme.primaryGradient,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.primaryColor.withOpacity(0.35),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
-                    child: Icon(
+                    child: const Icon(
                       Icons.search_rounded,
                       color: Colors.white,
                       size: 20,
                     ),
                   ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: TextField(
                     controller: _searchController,
                     onChanged: _onSearchChanged,
-                    style: TextStyle(color: textColor, fontSize: 16),
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
                     decoration: InputDecoration(
                       fillColor: Colors.transparent,
                       hintText: "Tìm kiếm điểm đến...",
-                      hintStyle: TextStyle(color: hintTextStyle, fontSize: 16),
+                      hintStyle: TextStyle(
+                        color: isDark
+                            ? Colors.white.withOpacity(0.35)
+                            : Colors.black.withOpacity(0.35),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w400,
+                      ),
                       border: InputBorder.none,
                       isDense: true,
                     ),
@@ -1313,81 +913,27 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
-                      strokeWidth: 2,
+                      strokeWidth: 2.5,
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        AppTheme.secondaryColor,
+                        isDark
+                            ? AppTheme.secondaryColor
+                            : AppTheme.primaryColor,
                       ),
                     ),
                   )
                 else if (_searchController.text.isNotEmpty)
-                  GestureDetector(
+                  _buildSearchIconButton(
                     onTap: () {
                       _searchController.clear();
                       setState(() => _searchResults = []);
                       _resetToExplore();
                     },
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.white.withOpacity(0.1)
-                            : Colors.black.withOpacity(0.05),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.close_rounded,
-                        color: isDark ? Colors.white60 : Colors.black45,
-                        size: 16,
-                      ),
-                    ),
+                    icon: Icons.close_rounded,
+                    isDark: isDark,
+                    size: 16,
                   ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.mediumImpact();
-                    Navigator.push(
-                      context,
-                      PageTransition(
-                        child: const TripManagerScreen(),
-                        type: PageTransitionType.slideLeft,
-                      ),
-                    );
-                  },
-                  child: AnimatedBuilder(
-                    animation: _pulseController,
-                    builder: (context, child) {
-                      return Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: const LinearGradient(
-                            colors: [
-                              AppTheme.primaryColor,
-                              AppTheme.secondaryColor,
-                            ],
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.primaryColor.withOpacity(
-                                0.4 * _pulseAnimation.value,
-                              ),
-                              blurRadius: 15,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                        child: const CircleAvatar(
-                          radius: 18,
-                          backgroundColor: Colors.transparent,
-                          child: Icon(
-                            Icons.person_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+                const SizedBox(width: 6),
+                _buildProfileAvatar(),
               ],
             ),
           ),
@@ -1396,12 +942,98 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
     );
   }
 
+  Widget _buildSearchIconButton({
+    required VoidCallback onTap,
+    required IconData icon,
+    required bool isDark,
+    double size = 20,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withOpacity(0.06)
+              : AppTheme.primaryColor.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withOpacity(0.06)
+                : AppTheme.primaryColor.withOpacity(0.08),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isDark
+                  ? Colors.white.withOpacity(0.02)
+                  : Colors.black.withOpacity(0.02),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(
+          icon,
+          color: isDark ? Colors.white70 : AppTheme.primaryColor,
+          size: size,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileAvatar() {
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        return GestureDetector(
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            Navigator.push(
+              context,
+              PageTransition(
+                child: const TripManagerScreen(),
+                type: PageTransitionType.slideLeft,
+              ),
+            );
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: AppTheme.primaryGradient,
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primaryColor.withOpacity(
+                    0.3 * _pulseAnimation.value,
+                  ),
+                  blurRadius: 14,
+                  spreadRadius: 1,
+                  offset: const Offset(0, 3),
+                ),
+                BoxShadow(
+                  color: AppTheme.secondaryColor.withOpacity(0.15),
+                  blurRadius: 8,
+                  offset: const Offset(-1, 1),
+                ),
+              ],
+            ),
+            child: const CircleAvatar(
+              radius: 17,
+              backgroundColor: Colors.transparent,
+              child: Icon(Icons.person_rounded, color: Colors.white, size: 19),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildSearchResults(ThemeProvider themeProvider) {
     final isDark = themeProvider.isDarkMode;
     final textColor = isDark ? Colors.white : AppTheme.textDark;
     final subtextColor = isDark
-        ? Colors.white.withOpacity(0.5)
-        : Colors.black.withOpacity(0.6);
+        ? Colors.white.withOpacity(0.45)
+        : Colors.black.withOpacity(0.5);
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 300),
@@ -1410,38 +1042,45 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
         constraints: const BoxConstraints(maxHeight: 350),
         decoration: BoxDecoration(
           color: isDark
-              ? Colors.white.withOpacity(0.08)
-              : Colors.white.withOpacity(0.95),
+              ? AppTheme.cardDark.withOpacity(0.9)
+              : Colors.white.withOpacity(0.98),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isDark
-                ? Colors.white.withOpacity(0.15)
-                : Colors.grey.withOpacity(0.2),
+                ? Colors.white.withOpacity(0.08)
+                : AppTheme.primaryColor.withOpacity(0.1),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
               color: isDark
-                  ? Colors.black.withOpacity(0.3)
-                  : Colors.black.withOpacity(0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+                  ? Colors.black.withOpacity(0.5)
+                  : AppTheme.primaryColor.withOpacity(0.06),
+              blurRadius: 30,
+              offset: const Offset(0, 12),
             ),
+            if (!isDark)
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
           ],
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
             child: ListView.separated(
               shrinkWrap: true,
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: _searchResults.length,
               separatorBuilder: (_, __) => Divider(
                 height: 1,
+                indent: 56,
                 color: isDark
-                    ? Colors.white.withOpacity(0.1)
-                    : Colors.grey.withOpacity(0.15),
+                    ? Colors.white.withOpacity(0.04)
+                    : Colors.black.withOpacity(0.05),
               ),
               itemBuilder: (context, index) {
                 var place = _searchResults[index];
@@ -1451,15 +1090,15 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                     "";
                 String secondaryText =
                     place['structured_formatting']?['secondary_text'] ?? "";
-                int delay = (index * 50).clamp(0, 300);
+                int delay = (index * 40).clamp(0, 250);
 
                 return TweenAnimationBuilder<double>(
                   tween: Tween(begin: 0.0, end: 1.0),
-                  duration: Duration(milliseconds: 300 + delay),
+                  duration: Duration(milliseconds: 250 + delay),
                   curve: Curves.easeOutCubic,
                   builder: (context, value, child) {
                     return Transform.translate(
-                      offset: Offset(30 * (1 - value), 0),
+                      offset: Offset(15 * (1 - value), 0),
                       child: Opacity(opacity: value, child: child),
                     );
                   },
@@ -1468,12 +1107,12 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                     child: InkWell(
                       onTap: () =>
                           _selectPlace(place['place_id'], place['description']),
-                      splashColor: AppTheme.primaryColor.withOpacity(0.1),
-                      highlightColor: AppTheme.primaryColor.withOpacity(0.05),
+                      splashColor: AppTheme.primaryColor.withOpacity(0.08),
+                      highlightColor: AppTheme.primaryColor.withOpacity(0.04),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
+                          horizontal: 14,
+                          vertical: 10,
                         ),
                         child: Row(
                           children: [
@@ -1483,17 +1122,50 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                                 gradient: LinearGradient(
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
-                                  colors: [
-                                    AppTheme.primaryColor.withOpacity(0.2),
-                                    AppTheme.secondaryColor.withOpacity(0.2),
-                                  ],
+                                  colors: isDark
+                                      ? [
+                                          AppTheme.primaryColor.withOpacity(
+                                            0.15,
+                                          ),
+                                          AppTheme.secondaryColor.withOpacity(
+                                            0.1,
+                                          ),
+                                        ]
+                                      : [
+                                          AppTheme.primaryColor.withOpacity(
+                                            0.12,
+                                          ),
+                                          AppTheme.secondaryColor.withOpacity(
+                                            0.06,
+                                          ),
+                                        ],
                                 ),
                                 borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: isDark
+                                      ? AppTheme.primaryColor.withOpacity(0.12)
+                                      : AppTheme.primaryColor.withOpacity(0.1),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppTheme.primaryColor.withOpacity(
+                                      isDark ? 0.1 : 0.08,
+                                    ),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
                               ),
-                              child: const Icon(
-                                Icons.location_on_rounded,
-                                color: AppTheme.secondaryColor,
-                                size: 20,
+                              child: ShaderMask(
+                                shaderCallback: (bounds) => AppTheme
+                                    .primaryGradient
+                                    .createShader(bounds),
+                                child: Icon(
+                                  Icons.location_on_rounded,
+                                  color: Colors.white,
+                                  size: isDark ? 18 : 20,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 14),
@@ -1507,8 +1179,9 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       fontWeight: FontWeight.w600,
-                                      fontSize: 15,
+                                      fontSize: isDark ? 15 : 14,
                                       color: textColor,
+                                      height: 1.3,
                                     ),
                                   ),
                                   if (secondaryText.isNotEmpty) ...[
@@ -1519,19 +1192,29 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         color: subtextColor,
-                                        fontSize: 13,
+                                        fontSize: 12,
+                                        height: 1.3,
                                       ),
                                     ),
                                   ],
                                 ],
                               ),
                             ),
-                            Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              color: isDark
-                                  ? Colors.white.withOpacity(0.3)
-                                  : Colors.black.withOpacity(0.3),
-                              size: 14,
+                            Container(
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white.withOpacity(0.04)
+                                    : AppTheme.primaryColor.withOpacity(0.04),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                Icons.chevron_right_rounded,
+                                color: isDark
+                                    ? Colors.white.withOpacity(0.2)
+                                    : AppTheme.primaryColor.withOpacity(0.4),
+                                size: 18,
+                              ),
                             ),
                           ],
                         ),
@@ -1561,29 +1244,42 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
               end: Alignment.bottomRight,
               colors: [
                 AppTheme.cardDark.withOpacity(0.98),
-                AppTheme.surfaceDark.withOpacity(0.98),
+                AppTheme.surfaceDark.withOpacity(0.96),
               ],
             ),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-            border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border.all(
+              color: AppTheme.primaryColor.withOpacity(0.15),
+              width: 1.5,
+            ),
             boxShadow: [
+              BoxShadow(
+                color: AppTheme.primaryColor.withOpacity(0.12),
+                blurRadius: 50,
+                offset: const Offset(0, -15),
+              ),
               BoxShadow(
                 color: Colors.black.withOpacity(0.5),
                 blurRadius: 30,
-                offset: const Offset(0, -10),
+                offset: const Offset(0, -8),
+              ),
+              BoxShadow(
+                color: AppTheme.secondaryColor.withOpacity(0.06),
+                blurRadius: 15,
+                offset: const Offset(0, -3),
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+              filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
-                  24,
-                  12,
-                  24,
-                  MediaQuery.of(context).padding.bottom + 24,
+                  20,
+                  14,
+                  20,
+                  MediaQuery.of(context).padding.bottom + 20,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1591,40 +1287,56 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                   children: [
                     Center(
                       child: Container(
-                        width: 50,
-                        height: 5,
+                        width: 40,
+                        height: 4,
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppTheme.primaryColor.withOpacity(0.3),
-                              AppTheme.secondaryColor.withOpacity(0.3),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(3),
+                          gradient: AppTheme.primaryGradient,
+                          borderRadius: BorderRadius.circular(2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.primaryColor.withOpacity(0.3),
+                              blurRadius: 8,
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 22),
                     Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                               colors: [
-                                AppTheme.accentColor.withOpacity(0.2),
-                                AppTheme.accentColor.withOpacity(0.1),
+                                AppTheme.accentColor.withOpacity(0.22),
+                                AppTheme.accentColor.withOpacity(0.06),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(18),
                             border: Border.all(
-                              color: AppTheme.accentColor.withOpacity(0.3),
+                              color: AppTheme.accentColor.withOpacity(0.25),
+                              width: 1.5,
                             ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.accentColor.withOpacity(0.2),
+                                blurRadius: 16,
+                                offset: const Offset(0, 4),
+                              ),
+                              BoxShadow(
+                                color: Colors.white.withOpacity(0.08),
+                                blurRadius: 6,
+                                offset: const Offset(-2, -2),
+                              ),
+                            ],
                           ),
                           child: const Icon(
                             Icons.place_rounded,
                             color: AppTheme.accentColor,
-                            size: 28,
+                            size: 26,
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -1635,19 +1347,21 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                               Text(
                                 _destinationName,
                                 style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w800,
                                   color: Colors.white,
+                                  letterSpacing: -0.3,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 3),
                               Text(
                                 _destinationAddress,
                                 style: TextStyle(
-                                  color: Colors.white.withOpacity(0.5),
-                                  fontSize: 14,
+                                  color: Colors.white.withOpacity(0.4),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w400,
                                 ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
@@ -1657,7 +1371,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                         ),
                       ],
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 24),
                     Row(
                       children: [
                         Expanded(
@@ -1673,7 +1387,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                             onTap: _startNavigation,
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: _buildOutlineButton(
                             text: "Xem đường",
@@ -1705,15 +1419,20 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
         onTap();
       },
       child: Container(
-        height: 56,
+        height: 54,
         decoration: BoxDecoration(
           gradient: gradient,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: AppTheme.primaryColor.withOpacity(0.3),
+              color: AppTheme.primaryColor.withOpacity(0.35),
               blurRadius: 20,
               offset: const Offset(0, 8),
+            ),
+            BoxShadow(
+              color: AppTheme.secondaryColor.withOpacity(0.15),
+              blurRadius: 8,
+              offset: const Offset(-2, -2),
             ),
           ],
         ),
@@ -1723,18 +1442,29 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
-                  Icons.navigation_rounded,
-                  color: Colors.white,
-                  size: 22,
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.25),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 20),
                 ),
                 const SizedBox(width: 10),
                 Text(
                   text,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -1756,13 +1486,21 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
         onTap();
       },
       child: Container(
-        height: 56,
+        height: 54,
         decoration: BoxDecoration(
           border: Border.all(
-            color: AppTheme.secondaryColor.withOpacity(0.5),
-            width: 2,
+            color: AppTheme.secondaryColor.withOpacity(0.45),
+            width: 1.5,
           ),
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
+          color: AppTheme.secondaryColor.withOpacity(0.06),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.secondaryColor.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Material(
           color: Colors.transparent,
@@ -1770,14 +1508,15 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: AppTheme.secondaryColor, size: 22),
+                Icon(icon, color: AppTheme.secondaryColor, size: 20),
                 const SizedBox(width: 10),
                 Text(
                   text,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppTheme.secondaryColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
                   ),
                 ),
               ],
@@ -1798,14 +1537,18 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [AppTheme.backgroundDark, Colors.transparent],
+            colors: [
+              AppTheme.backgroundDark.withOpacity(0.97),
+              AppTheme.backgroundDark.withOpacity(0.65),
+              Colors.transparent,
+            ],
           ),
         ),
         padding: EdgeInsets.fromLTRB(
           16,
           MediaQuery.of(context).padding.top + 10,
           16,
-          20,
+          28,
         ),
         child: Container(
           decoration: BoxDecoration(
@@ -1813,41 +1556,62 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                AppTheme.cardDark.withOpacity(0.95),
-                AppTheme.surfaceDark.withOpacity(0.95),
+                AppTheme.cardDark.withOpacity(0.98),
+                AppTheme.surfaceDark.withOpacity(0.96),
               ],
             ),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: AppTheme.primaryColor.withOpacity(0.12),
+              width: 1.5,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 20,
-                offset: const Offset(0, 5),
+                color: AppTheme.primaryColor.withOpacity(0.1),
+                blurRadius: 25,
+                offset: const Offset(0, 6),
+              ),
+              BoxShadow(
+                color: AppTheme.secondaryColor.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(-2, -2),
               ),
             ],
           ),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                     colors: [
-                      AppTheme.successColor.withOpacity(0.3),
-                      AppTheme.successColor.withOpacity(0.1),
+                      AppTheme.successColor.withOpacity(0.22),
+                      AppTheme.successColor.withOpacity(0.06),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppTheme.successColor.withOpacity(0.18),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.successColor.withOpacity(0.15),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
                 child: const Icon(
                   Icons.turn_right_rounded,
                   color: AppTheme.successColor,
-                  size: 28,
+                  size: 26,
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1855,18 +1619,20 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                     Text(
                       "Đang hướng tới",
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.5),
-                        fontSize: 13,
+                        color: Colors.white.withOpacity(0.4),
+                        fontSize: 12,
                         fontWeight: FontWeight.w500,
+                        letterSpacing: 0.5,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       _destinationName,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1889,7 +1655,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
       child: Column(
         children: [
           Padding(
-            padding: EdgeInsets.only(right: 20, bottom: 16),
+            padding: const EdgeInsets.only(right: 16, bottom: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -1902,8 +1668,8 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                       scale: value,
                       child: FloatingActionButton.extended(
                         heroTag: "vision_btn",
-                        backgroundColor: AppTheme.primaryColor,
-                        elevation: 8,
+                        backgroundColor: AppTheme.cardDark,
+                        elevation: 6,
                         onPressed: () {
                           HapticFeedback.heavyImpact();
                           if (_currentState == MapState.navigating) {
@@ -1920,13 +1686,19 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                         },
                         icon: Container(
                           padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                AppTheme.primaryColor,
+                                AppTheme.secondaryColor,
+                              ],
+                            ),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
                             Icons.auto_awesome_rounded,
                             color: Colors.white,
+                            size: 16,
                           ),
                         ),
                         label: ShaderMask(
@@ -1955,57 +1727,80 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                 end: Alignment.bottomRight,
                 colors: [
                   AppTheme.cardDark.withOpacity(0.98),
-                  AppTheme.surfaceDark.withOpacity(0.98),
+                  AppTheme.surfaceDark.withOpacity(0.97),
                 ],
               ),
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(32),
+                top: Radius.circular(28),
               ),
               border: Border.all(
-                color: Colors.white.withOpacity(0.1),
-                width: 1,
+                color: AppTheme.primaryColor.withOpacity(0.12),
+                width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
-                  blurRadius: 25,
-                  offset: const Offset(0, -5),
+                  color: AppTheme.primaryColor.withOpacity(0.1),
+                  blurRadius: 40,
+                  offset: const Offset(0, -8),
+                ),
+                BoxShadow(
+                  color: AppTheme.secondaryColor.withOpacity(0.05),
+                  blurRadius: 12,
+                  offset: const Offset(0, -3),
+                ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.35),
+                  blurRadius: 20,
+                  offset: const Offset(0, -4),
                 ),
               ],
             ),
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(32),
+                top: Radius.circular(28),
               ),
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(
-                    28,
-                    28,
-                    28,
-                    MediaQuery.of(context).padding.bottom + 28,
+                    24,
+                    20,
+                    24,
+                    MediaQuery.of(context).padding.bottom + 24,
                   ),
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                             colors: [
                               AppTheme.successColor.withOpacity(0.2),
-                              AppTheme.successColor.withOpacity(0.1),
+                              AppTheme.successColor.withOpacity(0.05),
                             ],
                           ),
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: AppTheme.successColor.withOpacity(0.15),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.successColor.withOpacity(0.15),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
                         child: const Icon(
                           Icons.timer_rounded,
                           color: AppTheme.successColor,
-                          size: 32,
+                          size: 28,
                         ),
                       ),
-                      const SizedBox(width: 20),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2013,43 +1808,65 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                             Text(
                               _duration,
                               style: const TextStyle(
-                                fontSize: 32,
+                                fontSize: 28,
                                 fontWeight: FontWeight.w800,
                                 color: AppTheme.successColor,
+                                letterSpacing: -0.5,
+                                shadows: [
+                                  Shadow(
+                                    color: AppTheme.successColor,
+                                    blurRadius: 16,
+                                  ),
+                                ],
                               ),
                             ),
                             Text(
                               "Khoảng cách: $_distance",
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.6),
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
+                                color: Colors.white.withOpacity(0.45),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w400,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       GestureDetector(
                         onTap: _resetToExplore,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 14,
+                            horizontal: 20,
+                            vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: AppTheme.accentColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: AppTheme.accentColor.withOpacity(0.3),
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                AppTheme.accentColor.withOpacity(0.16),
+                                AppTheme.accentColor.withOpacity(0.04),
+                              ],
                             ),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: AppTheme.accentColor.withOpacity(0.25),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.accentColor.withOpacity(0.08),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
                           ),
                           child: const Text(
                             "Thoát",
                             style: TextStyle(
                               color: AppTheme.accentColor,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
@@ -2073,7 +1890,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
           scale: _fabScaleAnimation.value,
           child: Padding(
             padding: EdgeInsets.only(
-              bottom: _currentState == MapState.placeDetail ? 280.0 : 0.0,
+              bottom: _currentState == MapState.placeDetail ? 260.0 : 0.0,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -2088,17 +1905,17 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                         boxShadow: [
                           BoxShadow(
                             color: AppTheme.warningColor.withOpacity(
-                              0.4 * _pulseAnimation.value,
+                              0.35 * _pulseAnimation.value,
                             ),
-                            blurRadius: 15,
-                            spreadRadius: 2,
+                            blurRadius: 18,
+                            spreadRadius: 1,
                           ),
                         ],
                       ),
                       child: FloatingActionButton(
                         heroTag: "btn_satellite",
                         backgroundColor: AppTheme.cardDark,
-                        elevation: 8,
+                        elevation: 6,
                         onPressed: () {
                           HapticFeedback.mediumImpact();
                           Navigator.push(
@@ -2118,7 +1935,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                               end: Alignment.bottomRight,
                               colors: [
                                 AppTheme.warningColor.withOpacity(0.3),
-                                AppTheme.accentColor.withOpacity(0.3),
+                                AppTheme.accentColor.withOpacity(0.2),
                               ],
                             ),
                           ),
@@ -2131,7 +1948,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                     );
                   },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 AnimatedBuilder(
                   animation: _pulseController,
                   builder: (context, child) {
@@ -2141,17 +1958,17 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                         boxShadow: [
                           BoxShadow(
                             color: AppTheme.secondaryColor.withOpacity(
-                              0.4 * (2 - _pulseAnimation.value),
+                              0.35 * (2 - _pulseAnimation.value),
                             ),
-                            blurRadius: 15,
-                            spreadRadius: 2,
+                            blurRadius: 18,
+                            spreadRadius: 1,
                           ),
                         ],
                       ),
                       child: FloatingActionButton(
                         heroTag: "btn_location",
                         backgroundColor: AppTheme.cardDark,
-                        elevation: 8,
+                        elevation: 6,
                         onPressed: () {
                           HapticFeedback.lightImpact();
                           if (_isLocationLoaded) {
@@ -2168,7 +1985,7 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                               end: Alignment.bottomRight,
                               colors: [
                                 AppTheme.primaryColor.withOpacity(0.3),
-                                AppTheme.secondaryColor.withOpacity(0.3),
+                                AppTheme.secondaryColor.withOpacity(0.25),
                               ],
                             ),
                           ),

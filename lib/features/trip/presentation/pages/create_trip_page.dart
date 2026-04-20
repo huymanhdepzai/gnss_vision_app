@@ -969,16 +969,16 @@ class _CreateTripScreenState extends State<CreateTripScreen>
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            if (onLongPress != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                'Giữ để dùng vị trí hiện tại',
-                style: TextStyle(
-                  color: isDark ? Colors.white38 : Colors.black38,
-                  fontSize: 10,
-                ),
-              ),
-            ],
+            // if (onLongPress != null) ...[
+            //   const SizedBox(height: 4),
+            //   Text(
+            //     'Giữ để dùng vị trí hiện tại',
+            //     style: TextStyle(
+            //       color: isDark ? Colors.white38 : Colors.black38,
+            //       fontSize: 10,
+            //     ),
+            //   ),
+            // ],
           ],
         ),
       ),
