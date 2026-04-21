@@ -80,7 +80,7 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
         geo.Geolocator.getPositionStream(
           locationSettings: const geo.LocationSettings(
             accuracy: geo.LocationAccuracy.high,
-            distanceFilter: 3,
+            distanceFilter: 2,
           ),
         ).listen((geo.Position position) {
           if (!mounted) return;
@@ -94,7 +94,10 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
 
   void _updateCameraBearing(double bearing) {
     if (_mapboxMap == null) return;
-    _mapboxMap!.setCamera(CameraOptions(bearing: bearing));
+    _mapboxMap!.easeTo(
+      CameraOptions(bearing: bearing),
+      MapAnimationOptions(duration: 500),
+    );
   }
 
   void _animateCameraToPosition(geo.Position position) {
@@ -103,11 +106,12 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
         center: Point(
           coordinates: Position(position.longitude, position.latitude),
         ).toJson(),
-        zoom: 17.0,
-        pitch: 45.0,
+        zoom: 18.0,
+        pitch: 60.0,
         bearing: _currentHeading,
+        padding: MbxEdgeInsets(top: 140, left: 0, bottom: 0, right: 0),
       ),
-      MapAnimationOptions(duration: 1000),
+      MapAnimationOptions(duration: 1500),
     );
   }
 
@@ -127,9 +131,10 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
               _currentPosition!.latitude,
             ),
           ).toJson(),
-          zoom: 17.0,
-          pitch: 45.0,
+          zoom: 18.0,
+          pitch: 60.0,
           bearing: _currentHeading,
+          padding: MbxEdgeInsets(top: 140, left: 0, bottom: 0, right: 0),
         ),
       );
     }
@@ -142,6 +147,7 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
     final route = widget.route;
 
     if (_currentPosition != null) {
+      // Aura effect
       await _circleAnnotationManager!.create(
         CircleAnnotationOptions(
           geometry: Point(
@@ -150,10 +156,11 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
               _currentPosition!.latitude,
             ),
           ).toJson(),
-          circleColor: AppTheme.secondaryColor.withOpacity(0.3).value,
-          circleRadius: 16.0,
+          circleColor: AppTheme.secondaryColor.withOpacity(0.2).value,
+          circleRadius: 24.0,
         ),
       );
+      // Outer circle
       await _circleAnnotationManager!.create(
         CircleAnnotationOptions(
           geometry: Point(
@@ -163,14 +170,29 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
             ),
           ).toJson(),
           circleColor: AppTheme.primaryColor.value,
-          circleRadius: 8.0,
-          circleStrokeWidth: 2.0,
+          circleRadius: 10.0,
+          circleStrokeWidth: 3.0,
           circleStrokeColor: Colors.white.value,
+        ),
+      );
+      // Directional arrow (small inner circle for now as a fallback, 
+      // but we will use the heading to rotate the map)
+      await _circleAnnotationManager!.create(
+        CircleAnnotationOptions(
+          geometry: Point(
+            coordinates: Position(
+              _currentPosition!.longitude,
+              _currentPosition!.latitude,
+            ),
+          ).toJson(),
+          circleColor: Colors.white.value,
+          circleRadius: 4.0,
         ),
       );
     }
 
     if (route != null) {
+      // Destination marker
       await _circleAnnotationManager!.create(
         CircleAnnotationOptions(
           geometry: Point(
@@ -180,8 +202,8 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
             ),
           ).toJson(),
           circleColor: AppTheme.accentColor.value,
-          circleRadius: 10.0,
-          circleStrokeWidth: 2.0,
+          circleRadius: 12.0,
+          circleStrokeWidth: 3.0,
           circleStrokeColor: Colors.white.value,
         ),
       );
@@ -231,6 +253,7 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
         GeoJsonSource(id: "nav_route_source", data: geojson),
       );
 
+      // Main route line
       var lineLayerJson = """{
         "type": "line",
         "id": "nav_route_layer",
@@ -238,12 +261,27 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
         "paint": {
           "line-join": "round",
           "line-cap": "round",
-          "line-color": "#00D4FF",
-          "line-width": 6.0,
-          "line-blur": 2.0
+          "line-color": "#00E5FF",
+          "line-width": 9.0
         }
       }""";
 
+      // Casing/Glow for route line
+      var casingLayerJson = """{
+        "type": "line",
+        "id": "nav_route_casing",
+        "source": "nav_route_source",
+        "paint": {
+          "line-join": "round",
+          "line-cap": "round",
+          "line-color": "#0055FF",
+          "line-width": 13.0,
+          "line-opacity": 0.4,
+          "line-blur": 3.0
+        }
+      }""";
+
+      await _mapboxMap?.style.addPersistentStyleLayer(casingLayerJson, null);
       await _mapboxMap?.style.addPersistentStyleLayer(lineLayerJson, null);
     } catch (e) {
       debugPrint('Error drawing route: $e');

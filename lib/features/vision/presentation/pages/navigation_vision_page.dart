@@ -9,6 +9,7 @@ import '../widgets/flow_painter.dart';
 import '../widgets/navigation_map_widget.dart';
 import '../widgets/turn_instruction_card.dart';
 import '../../../map/presentation/controllers/navigation_controller.dart';
+import '../../../map/domain/entities/navigation_step.dart';
 
 class NavigationVisionPage extends StatefulWidget {
   const NavigationVisionPage({super.key});
@@ -994,29 +995,34 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
     final progress = navController.progressPercentage;
 
     return Container(
+      margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
       padding: EdgeInsets.symmetric(
-        horizontal: isSmallDevice ? 8 : 12,
-        vertical: isSmallDevice ? 5 : 7,
+        horizontal: isSmallDevice ? 10 : 16,
+        vertical: isSmallDevice ? 8 : 12,
       ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: isDark
-              ? [const Color(0xFF12162E), const Color(0xFF0D1025)]
-              : [AppTheme.cardLight, AppTheme.surfaceLight],
+              ? [const Color(0xFF1A1F3D), const Color(0xFF0D1025)]
+              : [Colors.white, const Color(0xFFF0F4FA)],
         ),
-        border: Border(
-          bottom: BorderSide(
-            color: AppTheme.secondaryColor.withOpacity(0.2),
-            width: 1,
-          ),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+        border: Border.all(
+          color: AppTheme.secondaryColor.withOpacity(0.3),
+          width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+          BoxShadow(
+            color: AppTheme.secondaryColor.withOpacity(0.1),
+            blurRadius: 8,
+            spreadRadius: -2,
           ),
         ],
       ),
@@ -1025,70 +1031,51 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
           Row(
             children: [
               Container(
-                padding: EdgeInsets.all(isSmallDevice ? 4 : 7),
+                padding: EdgeInsets.all(isSmallDevice ? 6 : 10),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      AppTheme.secondaryColor.withOpacity(0.3),
-                      AppTheme.secondaryColor.withOpacity(0.08),
+                      AppTheme.secondaryColor,
+                      AppTheme.primaryColor,
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: AppTheme.secondaryColor.withOpacity(0.35),
-                    width: 1,
-                  ),
+                  borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.secondaryColor.withOpacity(0.2),
-                      blurRadius: 4,
+                      color: AppTheme.secondaryColor.withOpacity(0.4),
+                      blurRadius: 10,
                     ),
                   ],
                 ),
                 child: Icon(
-                  Icons.navigation_rounded,
-                  color: AppTheme.secondaryColor,
-                  size: isSmallDevice ? 12 : 16,
+                  _getManeuverIcon(currentStep?.maneuverType),
+                  color: Colors.white,
+                  size: isSmallDevice ? 18 : 24,
                 ),
               ),
-              SizedBox(width: isSmallDevice ? 6 : 10),
+              SizedBox(width: isSmallDevice ? 10 : 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (currentStep?.name != null &&
-                        currentStep!.name!.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 1),
-                        child: Text(
-                          currentStep.name!,
-                          style: TextStyle(
-                            color: AppTheme.secondaryColor.withOpacity(0.8),
-                            fontSize: isSmallDevice ? 8 : 9,
-                            fontWeight: FontWeight.w500,
-                            height: 1.2,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
                     Text(
                       route.destinationName.isNotEmpty
                           ? route.destinationName
                           : 'Điểm đến',
                       style: TextStyle(
                         color: isDark ? Colors.white : AppTheme.textDark,
-                        fontSize: isSmallDevice ? 11 : 13,
-                        fontWeight: FontWeight.w700,
+                        fontSize: isSmallDevice ? 14 : 18,
+                        fontWeight: FontWeight.w800,
                         height: 1.2,
+                        letterSpacing: 0.5,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: isSmallDevice ? 1 : 2),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         _buildInfoChip(
@@ -1096,13 +1083,15 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                           route.distanceText,
                           AppTheme.successColor,
                           isSmallDevice,
+                          isDark,
                         ),
-                        SizedBox(width: isSmallDevice ? 4 : 8),
+                        SizedBox(width: isSmallDevice ? 8 : 12),
                         _buildInfoChip(
                           Icons.timer_rounded,
                           route.durationText,
                           AppTheme.secondaryColor,
                           isSmallDevice,
+                          isDark,
                         ),
                       ],
                     ),
@@ -1113,21 +1102,37 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
             ],
           ),
           if (progress > 0) ...[
-            SizedBox(height: isSmallDevice ? 3 : 5),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: SizedBox(
-                height: 3,
-                child: LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: isDark
-                      ? Colors.white.withOpacity(0.08)
-                      : Colors.black.withOpacity(0.06),
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    AppTheme.secondaryColor,
+            SizedBox(height: isSmallDevice ? 8 : 12),
+            Stack(
+              children: [
+                Container(
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withOpacity(0.1)
+                        : Colors.black.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(3),
                   ),
                 ),
-              ),
+                FractionallySizedBox(
+                  widthFactor: progress.clamp(0.0, 1.0),
+                  child: Container(
+                    height: 6,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [AppTheme.secondaryColor, AppTheme.primaryColor],
+                      ),
+                      borderRadius: BorderRadius.circular(3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.secondaryColor.withOpacity(0.3),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ],
@@ -1135,26 +1140,67 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
     );
   }
 
+  IconData _getManeuverIcon(ManeuverType? type) {
+    if (type == null) return Icons.navigation_rounded;
+    switch (type) {
+      case ManeuverType.depart:
+        return Icons.navigation_rounded;
+      case ManeuverType.arrive:
+        return Icons.flag_rounded;
+      case ManeuverType.turn:
+        return Icons.turn_right_rounded;
+      case ManeuverType.fork:
+        return Icons.fork_right_rounded;
+      case ManeuverType.roundabout:
+        return Icons.roundabout_right_rounded;
+      case ManeuverType.merge:
+        return Icons.merge_type_rounded;
+      case ManeuverType.onRamp:
+        return Icons.drive_eta_rounded;
+      case ManeuverType.offRamp:
+        return Icons.exit_to_app_rounded;
+      case ManeuverType.ferry:
+        return Icons.directions_boat_rounded;
+      case ManeuverType.continueStraight:
+        return Icons.straight_rounded;
+      case ManeuverType.endOfRoad:
+        return Icons.stop_rounded;
+      case ManeuverType.newName:
+        return Icons.straight_rounded;
+      case ManeuverType.notification:
+        return Icons.info_rounded;
+    }
+  }
+
   Widget _buildInfoChip(
     IconData icon,
     String text,
     Color color,
     bool isSmallDevice,
+    bool isDark,
   ) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: isSmallDevice ? 9 : 11),
-        SizedBox(width: isSmallDevice ? 2 : 3),
-        Text(
-          text,
-          style: TextStyle(
-            color: color,
-            fontSize: isSmallDevice ? 8 : 10,
-            fontWeight: FontWeight.w600,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.3), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: isSmallDevice ? 12 : 14),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: isSmallDevice ? 10 : 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1170,34 +1216,21 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
           navController.stopNavigation();
           Navigator.of(context).pop();
         },
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: EdgeInsets.all(isSmallDevice ? 4 : 6),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppTheme.accentColor.withOpacity(0.2),
-                AppTheme.accentColor.withOpacity(0.06),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(14),
+            color: AppTheme.accentColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: AppTheme.accentColor.withOpacity(0.3),
               width: 1,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.accentColor.withOpacity(0.1),
-                blurRadius: 4,
-              ),
-            ],
           ),
           child: Icon(
             Icons.close_rounded,
-            color: AppTheme.accentColor.withOpacity(0.9),
-            size: isSmallDevice ? 12 : 16,
+            color: AppTheme.accentColor,
+            size: isSmallDevice ? 16 : 20,
           ),
         ),
       ),
