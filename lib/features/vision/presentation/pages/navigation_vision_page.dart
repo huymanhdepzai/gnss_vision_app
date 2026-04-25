@@ -109,12 +109,12 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
             child: Column(
               children: [
                 Expanded(
-                  flex: 55,
+                  flex: 38,
                   child: _buildVideoSection(isDark, isSmallDevice),
                 ),
                 _buildDivider(),
                 Expanded(
-                  flex: 45,
+                  flex: 62,
                   child: _buildMapSection(isDark, isSmallDevice),
                 ),
               ],
@@ -131,7 +131,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
       builder: (context, child) {
         final offset = _dividerController.value;
         return Container(
-          height: 2,
+          height: 1,
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.centerLeft,
@@ -153,14 +153,9 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
             ),
             boxShadow: [
               BoxShadow(
-                color: AppTheme.secondaryColor.withOpacity(0.3),
-                blurRadius: 8,
-                spreadRadius: 1,
-              ),
-              BoxShadow(
-                color: AppTheme.primaryColor.withOpacity(0.15),
-                blurRadius: 16,
-                spreadRadius: 2,
+                color: AppTheme.secondaryColor.withOpacity(0.15),
+                blurRadius: 4,
+                spreadRadius: 0,
               ),
             ],
           ),
@@ -430,58 +425,52 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
       child: SlideTransition(
         position: _entrySlideAnimation,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
             child: AnimatedBuilder(
               animation: _glowController,
               builder: (context, child) {
                 final glowVal = _glowController.value;
                 return Container(
                   padding: EdgeInsets.symmetric(
-                    horizontal: isSmallDevice ? 6 : 10,
-                    vertical: isSmallDevice ? 3 : 5,
+                    horizontal: isSmallDevice ? 5 : 8,
+                    vertical: isSmallDevice ? 2 : 4,
                   ),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.black.withOpacity(0.65),
-                        Colors.black.withOpacity(0.45),
-                        Colors.black.withOpacity(0.6),
+                        Colors.black.withOpacity(0.55),
+                        Colors.black.withOpacity(0.35),
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.08 + 0.04 * glowVal),
-                      width: 1,
+                      color: Colors.white.withOpacity(0.06 + 0.03 * glowVal),
+                      width: 0.5,
                     ),
                     boxShadow: [
                       BoxShadow(
                         color: AppTheme.primaryColor.withOpacity(
-                          0.06 * glowVal,
+                          0.04 * glowVal,
                         ),
-                        blurRadius: 18,
-                        spreadRadius: 1,
-                      ),
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.4),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
+                        blurRadius: 10,
+                        spreadRadius: 0,
                       ),
                     ],
                   ),
                   child: Row(
                     children: [
                       _buildSpeedGauge(isDark, isSmallDevice),
-                      SizedBox(width: isSmallDevice ? 4 : 8),
+                      SizedBox(width: isSmallDevice ? 3 : 6),
                       Container(
                         width: 1,
-                        height: isSmallDevice ? 16 : 22,
-                        color: Colors.white24,
+                        height: isSmallDevice ? 12 : 18,
+                        color: Colors.white12,
                       ),
-                      SizedBox(width: isSmallDevice ? 4 : 8),
+                      SizedBox(width: isSmallDevice ? 3 : 6),
                       _buildHeadingDisplay(isDark, isSmallDevice),
                       const Spacer(),
                       _buildStatusIcons(isDark),
@@ -696,13 +685,16 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
         }
 
         return Positioned(
-          top: 46,
+          top: 36,
           left: 6,
           right: 6,
-          child: TurnInstructionCard(
-            currentStep: navController.currentStep,
-            destinationName: navController.currentRoute?.destinationName ?? '',
-            progressPercentage: navController.progressPercentage,
+          child: Opacity(
+            opacity: 0.85,
+            child: TurnInstructionCard(
+              currentStep: navController.currentStep,
+              destinationName: navController.currentRoute?.destinationName ?? '',
+              progressPercentage: navController.progressPercentage,
+            ),
           ),
         );
       },
@@ -711,25 +703,25 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
 
   Widget _buildMiniControls(bool isDark, bool isSmallDevice) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(12),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
         child: Container(
           padding: EdgeInsets.symmetric(
-            horizontal: isSmallDevice ? 4 : 6,
-            vertical: isSmallDevice ? 2 : 3,
+            horizontal: isSmallDevice ? 3 : 5,
+            vertical: isSmallDevice ? 1 : 2,
           ),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Colors.black.withOpacity(0.5),
-                Colors.black.withOpacity(0.3),
+                Colors.black.withOpacity(0.4),
+                Colors.black.withOpacity(0.2),
               ],
             ),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withOpacity(0.06)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -747,7 +739,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                   setState(() {});
                 },
               ),
-              SizedBox(width: isSmallDevice ? 2 : 4),
+              SizedBox(width: isSmallDevice ? 1 : 3),
               _buildMiniButton(
                 icon: Icons.folder_open_rounded,
                 onTap: () {
@@ -756,7 +748,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                 },
               ),
               if (_flowController.isPlaying) ...[
-                SizedBox(width: isSmallDevice ? 2 : 4),
+                SizedBox(width: isSmallDevice ? 1 : 3),
                 _buildMiniButton(
                   icon: _flowController.isPaused
                       ? Icons.speed_rounded
@@ -771,7 +763,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                 ),
               ],
               if (_isDebugMode) ...[
-                SizedBox(width: isSmallDevice ? 2 : 4),
+                SizedBox(width: isSmallDevice ? 1 : 3),
                 _buildMiniButton(
                   icon: Icons.grid_on_rounded,
                   isActive: true,
@@ -783,7 +775,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                   },
                 ),
               ] else ...[
-                SizedBox(width: isSmallDevice ? 2 : 4),
+                SizedBox(width: isSmallDevice ? 1 : 3),
                 _buildMiniButton(
                   icon: Icons.grid_3x3_rounded,
                   onTap: () {
@@ -793,7 +785,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                   },
                 ),
               ],
-              SizedBox(width: isSmallDevice ? 2 : 4),
+              SizedBox(width: isSmallDevice ? 1 : 3),
               _buildMiniButton(
                 icon: _flowController.voiceEnabled
                     ? Icons.volume_up_rounded
@@ -806,7 +798,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                 },
               ),
               if (_flowController.aiObstacles.isNotEmpty) ...[
-                SizedBox(width: isSmallDevice ? 2 : 4),
+                SizedBox(width: isSmallDevice ? 1 : 3),
                 _buildObstacleIndicator(),
               ],
             ],
@@ -995,34 +987,29 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
     final progress = navController.progressPercentage;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+      margin: const EdgeInsets.fromLTRB(6, 0, 6, 4),
       padding: EdgeInsets.symmetric(
-        horizontal: isSmallDevice ? 10 : 16,
-        vertical: isSmallDevice ? 8 : 12,
+        horizontal: isSmallDevice ? 8 : 12,
+        vertical: isSmallDevice ? 4 : 6,
       ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isDark
-              ? [const Color(0xFF1A1F3D), const Color(0xFF0D1025)]
-              : [Colors.white, const Color(0xFFF0F4FA)],
+              ? [const Color(0xFF1A1F3D).withOpacity(0.75), const Color(0xFF0D1025).withOpacity(0.75)]
+              : [Colors.white.withOpacity(0.8), const Color(0xFFF0F4FA).withOpacity(0.8)],
         ),
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
         border: Border.all(
-          color: AppTheme.secondaryColor.withOpacity(0.3),
-          width: 1.5,
+          color: AppTheme.secondaryColor.withOpacity(0.2),
+          width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-          BoxShadow(
-            color: AppTheme.secondaryColor.withOpacity(0.1),
+            color: Colors.black.withOpacity(0.15),
             blurRadius: 8,
-            spreadRadius: -2,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
