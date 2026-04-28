@@ -35,6 +35,7 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
   double _currentHeading = 0.0;
   double _smoothedHeading = 0.0;
   bool _isMapReady = false;
+  bool _arrowIconReady = false;
 
   @override
   void initState() {
@@ -396,7 +397,7 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
     _circleAnnotationManager = await _mapboxMap?.annotations
         .createCircleAnnotationManager();
 
-    await _addArrowIcon();
+    _arrowIconReady = await _addArrowIcon();
 
     setState(() => _isMapReady = true);
 
@@ -405,8 +406,8 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
     }
   }
 
-  Future<void> _addArrowIcon() async {
-    if (_mapboxMap == null) return;
+  Future<bool> _addArrowIcon() async {
+    if (_mapboxMap == null) return false;
     try {
       final int size = 48;
       final recorder = ui.PictureRecorder();
@@ -436,22 +437,29 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
       canvas.drawPath(path, highlightPaint);
 
       final picture = recorder.endRecording();
-      final image = await picture.toImage(size, size);
+      final ui.Image image = await picture.toImage(size, size);
+      
       final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (byteData != null) {
-        final rgbaData = byteData.buffer.asUint8List();
-        await _mapboxMap!.style.addStyleImage(
-          "nav_direction_arrow",
-          1.0,
-          MbxImage(width: size, height: size, data: rgbaData),
-          false,
-          [],
-          [],
-          null,
-        );
+      if (byteData == null) {
+        debugPrint('Arrow icon: byteData is null');
+        return false;
       }
+
+      final rgbaData = byteData.buffer.asUint8List();
+
+      await _mapboxMap!.style.addStyleImage(
+        "nav_direction_arrow",
+        1.0,
+        MbxImage(width: size, height: size, data: rgbaData),
+        false,
+        [],
+        [],
+        null,
+      );
+      return true;
     } catch (e) {
       debugPrint('Error adding arrow icon: $e');
+      return false;
     }
   }
 
@@ -481,9 +489,11 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
         GeoJsonSource(id: "nav_route_source", data: routeGeojson),
       );
 
-      await _mapboxMap?.style.addSource(
-        GeoJsonSource(id: "nav_arrow_source", data: arrowGeojson),
-      );
+      if (_arrowIconReady) {
+        await _mapboxMap?.style.addSource(
+          GeoJsonSource(id: "nav_arrow_source", data: arrowGeojson),
+        );
+      }
 
       var innerGlowJson = """{
         "type": "line",
@@ -559,26 +569,28 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
       await _mapboxMap?.style.addPersistentStyleLayer(lineLayerJson, null);
       await _mapboxMap?.style.addPersistentStyleLayer(centerHighlightJson, null);
 
-      var arrowLayerJson = """{
-        "type": "symbol",
-        "id": "nav_arrow_layer",
-        "source": "nav_arrow_source",
-        "layout": {
-          "symbol-placement": "point",
-          "icon-image": "nav_direction_arrow",
-          "icon-size": 0.9,
-          "icon-rotation": ["get", "bearing"],
-          "icon-rotation-alignment": "map",
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "icon-keep-upright": false
-        },
-        "paint": {
-          "icon-opacity": 0.95
-        }
-      }""";
+      if (_arrowIconReady) {
+        var arrowLayerJson = """{
+          "type": "symbol",
+          "id": "nav_arrow_layer",
+          "source": "nav_arrow_source",
+          "layout": {
+            "symbol-placement": "point",
+            "icon-image": "nav_direction_arrow",
+            "icon-size": 0.9,
+            "icon-rotation": ["get", "bearing"],
+            "icon-rotation-alignment": "map",
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+            "icon-keep-upright": false
+          },
+          "paint": {
+            "icon-opacity": 0.95
+          }
+        }""";
 
-      await _mapboxMap?.style.addPersistentStyleLayer(arrowLayerJson, null);
+        await _mapboxMap?.style.addPersistentStyleLayer(arrowLayerJson, null);
+      }
     } catch (e) {
       debugPrint('Error drawing route: $e');
     }

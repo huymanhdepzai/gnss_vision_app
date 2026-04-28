@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 import 'core/app_theme.dart';
 import 'core/utils/injection_container.dart';
@@ -12,7 +12,9 @@ import 'features/voice/presentation/controllers/voice_controller.dart';
 import 'features/trip/presentation/controllers/trip_controller.dart';
 import 'features/trip/data/datasources/trip_service.dart';
 import 'features/map/presentation/controllers/navigation_controller.dart';
+import 'features/map/presentation/controllers/map_home_controller.dart';
 import 'features/map/data/datasources/goong_directions_data_source.dart';
+import 'features/map/data/datasources/goong_search_data_source.dart';
 import 'features/map/data/repositories/navigation_repository_impl.dart';
 import 'core/pages/splash_screen.dart';
 
@@ -31,6 +33,7 @@ void main() async {
     Permission.microphone,
     Permission.photos,
     Permission.videos,
+    Permission.notification,
   ].request();
 
   runApp(const MyApp());
@@ -49,6 +52,12 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => NavigationController(
             NavigationRepositoryImpl(GoongDirectionsDataSourceImpl()),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => MapHomeController(
+            searchDataSource: GoongSearchDataSourceImpl(),
+            navigationController: context.read<NavigationController>(),
           ),
         ),
       ],
