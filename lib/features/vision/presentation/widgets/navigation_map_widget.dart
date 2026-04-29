@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
@@ -36,6 +37,7 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
   double _smoothedHeading = 0.0;
   bool _isMapReady = false;
   bool _arrowIconReady = false;
+  bool _userIconReady = false;
 
   @override
   void initState() {
@@ -60,6 +62,7 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
       _smoothedHeading = _smoothAngle(_smoothedHeading, raw, 0.3);
       _currentHeading = _smoothedHeading;
       _updateCameraBearing(_smoothedHeading);
+      _updateUserLocationMarker();
     }
   }
 
@@ -100,6 +103,7 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
           _currentPosition = position;
           if (_isMapReady) {
             _redrawMarkers();
+            _updateUserLocationMarker();
             _animateCameraToPosition(position);
           }
         });
@@ -211,15 +215,15 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
       cumulativeDistances.add(totalDistance);
     }
 
-    if (totalDistance < 50) return '{"type":"FeatureCollection","features":[]}';
+    if (totalDistance < 20) return '{"type":"FeatureCollection","features":[]}';
 
-    final double arrowSpacing = totalDistance > 2000 ? 350.0 : 200.0;
-    final double startOffset = 30.0;
+    final double arrowSpacing = totalDistance > 2000 ? 150.0 : 80.0;
+    final double startOffset = 15.0;
 
     final features = <String>[];
     double dist = startOffset;
 
-    while (dist < totalDistance - 20) {
+    while (dist < totalDistance - 10) {
       int segIdx = 0;
       for (int i = 1; i < cumulativeDistances.length; i++) {
         if (cumulativeDistances[i] >= dist) {
@@ -290,71 +294,6 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
 
     final route = widget.route;
 
-    if (_currentPosition != null) {
-      await _circleAnnotationManager!.create(
-        CircleAnnotationOptions(
-          geometry: Point(
-            coordinates: Position(
-              _currentPosition!.longitude,
-              _currentPosition!.latitude,
-            ),
-          ).toJson(),
-          circleColor: const Color(0xFF1565C0).withOpacity(0.12).value,
-          circleRadius: 40.0,
-        ),
-      );
-      await _circleAnnotationManager!.create(
-        CircleAnnotationOptions(
-          geometry: Point(
-            coordinates: Position(
-              _currentPosition!.longitude,
-              _currentPosition!.latitude,
-            ),
-          ).toJson(),
-          circleColor: const Color(0xFF1976D2).withOpacity(0.25).value,
-          circleRadius: 26.0,
-        ),
-      );
-      await _circleAnnotationManager!.create(
-        CircleAnnotationOptions(
-          geometry: Point(
-            coordinates: Position(
-              _currentPosition!.longitude,
-              _currentPosition!.latitude,
-            ),
-          ).toJson(),
-          circleColor: const Color(0xFF1565C0).value,
-          circleRadius: 16.0,
-          circleStrokeWidth: 4.0,
-          circleStrokeColor: Colors.white.value,
-        ),
-      );
-      await _circleAnnotationManager!.create(
-        CircleAnnotationOptions(
-          geometry: Point(
-            coordinates: Position(
-              _currentPosition!.longitude,
-              _currentPosition!.latitude,
-            ),
-          ).toJson(),
-          circleColor: const Color(0xFF42A5F5).value,
-          circleRadius: 8.0,
-        ),
-      );
-      await _circleAnnotationManager!.create(
-        CircleAnnotationOptions(
-          geometry: Point(
-            coordinates: Position(
-              _currentPosition!.longitude,
-              _currentPosition!.latitude,
-            ),
-          ).toJson(),
-          circleColor: Colors.white.value,
-          circleRadius: 3.5,
-        ),
-      );
-    }
-
     if (route != null) {
       await _circleAnnotationManager!.create(
         CircleAnnotationOptions(
@@ -393,69 +332,66 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
     );
   }
 
+  bool _isInitializingStyle = false;
+
   void _onStyleLoaded(StyleLoadedEventData data) async {
-    _circleAnnotationManager = await _mapboxMap?.annotations
-        .createCircleAnnotationManager();
+    if (_isInitializingStyle) return;
+    _isInitializingStyle = true;
 
-    _arrowIconReady = await _addArrowIcon();
+    try {
+      debugPrint('Map style loaded, initializing layers...');
+      _circleAnnotationManager = await _mapboxMap?.annotations.createCircleAnnotationManager();
 
-    setState(() => _isMapReady = true);
+      _arrowIconReady = await _addArrowIcon();
+      await _addUserNavigationIcon();
 
-    if (widget.route != null) {
-      await _drawRouteAndMarkers();
+      if (mounted) {
+        setState(() => _isMapReady = true);
+      }
+
+      if (widget.route != null) {
+        await _drawRouteAndMarkers();
+      }
+
+      if (_currentPosition != null) {
+        _updateUserLocationMarker();
+      }
+    } finally {
+      _isInitializingStyle = false;
     }
   }
 
   Future<bool> _addArrowIcon() async {
     if (_mapboxMap == null) return false;
     try {
-      final int size = 48;
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder);
+      debugPrint('Adding arrow icon to map style...');
+      final ByteData data = await rootBundle.load('assets/images/navigation.png');
+      final Uint8List bytes = data.buffer.asUint8List();
 
-      final center = Offset(size / 2, size / 2);
-      final path = Path();
-      path.moveTo(center.dx, center.dy - 18);
-      path.lineTo(center.dx + 12, center.dy + 8);
-      path.lineTo(center.dx + 5, center.dy + 4);
-      path.lineTo(center.dx + 5, center.dy + 14);
-      path.lineTo(center.dx - 5, center.dy + 14);
-      path.lineTo(center.dx - 5, center.dy + 4);
-      path.lineTo(center.dx - 12, center.dy + 8);
-      path.close();
+      final ui.Codec codec = await ui.instantiateImageCodec(bytes, targetWidth: 64, targetHeight: 64);
+      final ui.FrameInfo fi = await codec.getNextFrame();
+      final ui.Image image = fi.image;
 
-      final shadowPaint = Paint()
-        ..color = const Color(0xFF1565C0)
-        ..style = PaintingStyle.fill;
-      canvas.drawPath(path, shadowPaint);
-
-      final highlightPaint = Paint()
-        ..color = const Color(0xFF64B5F6)
-        ..strokeWidth = 1.5
-        ..style = PaintingStyle.stroke
-        ..strokeJoin = StrokeJoin.round;
-      canvas.drawPath(path, highlightPaint);
-
-      final picture = recorder.endRecording();
-      final ui.Image image = await picture.toImage(size, size);
-      
       final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
       if (byteData == null) {
         debugPrint('Arrow icon: byteData is null');
         return false;
       }
 
-      final rgbaData = byteData.buffer.asUint8List();
+      // Important: Create a copy of the bytes to ensure proper alignment and ownership when passing to native
+      final uint8list = Uint8List.fromList(byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes));
+      debugPrint('Arrow icon data size: ${uint8list.length} bytes (${image.width}x${image.height})');
 
       await _mapboxMap!.style.addStyleImage(
         "nav_direction_arrow",
         1.0,
-        MbxImage(width: size, height: size, data: rgbaData),
+        MbxImage(width: image.width, height: image.height, data: uint8list),
         false,
         [],
         [],
         null,
       );
+      debugPrint('Arrow icon added successfully.');
       return true;
     } catch (e) {
       debugPrint('Error adding arrow icon: $e');
@@ -463,9 +399,86 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
     }
   }
 
+  Future<void> _addUserNavigationIcon() async {
+    if (_mapboxMap == null) return;
+    try {
+      debugPrint('Adding user navigation icon...');
+      final ByteData data = await rootBundle.load('assets/images/navigation.png');
+      final Uint8List bytes = data.buffer.asUint8List();
+
+      final ui.Codec codec = await ui.instantiateImageCodec(bytes, targetWidth: 100, targetHeight: 100);
+      final ui.FrameInfo fi = await codec.getNextFrame();
+      final ui.Image image = fi.image;
+
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (byteData == null) return;
+
+      final uint8list = Uint8List.fromList(byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes));
+      debugPrint('User icon data size: ${uint8list.length} bytes (${image.width}x${image.height})');
+
+      await _mapboxMap!.style.addStyleImage(
+        "user_navigation_icon",
+        1.0,
+        MbxImage(width: image.width, height: image.height, data: uint8list),
+        false,
+        [],
+        [],
+        null,
+      );
+      _userIconReady = true;
+      debugPrint('User navigation icon added.');
+    } catch (e) {
+      debugPrint('Error adding user navigation icon: $e');
+    }
+  }
+
+  Future<void> _updateUserLocationMarker() async {
+    if (_mapboxMap == null || _currentPosition == null || !_userIconReady) return;
+
+    String geojson = '''{
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [${_currentPosition!.longitude}, ${_currentPosition!.latitude}]
+      },
+      "properties": {
+        "bearing": $_currentHeading
+      }
+    }''';
+
+    try {
+      final style = _mapboxMap!.style;
+      if (await style.styleSourceExists("user_location_source")) {
+        await style.setStyleSourceProperty("user_location_source", "data", geojson);
+      } else {
+        await style.addSource(GeoJsonSource(id: "user_location_source", data: geojson));
+
+        if (!(await style.styleLayerExists("user_location_layer"))) {
+          var layerJson = """{
+            "type": "symbol",
+            "id": "user_location_layer",
+            "source": "user_location_source",
+            "layout": {
+              "icon-image": "user_navigation_icon",
+              "icon-size": 0.4,
+              "icon-rotate": ["get", "bearing"],
+              "icon-rotation-alignment": "map",
+              "icon-allow-overlap": true,
+              "icon-ignore-placement": true
+            }
+          }""";
+          await style.addPersistentStyleLayer(layerJson, null);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error updating user location marker: $e');
+    }
+  }
+
   Future<void> _drawRoute(NavigationRoute route) async {
     if (_mapboxMap == null) return;
 
+    debugPrint('Drawing navigation route...');
     await _clearRoute();
 
     String routeGeojson =
@@ -485,14 +498,12 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
     String arrowGeojson = _buildArrowGeoJson(route.polyline);
 
     try {
-      await _mapboxMap?.style.addSource(
-        GeoJsonSource(id: "nav_route_source", data: routeGeojson),
-      );
+      final style = _mapboxMap!.style;
+
+      await style.addSource(GeoJsonSource(id: "nav_route_source", data: routeGeojson));
 
       if (_arrowIconReady) {
-        await _mapboxMap?.style.addSource(
-          GeoJsonSource(id: "nav_arrow_source", data: arrowGeojson),
-        );
+        await style.addSource(GeoJsonSource(id: "nav_arrow_source", data: arrowGeojson));
       }
 
       var innerGlowJson = """{
@@ -563,11 +574,11 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
         }
       }""";
 
-      await _mapboxMap?.style.addPersistentStyleLayer(innerGlowJson, null);
-      await _mapboxMap?.style.addPersistentStyleLayer(outerGlowJson, null);
-      await _mapboxMap?.style.addPersistentStyleLayer(casingLayerJson, null);
-      await _mapboxMap?.style.addPersistentStyleLayer(lineLayerJson, null);
-      await _mapboxMap?.style.addPersistentStyleLayer(centerHighlightJson, null);
+      await style.addPersistentStyleLayer(innerGlowJson, null);
+      await style.addPersistentStyleLayer(outerGlowJson, null);
+      await style.addPersistentStyleLayer(casingLayerJson, null);
+      await style.addPersistentStyleLayer(lineLayerJson, null);
+      await style.addPersistentStyleLayer(centerHighlightJson, null);
 
       if (_arrowIconReady) {
         var arrowLayerJson = """{
@@ -577,9 +588,10 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
           "layout": {
             "symbol-placement": "point",
             "icon-image": "nav_direction_arrow",
-            "icon-size": 0.9,
-            "icon-rotation": ["get", "bearing"],
+            "icon-size": 0.6,
+            "icon-rotate": ["get", "bearing"],
             "icon-rotation-alignment": "map",
+            "icon-pitch-alignment": "map",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
             "icon-keep-upright": false
@@ -589,27 +601,50 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
           }
         }""";
 
-        await _mapboxMap?.style.addPersistentStyleLayer(arrowLayerJson, null);
+        await style.addPersistentStyleLayer(arrowLayerJson, null);
+        debugPrint('Navigation arrow layer added with icon.');
       }
+
+      // Ensure user location is on top
+      if (await style.styleLayerExists("user_location_layer")) {
+        await style.moveStyleLayer("user_location_layer", null);
+      }
+      debugPrint('Route drawing complete.');
     } catch (e) {
       debugPrint('Error drawing route: $e');
     }
   }
 
   Future<void> _clearRoute() async {
-    try {
-      await _mapboxMap?.style.removeStyleLayer("nav_arrow_layer");
-      await _mapboxMap?.style.removeStyleLayer("nav_route_highlight");
-      await _mapboxMap?.style.removeStyleLayer("nav_route_layer");
-      await _mapboxMap?.style.removeStyleLayer("nav_route_casing");
-      await _mapboxMap?.style.removeStyleLayer("nav_route_outer_glow");
-      await _mapboxMap?.style.removeStyleLayer("nav_route_inner_glow");
-      await _mapboxMap?.style.removeStyleSource("nav_route_source");
-      await _mapboxMap?.style.removeStyleSource("nav_arrow_source");
-    } catch (e) {}
-  }
+    if (_mapboxMap == null) return;
+    final style = _mapboxMap!.style;
 
-  @override
+    final layers = [
+      "nav_arrow_layer",
+      "nav_route_highlight",
+      "nav_route_layer",
+      "nav_route_casing",
+      "nav_route_outer_glow",
+      "nav_route_inner_glow"
+    ];
+
+    for (final layerId in layers) {
+      try {
+        if (await style.styleLayerExists(layerId)) {
+          await style.removeStyleLayer(layerId);
+        }
+      } catch (_) {}
+    }
+
+    final sources = ["nav_route_source", "nav_arrow_source"];
+    for (final sourceId in sources) {
+      try {
+        if (await style.styleSourceExists(sourceId)) {
+          await style.removeStyleSource(sourceId);
+        }
+      } catch (_) {}
+    }
+  }  @override
   Widget build(BuildContext context) {
     final mapboxToken = dotenv.env['MAPBOX_ACCESS_TOKEN'] ?? '';
 

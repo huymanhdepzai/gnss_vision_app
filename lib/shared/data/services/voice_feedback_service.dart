@@ -34,8 +34,12 @@ class VoiceFeedbackService extends ChangeNotifier {
     try {
       debugPrint('=== VoiceFeedbackService: Initializing TTS ===');
 
-      final languages = await _tts.getLanguages;
-      _availableLanguages = languages.map((e) => e.toString()).toList();
+      final dynamic languages = await _tts.getLanguages;
+      if (languages is List) {
+        _availableLanguages = languages.map((e) => e.toString()).toList();
+      } else {
+        _availableLanguages = [];
+      }
       debugPrint('Available TTS languages: $_availableLanguages');
 
       String targetLanguage = 'vi-VN';

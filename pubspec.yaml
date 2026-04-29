@@ -99,6 +99,7 @@ flutter:
   assets:
     - assets/images/earth_night.png
     - assets/images/earth-night.jpg
+    - assets/images/navigation.png
     - assets/yolov8n.tflite
     - assets/labels.txt
     - .env
