@@ -17,6 +17,7 @@ import 'features/map/data/datasources/goong_directions_data_source.dart';
 import 'features/map/data/datasources/goong_search_data_source.dart';
 import 'features/map/data/repositories/navigation_repository_impl.dart';
 import 'core/pages/splash_screen.dart';
+import 'core/pages/onboarding_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -69,7 +70,21 @@ class MyApp extends StatelessWidget {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProvider.themeMode,
-            home: const SplashScreen(),
+            home: FutureBuilder<bool>(
+              future: OnboardingScreen.hasCompletedOnboarding(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    backgroundColor: AppTheme.backgroundDark,
+                  );
+                }
+                // if (snapshot.data == true) {
+                if (false) {
+                  return const SplashScreen();
+                }
+                return const OnboardingScreen();
+              },
+            ),
           );
         },
       ),

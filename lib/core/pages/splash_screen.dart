@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../app_theme.dart';
+import '../widgets/gnss_vision_icon.dart';
 import '../../features/map/presentation/pages/map_home_page.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -188,10 +189,9 @@ class _SplashScreenState extends State<SplashScreen>
           child: Stack(
             alignment: Alignment.center,
             children: [
-              Icon(
-                Icons.explore_rounded,
-                size: 60,
-                color: Colors.white.withOpacity(0.9),
+              AnimatedGnssVisionIcon(
+                size: 100,
+                showGlow: false,
               ),
               ...List.generate(3, (index) {
                 return Transform.rotate(

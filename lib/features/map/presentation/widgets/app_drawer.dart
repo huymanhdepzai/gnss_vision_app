@@ -100,20 +100,6 @@ class AppDrawer extends StatelessWidget {
                         const SizedBox(height: 8),
                         _buildDivider(isDark),
                         const SizedBox(height: 20),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 28),
-                          child: Text(
-                            "CHỨC NĂNG",
-                            style: TextStyle(
-                              color: isDark
-                                  ? AppTheme.secondaryColor.withOpacity(0.6)
-                                  : AppTheme.primaryColor.withOpacity(0.5),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 3.5,
-                            ),
-                          ),
-                        ),
                         const SizedBox(height: 14),
                         _buildNavItem(
                           context: context,
@@ -377,34 +363,7 @@ class AppDrawer extends StatelessWidget {
                           letterSpacing: 0.2,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          color: isDark
-                              ? Colors.white.withOpacity(0.35)
-                              : Colors.black45,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
                     ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? Colors.white.withOpacity(0.04)
-                        : primaryColor.withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    Icons.chevron_right_rounded,
-                    color: isDark
-                        ? Colors.white.withOpacity(0.2)
-                        : primaryColor.withOpacity(0.35),
-                    size: 18,
                   ),
                 ),
               ],

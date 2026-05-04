@@ -468,16 +468,6 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
                 if (controller.currentState == MapViewState.placeDetail)
                   _buildSearchIconButton(onTap: _handleResetToExplore, icon: Icons.arrow_back_ios_new_rounded, isDark: isDark)
                 else if (controller.currentState == MapViewState.explore)
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      gradient: AppTheme.primaryGradient,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [BoxShadow(color: AppTheme.primaryColor.withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 3))],
-                    ),
-                    child: const Icon(Icons.search_rounded, color: Colors.white, size: 20),
-                  ),
-                const SizedBox(width: 10),
                 Expanded(
                   child: TextField(
                     controller: TextEditingController(text: controller.searchQuery)
@@ -959,31 +949,6 @@ class _MapHomeScreenV2State extends State<MapHomeScreenV2>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                AnimatedBuilder(
-                  animation: _pulseController,
-                  builder: (context, child) {
-                    return Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [BoxShadow(color: AppTheme.warningColor.withOpacity(0.35 * _pulseAnimation.value), blurRadius: 18, spreadRadius: 1)],
-                      ),
-                      child: FloatingActionButton(
-                        heroTag: "btn_satellite",
-                        backgroundColor: AppTheme.cardDark,
-                        elevation: 6,
-                        onPressed: () {
-                          HapticFeedback.mediumImpact();
-                          Navigator.push(context, PageTransition(child: const SatelliteScreenV2(), type: PageTransitionType.fadeSlide, duration: const Duration(milliseconds: 600)));
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppTheme.warningColor.withOpacity(0.3), AppTheme.accentColor.withOpacity(0.2)])),
-                          child: const Icon(Icons.satellite_alt_rounded, color: AppTheme.warningColor),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 10),
                 AnimatedBuilder(
                   animation: _pulseController,
                   builder: (context, child) {

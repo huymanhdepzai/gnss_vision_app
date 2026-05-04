@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Monochrome silhouette for themed/monochrome Android icon -->
+
+  <!-- Location Pin silhouette -->
+  <path d="M 512 710
+           C 478 650 336 500 336 365
+           A 176 176 0 0 1 688 365
+           C 688 500 546 650 512 710
+           Z"
+        fill="white"/>
+
+  <!-- Compass diamond inside pin -->
+  <path d="M 512 328 L 536 368 L 512 408 L 488 368 Z" fill="#0C1222"/>
+
+  <!-- Center dot -->
+  <circle cx="512" cy="368" r="5" fill="#0C1222"/>
+
+  <!-- Ring 1: GNSS (horizontal) -->
+  <ellipse cx="512" cy="370" rx="215" ry="68" fill="none" stroke="white" stroke-width="3"/>
+
+  <!-- Ring 2: Vision (tilted 60°) -->
+  <ellipse cx="512" cy="370" rx="215" ry="68" transform="rotate(60, 512, 370)" fill="none" stroke="white" stroke-width="2.5"/>
+
+  <!-- Ring 3: IMU (tilted -60°) -->
+  <ellipse cx="512" cy="370" rx="215" ry="68" transform="rotate(-60, 512, 370)" fill="none" stroke="white" stroke-width="2" opacity="0.7"/>
+</svg>

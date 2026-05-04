@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="lensGradB" cx="0.45" cy="0.4" r="0.6">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="50%" stop-color="#7C6AFF"/>
+      <stop offset="100%" stop-color="#5F52E0"/>
+    </radialGradient>
+    <radialGradient id="bgGlowB" cx="0.5" cy="0.5" r="0.55">
+      <stop offset="0%" stop-color="#7C6AFF" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#0C1222" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="compassGlowB" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="10" flood-color="#7C6AFF" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="#0C1222"/>
+  <rect width="1024" height="1024" fill="url(#bgGlowB)"/>
+
+  <!-- Outer orbit ring -->
+  <circle cx="512" cy="512" r="360" fill="none" stroke="#22D3EE" stroke-width="1.5" opacity="0.3"/>
+
+  <!-- Compass outer ring -->
+  <circle cx="512" cy="512" r="280" fill="none" stroke="#9B8AFF" stroke-width="2" opacity="0.4"/>
+
+  <!-- Compass points N/S/E/W (main directions) -->
+  <g filter="url(#compassGlowB)">
+    <!-- North arrow (highlighted, cyan) -->
+    <path d="M 512 180 L 530 300 L 494 300 Z" fill="#22D3EE"/>
+    <!-- South arrow -->
+    <path d="M 512 844 L 530 724 L 494 724 Z" fill="#9B8AFF" opacity="0.7"/>
+    <!-- East arrow -->
+    <path d="M 844 512 L 724 530 L 724 494 Z" fill="#9B8AFF" opacity="0.7"/>
+    <!-- West arrow -->
+    <path d="M 180 512 L 300 530 L 300 494 Z" fill="#9B8AFF" opacity="0.7"/>
+  </g>
+
+  <!-- Compass points NE/SE/SW/NW (secondary directions) -->
+  <path d="M 262 262 L 295 300 L 262 278 Z" fill="#5F52E0" opacity="0.5"/>
+  <path d="M 762 262 L 762 278 L 729 300 Z" fill="#5F52E0" opacity="0.5"/>
+  <path d="M 762 762 L 729 724 L 762 738 Z" fill="#5F52E0" opacity="0.5"/>
+  <path d="M 262 762 L 262 738 L 295 724 Z" fill="#5F52E0" opacity="0.5"/>
+
+  <!-- Camera lens aperture (center) -->
+  <circle cx="512" cy="512" r="160" fill="url(#lensGradB)"/>
+
+  <!-- Aperture blades -->
+  <g opacity="0.15">
+    <path d="M 512 352 L 580 512 L 512 440 Z" fill="white"/>
+    <path d="M 512 352 L 444 512 L 512 440 Z" fill="white" opacity="0.5"/>
+    <path d="M 352 512 L 444 512 L 380 430 Z" fill="white"/>
+    <path d="M 352 512 L 380 594 L 444 512 Z" fill="white" opacity="0.5"/>
+    <path d="M 512 672 L 444 512 L 512 584 Z" fill="white"/>
+    <path d="M 512 672 L 580 512 L 512 584 Z" fill="white" opacity="0.5"/>
+    <path d="M 672 512 L 580 512 L 644 594 Z" fill="white"/>
+    <path d="M 672 512 L 644 430 L 580 512 Z" fill="white" opacity="0.5"/>
+  </g>
+
+  <!-- Inner accuracy dot -->
+  <circle cx="512" cy="512" r="28" fill="#22D3EE"/>
+  <circle cx="512" cy="512" r="15" fill="white" opacity="0.8"/>
+
+  <!-- Center highlight -->
+  <circle cx="505" cy="498" r="40" fill="white" opacity="0.05"/>
+</svg>
