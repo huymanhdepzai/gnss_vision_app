@@ -18,30 +18,30 @@ class AppTheme {
   static const Color infoColor = Color(0xFF60A5FA);
 
   // ─── Dark Surfaces ──────────────────────────────────────────────
-  static const Color backgroundDark = Color(0xFF0C1222);
-  static const Color surfaceDark = Color(0xFF111A2E);
-  static const Color cardDark = Color(0xFF1A2340);
-  static const Color elevatedDark = Color(0xFF222D4A);
+  static const Color backgroundDark = Color(0xFF0F1117);
+  static const Color surfaceDark = Color(0xFF161B22);
+  static const Color cardDark = Color(0xFF21262D);
+  static const Color elevatedDark = Color(0xFF30363D);
 
   // ─── Light Surfaces ──────────────────────────────────────────────
-  static const Color backgroundLight = Color(0xFFF5F7FB);
+  static const Color backgroundLight = Color(0xFFF8FAFC);
   static const Color surfaceLight = Color(0xFFFFFFFF);
-  static const Color cardLight = Color(0xFFEEF1F8);
-  static const Color elevatedLight = Color(0xFFF8FAFF);
+  static const Color cardLight = Color(0xFFF1F5F9);
+  static const Color elevatedLight = Color(0xFFFFFFFF);
 
   // ─── Semantic Colors ────────────────────────────────────────────
-  static const Color textDark = Color(0xFF1A1F36);
+  static const Color textDark = Color(0xFF0F172A);
   static const Color onPrimary = Color(0xFFFFFFFF);
 
-  static const Color surfaceVariantDark = Color(0xFF243050);
-  static const Color surfaceVariantLight = Color(0xFFE4E9F2);
-  static const Color outlineDark = Color(0xFF3A4768);
-  static const Color outlineLight = Color(0xFFC8D0DE);
+  static const Color surfaceVariantDark = Color(0xFF30363D);
+  static const Color surfaceVariantLight = Color(0xFFE2E8F0);
+  static const Color outlineDark = Color(0xFF484F58);
+  static const Color outlineLight = Color(0xFFCBD5E1);
 
-  static const Color onSurfaceDark = Color(0xFFE8ECF4);
-  static const Color onSurfaceLight = Color(0xFF1A1F36);
-  static const Color onSurfaceVariantDark = Color(0xFF8B97B0);
-  static const Color onSurfaceVariantLight = Color(0xFF6B7794);
+  static const Color onSurfaceDark = Color(0xFFF0F6FC);
+  static const Color onSurfaceLight = Color(0xFF0F172A);
+  static const Color onSurfaceVariantDark = Color(0xFF8B949E);
+  static const Color onSurfaceVariantLight = Color(0xFF64748B);
 
   static const Color errorLight = Color(0xFFF87171);
   static const Color errorDark = Color(0xFFEF4444);
@@ -91,35 +91,41 @@ class AppTheme {
   static const LinearGradient surfaceGradientDark = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFF131D33), Color(0xFF0C1222)],
+    colors: [Color(0xFF161B22), Color(0xFF0F1117)],
   );
 
   static const LinearGradient surfaceGradientLight = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFFFFFFF), Color(0xFFF5F7FB)],
+    colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
   );
 
   // ─── Decorations ─────────────────────────────────────────────────
 
   static BoxDecoration glassDecoration({Color? tintColor, bool isDark = true}) {
-    final bg = tintColor ?? Colors.white;
+    final bg = tintColor ?? (isDark ? Colors.black : Colors.white);
     return BoxDecoration(
       gradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          bg.withOpacity(isDark ? 0.12 : 0.08),
-          bg.withOpacity(isDark ? 0.04 : 0.02),
+          bg.withOpacity(isDark ? 0.15 : 0.08),
+          bg.withOpacity(isDark ? 0.05 : 0.02),
         ],
       ),
       borderRadius: BorderRadius.circular(UIConsts.radiusXL),
       border: Border.all(
-        color: bg.withOpacity(isDark ? 0.15 : 0.1),
+        color: (isDark ? Colors.white : Colors.black).withOpacity(isDark ? 0.1 : 0.05),
         width: 1,
       ),
       boxShadow: isDark
-          ? null
+          ? [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ]
           : [
               BoxShadow(
                 color: Colors.black.withOpacity(0.03),
@@ -135,8 +141,8 @@ class AppTheme {
     bool isDark = true,
   }) {
     final bgColor = isDark ? cardDark : cardLight;
-    final topShadow = isDark ? Colors.white.withOpacity(0.04) : Colors.white.withOpacity(0.9);
-    final bottomShadow = isDark ? const Color(0xFF050A18) : const Color(0xFFD0D5E0);
+    final topShadow = isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.9);
+    final bottomShadow = isDark ? const Color(0xFF080A0C) : const Color(0xFFD1D5DB);
 
     return BoxDecoration(
       color: bgColor,
@@ -172,7 +178,7 @@ class AppTheme {
     final bg = isDark ? cardDark : cardLight;
     final borderColor = accentColor != null
         ? accentColor.withOpacity(isDark ? 0.18 : 0.12)
-        : (isDark ? Colors.white.withOpacity(0.06) : outlineLight.withOpacity(0.4));
+        : (isDark ? Colors.white.withOpacity(0.08) : outlineLight.withOpacity(0.4));
 
     return BoxDecoration(
       color: bg,
@@ -180,7 +186,7 @@ class AppTheme {
       border: Border.all(color: borderColor, width: 1),
       boxShadow: [
         BoxShadow(
-          color: isDark ? const Color(0xFF050A18).withOpacity(0.5) : Colors.black.withOpacity(0.04),
+          color: isDark ? Colors.black.withOpacity(0.4) : Colors.black.withOpacity(0.04),
           blurRadius: 24,
           offset: const Offset(0, 8),
         ),
