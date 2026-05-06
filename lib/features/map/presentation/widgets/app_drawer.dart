@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -27,6 +28,7 @@ class AppDrawer extends StatefulWidget {
 
 class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
   String _appVersion = '';
+  String _lastUpdate = '';
   String _cacheSize = '...';
   late AnimationController _themeAnimController;
   late AnimationController _entryController;
@@ -52,9 +54,32 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
       final info = await PackageInfo.fromPlatform();
       if (mounted) setState(() => _appVersion = 'v${info.version} (${info.buildNumber})');
     } catch (_) {
-      if (mounted) setState(() => _appVersion = 'v1.0.0 (1)');
+      if (mounted) setState(() => _appVersion = '1.0.0');
     }
+    _loadLastUpdate();
     _calculateCacheSize();
+  }
+
+  Future<void> _loadLastUpdate() async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final stat = await File(dir.path).stat();
+      if (mounted) {
+        final d = stat.modified;
+        setState(() => _lastUpdate = '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}');
+      }
+    } catch (_) {
+      try {
+        final dir = await getTemporaryDirectory();
+        final stat = await File(dir.path).stat();
+        if (mounted) {
+          final d = stat.modified;
+          setState(() => _lastUpdate = '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}');
+        }
+      } catch (_) {
+        if (mounted) setState(() => _lastUpdate = '');
+      }
+    }
   }
 
   Future<void> _calculateCacheSize() async {
@@ -164,7 +189,7 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
                     _accentSection(isDark, AppTheme.secondaryColor, [
                       _sectionHeader(isDark, Icons.info_outline_rounded, 'Thông tin', AppTheme.secondaryColor),
                       const SizedBox(height: 12),
-                      _infoRow(isDark, Icons.verified_rounded, 'Phiên bản', _appVersion.isEmpty ? 'v1.0.0 (1)' : _appVersion, AppTheme.primaryColor),
+                      _infoRow(isDark, Icons.verified_rounded, 'Phiên bản', _appVersion.isEmpty ? 'v1.0.0 (1)' : _appVersion, AppTheme.primaryColor, subtitle: _lastUpdate.isEmpty ? null : 'Cập nhật $_lastUpdate'),
                       const SizedBox(height: 10),
                       _infoRow(isDark, Icons.cached_rounded, 'Bộ nhớ đệm', _cacheSize, AppTheme.secondaryColor),
                       _navDivider(isDark),
@@ -258,7 +283,13 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [BoxShadow(color: _a(AppTheme.primaryColor, 0.4), blurRadius: 18, offset: const Offset(0, 4))],
             ),
-            child: const Icon(Icons.explore_rounded, color: Colors.white, size: 24),
+            child: SvgPicture.asset(
+                'assets/branding/icons/icon_foreground.svg',
+                width: 28,
+                height: 28,
+                fit: BoxFit.contain,
+                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+              ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -413,7 +444,7 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
     );
   }
 
-  Widget _infoRow(bool isDark, IconData icon, String label, String value, Color accent) {
+  Widget _infoRow(bool isDark, IconData icon, String label, String value, Color accent, {String? subtitle}) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 400),
       curve: Curves.easeOutCubic,
@@ -437,11 +468,26 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
             child: Icon(icon, size: 17, color: accent),
           ),
           const SizedBox(width: 12),
-          Expanded(child: AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 400),
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: isDark ? _a(Colors.white, 0.65) : _a(Colors.black, 0.55)),
-            child: Text(label),
-          )),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 400),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: isDark ? _a(Colors.white, 0.65) : _a(Colors.black, 0.55)),
+                  child: Text(label),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 400),
+                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w400, color: isDark ? _a(Colors.white, 0.3) : _a(Colors.black, 0.35)),
+                    child: Text(subtitle),
+                  ),
+                ],
+              ],
+            ),
+          ),
           AnimatedContainer(
             duration: const Duration(milliseconds: 400),
             curve: Curves.easeOutCubic,
@@ -501,7 +547,6 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, size: 20, color: isDark ? _a(Colors.white, 0.15) : _a(Colors.black, 0.12)),
             ],
           ),
         ),
@@ -519,7 +564,13 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.explore_rounded, size: 12, color: isDark ? _a(Colors.white, 0.2) : _a(Colors.black, 0.2)),
+              SvgPicture.asset(
+                'assets/branding/icons/icon_monochrome.svg',
+                width: 14,
+                height: 14,
+                fit: BoxFit.contain,
+                colorFilter: ColorFilter.mode(isDark ? _a(Colors.white, 0.2) : _a(Colors.black, 0.2), BlendMode.srcIn),
+              ),
               const SizedBox(width: 4),
               AnimatedDefaultTextStyle(
                 duration: const Duration(milliseconds: 400),
