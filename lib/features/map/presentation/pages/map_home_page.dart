@@ -16,6 +16,7 @@ import '../../../vision/presentation/pages/navigation_vision_page.dart';
 import '../../data/datasources/goong_search_data_source.dart';
 import '../../data/datasources/goong_directions_data_source.dart';
 import '../../data/repositories/navigation_repository_impl.dart';
+import '../controllers/navigation_controller.dart';
 import '../bloc/map_home_bloc.dart';
 import '../bloc/map_home_event.dart';
 import '../bloc/map_home_state.dart';
@@ -431,8 +432,18 @@ class _MapHomeViewState extends State<_MapHomeView>
               previous.destinationLat != current.destinationLat ||
               previous.destinationLng != current.destinationLng ||
               previous.routeGeoJson != current.routeGeoJson ||
-              previous.viewState != current.viewState,
+              previous.viewState != current.viewState ||
+              previous.route != current.route,
           listener: (context, state) {
+            if (state.viewState == MapViewState.navigating && state.route != null) {
+              final navCtrl = context.read<NavigationController>();
+              if (navCtrl.currentRoute != state.route) {
+                navCtrl.startNavigation(state.route!);
+              }
+            } else if (state.viewState != MapViewState.navigating) {
+              context.read<NavigationController>().stopNavigation();
+            }
+
             _handleStateSideEffects(_previousState, state);
             _previousState = state;
           },

@@ -604,13 +604,32 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
                             ),
                           ),
                           SizedBox(height: UIConsts.spacingXS),
-                          Text(
-                            'SNR: ${avgSnr.toStringAsFixed(1)} dB-Hz',
-                            style: TextStyle(
-                              color: context.textSecondaryColor,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            ),
+                          Row(
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: qualityColor,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: qualityColor.withOpacity(0.6),
+                                      blurRadius: 6,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(width: UIConsts.spacingXS),
+                              Text(
+                                'SNR: ${avgSnr.toStringAsFixed(1)} dB-Hz',
+                                style: TextStyle(
+                                  color: context.textSecondaryColor,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -680,12 +699,25 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
   ) {
     return Column(
       children: [
+        Container(
+          padding: EdgeInsets.all(UIConsts.spacingXS + 1),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [color.withOpacity(0.2), color.withOpacity(0.05)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Icon(icon, color: color, size: UIConsts.iconSizeSM),
+        ),
+        SizedBox(height: UIConsts.spacingSM),
         AnimatedCounter(
           value: int.parse(value.isEmpty ? "0" : value),
           duration: UIConsts.animNormal,
           style: TextStyle(
             color: Colors.white,
-            fontSize: 24,
+            fontSize: 22,
             fontWeight: FontWeight.w900,
             fontFamily: 'monospace',
             shadows: [
@@ -989,18 +1021,18 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     return Positioned(
       bottom: UIConsts.spacingSM,
       child: Container(
-        padding: EdgeInsets.all(UIConsts.spacingXS),
+        padding: EdgeInsets.all(3),
         decoration: BoxDecoration(
-          color: context.cardColor.withOpacity(0.9),
+          color: context.adaptiveOpacity(Colors.white, 0.06, 0.04),
           borderRadius: BorderRadius.circular(UIConsts.radiusFull),
           border: Border.all(
-            color: context.adaptiveOpacity(Colors.white, 0.1, 0.05),
+            color: context.adaptiveOpacity(Colors.white, 0.1, 0.06),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: context.shadowColor,
-              blurRadius: 12,
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 16,
               offset: const Offset(0, 4),
             ),
           ],
@@ -1044,37 +1076,46 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
       onTap: onTap,
       child: AnimatedContainer(
         duration: UIConsts.animNormal,
+        curve: Curves.easeOutCubic,
         padding: EdgeInsets.symmetric(
-          horizontal: UIConsts.spacingXL,
-          vertical: UIConsts.spacingMD,
+          horizontal: UIConsts.spacingLG,
+          vertical: UIConsts.spacingSM + 2,
         ),
         decoration: BoxDecoration(
           gradient: active
               ? const LinearGradient(
                   colors: [AppTheme.secondaryColor, AppTheme.primaryColor],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 )
               : null,
           color: active ? null : Colors.transparent,
-          borderRadius: BorderRadius.circular(UIConsts.radiusFull - 4),
+          borderRadius: BorderRadius.circular(UIConsts.radiusFull - 2),
           boxShadow: active
               ? [
                   BoxShadow(
-                    color: AppTheme.primaryColor.withOpacity(0.3),
+                    color: AppTheme.primaryColor.withOpacity(0.4),
                     blurRadius: 12,
+                    spreadRadius: -2,
                   ),
                 ]
               : null,
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              color: active
-                  ? Colors.white
-                  : context.iconSecondaryColor,
-              size: UIConsts.iconSizeSM,
+            AnimatedScale(
+              scale: active ? 1.0 : 0.9,
+              duration: UIConsts.animNormal,
+              child: Icon(
+                icon,
+                color: active
+                    ? Colors.white
+                    : context.iconSecondaryColor,
+                size: UIConsts.iconSizeSM - 2,
+              ),
             ),
-            SizedBox(width: UIConsts.spacingSM),
+            SizedBox(width: UIConsts.spacingSM - 2),
             Text(
               text,
               style: TextStyle(
@@ -1082,8 +1123,8 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
                     ? Colors.white
                     : context.iconSecondaryColor,
                 fontSize: 11,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
+                fontWeight: active ? FontWeight.bold : FontWeight.w600,
+                letterSpacing: 0.5,
               ),
             ),
           ],

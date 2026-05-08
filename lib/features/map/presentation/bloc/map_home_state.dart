@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import '../../data/datasources/goong_search_data_source.dart';
+import '../../domain/entities/navigation_route.dart';
 
 enum MapViewState { explore, placeDetail, navigating }
 
@@ -19,6 +20,7 @@ class MapHomeState extends Equatable {
   final List<SearchResult> searchResults;
   final bool isSearching;
   final String searchQuery;
+  final NavigationRoute? route;
 
   const MapHomeState({
     this.viewState = MapViewState.explore,
@@ -36,6 +38,7 @@ class MapHomeState extends Equatable {
     this.searchResults = const [],
     this.isSearching = false,
     this.searchQuery = '',
+    this.route,
   });
 
   MapHomeState copyWith({
@@ -54,6 +57,7 @@ class MapHomeState extends Equatable {
     List<SearchResult>? searchResults,
     bool? isSearching,
     String? searchQuery,
+    NavigationRoute? route,
   }) {
     return MapHomeState(
       viewState: viewState ?? this.viewState,
@@ -71,6 +75,7 @@ class MapHomeState extends Equatable {
       searchResults: searchResults ?? this.searchResults,
       isSearching: isSearching ?? this.isSearching,
       searchQuery: searchQuery ?? this.searchQuery,
+      route: route ?? this.route,
     );
   }
 
@@ -91,5 +96,6 @@ class MapHomeState extends Equatable {
         searchResults,
         isSearching,
         searchQuery,
+        route,
       ];
 }

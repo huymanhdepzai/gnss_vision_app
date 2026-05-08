@@ -75,6 +75,7 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _positionStream?.cancel();
     if (widget.headingNotifier != null) {
       widget.headingNotifier!.removeListener(_onHeadingChanged);
@@ -333,21 +334,31 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
   }
 
   bool _isInitializingStyle = false;
+  bool _isDisposed = false;
 
   void _onStyleLoaded(StyleLoadedEventData data) async {
-    if (_isInitializingStyle) return;
+    if (_isInitializingStyle || _isDisposed) return;
     _isInitializingStyle = true;
 
     try {
       debugPrint('Map style loaded, initializing layers...');
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (!mounted || _isDisposed || _mapboxMap == null) return;
+
       _circleAnnotationManager = await _mapboxMap?.annotations.createCircleAnnotationManager();
 
+      if (!mounted || _isDisposed) return;
+
       _arrowIconReady = await _addArrowIcon();
+
+      if (!mounted || _isDisposed) return;
+
       await _addUserNavigationIcon();
 
-      if (mounted) {
-        setState(() => _isMapReady = true);
-      }
+      if (!mounted || _isDisposed) return;
+
+      setState(() => _isMapReady = true);
 
       if (widget.route != null) {
         await _drawRouteAndMarkers();
@@ -356,13 +367,15 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
       if (_currentPosition != null) {
         _updateUserLocationMarker();
       }
+    } catch (e) {
+      debugPrint('Error initializing map style: $e');
     } finally {
       _isInitializingStyle = false;
     }
   }
 
   Future<bool> _addArrowIcon() async {
-    if (_mapboxMap == null) return false;
+    if (_mapboxMap == null || _isDisposed) return false;
     try {
       debugPrint('Adding arrow icon to map style...');
       final ByteData data = await rootBundle.load('assets/images/navigation.png');
@@ -372,35 +385,54 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
       final ui.FrameInfo fi = await codec.getNextFrame();
       final ui.Image image = fi.image;
 
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (byteData == null) {
-        debugPrint('Arrow icon: byteData is null');
+      final int width = image.width;
+      final int height = image.height;
+
+      final ByteData? pngByteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      codec.dispose();
+
+      if (pngByteData == null) {
+        debugPrint('Arrow icon: pngByteData is null');
         return false;
       }
 
-      // Important: Create a copy of the bytes to ensure proper alignment and ownership when passing to native
-      final uint8list = Uint8List.fromList(byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes));
-      debugPrint('Arrow icon data size: ${uint8list.length} bytes (${image.width}x${image.height})');
+      final pngBytes = Uint8List.fromList(pngByteData.buffer.asUint8List(pngByteData.offsetInBytes, pngByteData.lengthInBytes));
+      debugPrint('Arrow icon data size: ${pngBytes.length} bytes (${width}x${height})');
 
-      await _mapboxMap!.style.addStyleImage(
-        "nav_direction_arrow",
-        1.0,
-        MbxImage(width: image.width, height: image.height, data: uint8list),
-        false,
-        [],
-        [],
-        null,
-      );
-      debugPrint('Arrow icon added successfully.');
-      return true;
+      if (!mounted || _isDisposed || _mapboxMap == null) return false;
+
+      for (int attempt = 0; attempt < 3; attempt++) {
+        try {
+          await _mapboxMap!.style.addStyleImage(
+            "nav_direction_arrow",
+            1.0,
+            MbxImage(width: width, height: height, data: pngBytes),
+            false,
+            [],
+            [],
+            null,
+          );
+          debugPrint('Arrow icon added successfully.');
+          return true;
+        } catch (e) {
+          debugPrint('Arrow icon add attempt ${attempt + 1} failed: $e');
+          if (attempt < 2) {
+            await Future.delayed(Duration(milliseconds: 500 * (attempt + 1)));
+            if (!mounted || _isDisposed || _mapboxMap == null) return false;
+          }
+        }
+      }
+      debugPrint('Error adding arrow icon after 3 retries');
+      return false;
     } catch (e) {
       debugPrint('Error adding arrow icon: $e');
       return false;
     }
   }
 
-  Future<void> _addUserNavigationIcon() async {
-    if (_mapboxMap == null) return;
+Future<void> _addUserNavigationIcon() async {
+    if (_mapboxMap == null || _isDisposed) return;
     try {
       debugPrint('Adding user navigation icon...');
       final ByteData data = await rootBundle.load('assets/images/navigation.png');
@@ -410,23 +442,43 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
       final ui.FrameInfo fi = await codec.getNextFrame();
       final ui.Image image = fi.image;
 
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (byteData == null) return;
+      final int width = image.width;
+      final int height = image.height;
 
-      final uint8list = Uint8List.fromList(byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes));
-      debugPrint('User icon data size: ${uint8list.length} bytes (${image.width}x${image.height})');
+      final ByteData? pngByteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      codec.dispose();
 
-      await _mapboxMap!.style.addStyleImage(
-        "user_navigation_icon",
-        1.0,
-        MbxImage(width: image.width, height: image.height, data: uint8list),
-        false,
-        [],
-        [],
-        null,
-      );
-      _userIconReady = true;
-      debugPrint('User navigation icon added.');
+      if (pngByteData == null) return;
+
+      final pngBytes = Uint8List.fromList(pngByteData.buffer.asUint8List(pngByteData.offsetInBytes, pngByteData.lengthInBytes));
+      debugPrint('User icon data size: ${pngBytes.length} bytes (${width}x${height})');
+
+      if (!mounted || _isDisposed || _mapboxMap == null) return;
+
+      for (int attempt = 0; attempt < 3; attempt++) {
+        try {
+          await _mapboxMap!.style.addStyleImage(
+            "user_navigation_icon",
+            1.0,
+            MbxImage(width: width, height: height, data: pngBytes),
+            false,
+            [],
+            [],
+            null,
+          );
+          _userIconReady = true;
+          debugPrint('User navigation icon added.');
+          return;
+        } catch (e) {
+          debugPrint('User icon add attempt ${attempt + 1} failed: $e');
+          if (attempt < 2) {
+            await Future.delayed(Duration(milliseconds: 500 * (attempt + 1)));
+            if (!mounted || _isDisposed || _mapboxMap == null) return;
+          }
+        }
+      }
+      debugPrint('Error adding user navigation icon after 3 retries');
     } catch (e) {
       debugPrint('Error adding user navigation icon: $e');
     }

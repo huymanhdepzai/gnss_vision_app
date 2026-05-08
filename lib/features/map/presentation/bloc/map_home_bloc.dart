@@ -188,6 +188,7 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
           routeGeoJson: geoJson,
           isRouteActive: true,
           isSearching: false,
+          route: route,
         ));
       },
     );
