@@ -165,6 +165,7 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
     Emitter<MapHomeState> emit,
   ) async {
     if (state.destinationLat == null || state.destinationLng == null) return;
+    if (!state.isLocationLoaded) return;
 
     emit(state.copyWith(isSearching: true));
 
@@ -181,7 +182,11 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
         emit(state.copyWith(isSearching: false));
       },
       (route) {
-        final geoJson = _buildRouteGeoJson(route.polyline);
+        final fullPolyline = <List<double>>[
+          [state.currentLng, state.currentLat],
+          ...route.polyline,
+        ];
+        final geoJson = _buildRouteGeoJson(fullPolyline);
         emit(state.copyWith(
           distance: route.distanceText,
           duration: route.durationText,

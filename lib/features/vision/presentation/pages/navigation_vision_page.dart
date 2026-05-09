@@ -23,6 +23,9 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
   final FlowController _flowController = FlowController();
   bool _isDebugMode = false;
   bool _isPiPExpanded = false;
+  bool _isHeadingUp = false;
+
+  final ValueNotifier<bool> _headingUpNotifier = ValueNotifier<bool>(false);
 
   late AnimationController _pulseController;
   late AnimationController _glowController;
@@ -89,6 +92,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
     _shimmerController.dispose();
     _pipExpandController.dispose();
     _flowController.dispose();
+    _headingUpNotifier.dispose();
     SystemChrome.setPreferredOrientations([]);
     super.dispose();
   }
@@ -121,6 +125,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                   builder: (context, navCtrl, _) {
                     return NavigationMapWidget(
                       headingNotifier: _flowController.headingNotifier,
+                      headingUpNotifier: _headingUpNotifier,
                       route: navCtrl.currentRoute,
                       onExitNavigation: navCtrl.isNavigating
                           ? () {
@@ -207,6 +212,14 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                       child: _buildObstacleIndicator(),
                     ),
                   ),
+                Positioned(
+                  right: 12,
+                  bottom: isSmallDevice ? 56 : 62,
+                  child: FadeTransition(
+                    opacity: _entryFadeAnimation,
+                    child: _buildHeadingUpButton(isDark, isSmallDevice),
+                  ),
+                ),
                 Positioned(
                   bottom: 0,
                   left: 0,
@@ -1141,6 +1154,98 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                   ),
                 ],
               ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHeadingUpButton(bool isDark, bool isSmallDevice) {
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        final pulseVal = _pulseAnimation.value;
+        return GestureDetector(
+          onTap: () {
+            setState(() => _isHeadingUp = !_isHeadingUp);
+            _headingUpNotifier.value = _isHeadingUp;
+            HapticFeedback.mediumImpact();
+          },
+          child: Container(
+            width: isSmallDevice ? 40 : 46,
+            height: isSmallDevice ? 40 : 46,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: _isHeadingUp
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppTheme.secondaryColor.withOpacity(0.35 * pulseVal),
+                        AppTheme.primaryColor.withOpacity(0.25 * pulseVal),
+                      ],
+                    )
+                  : LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withOpacity(0.15),
+                        Colors.white.withOpacity(0.05),
+                      ],
+                    ),
+              border: Border.all(
+                color: _isHeadingUp
+                    ? AppTheme.secondaryColor.withOpacity(0.7)
+                    : Colors.white.withOpacity(0.2),
+                width: 1.5,
+              ),
+              boxShadow: _isHeadingUp
+                  ? [
+                      BoxShadow(
+                        color: AppTheme.secondaryColor.withOpacity(0.3),
+                        blurRadius: 12,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  Icons.navigation_rounded,
+                  color: _isHeadingUp
+                      ? AppTheme.secondaryColor
+                      : Colors.white.withOpacity(0.7),
+                  size: isSmallDevice ? 18 : 22,
+                ),
+                if (_isHeadingUp)
+                  Positioned(
+                    bottom: isSmallDevice ? 5 : 6,
+                    right: isSmallDevice ? 5 : 6,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppTheme.successColor,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.successColor.withOpacity(0.5),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         );
