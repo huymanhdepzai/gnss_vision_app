@@ -439,15 +439,15 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
                 padding: EdgeInsets.all(UIConsts.spacingXL),
                 child: Row(
                   children: [
-                    ModernIconContainer(
-                      icon: Icons.satellite_alt_rounded,
-                      color: AppTheme.primaryColor,
-                      size: 40,
-                      iconSize: 20,
-                    ),
+                    // ModernIconContainer(
+                    //   icon: Icons.satellite_alt_rounded,
+                    //   color: AppTheme.primaryColor,
+                    //   size: 40,
+                    //   iconSize: 20,
+                    // ),
                     SizedBox(width: UIConsts.spacingMD),
                     Text(
-                      "DANH SÁCH\nVỆ TINH",
+                      "DANH SÁCH VỆ TINH",
                       style: TextStyle(
                         color: context.textColor,
                         fontSize: 18,
@@ -801,18 +801,6 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
   ) {
     return Column(
       children: [
-        Container(
-          padding: EdgeInsets.all(UIConsts.spacingXS + 1),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [color.withOpacity(0.2), color.withOpacity(0.05)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: Icon(icon, color: color, size: UIConsts.iconSizeSM),
-        ),
         SizedBox(height: UIConsts.spacingSM),
         AnimatedCounter(
           value: int.parse(value.isEmpty ? "0" : value),
