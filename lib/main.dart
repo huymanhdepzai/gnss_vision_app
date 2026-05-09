@@ -18,21 +18,15 @@ import 'core/pages/onboarding_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
+  
+  // Khởi tạo các dịch vụ cơ bản cần thiết ngay lập tức
+  await Future.wait([
+    dotenv.load(fileName: ".env"),
+    Hive.initFlutter(),
+  ]);
 
-  await Hive.initFlutter();
-  await TripService.initialize();
-
+  // Khởi tạo Dependency Injection (nhưng dời các box nặng vào bên trong)
   await init();
-
-  await [
-    Permission.camera,
-    Permission.locationWhenInUse,
-    Permission.microphone,
-    Permission.photos,
-    Permission.videos,
-    Permission.notification,
-  ].request();
 
   runApp(const MyApp());
 }
@@ -69,8 +63,7 @@ class MyApp extends StatelessWidget {
                     backgroundColor: AppTheme.backgroundDark,
                   );
                 }
-                // if (snapshot.data == true) {
-                if (false) {
+                if (snapshot.data == true) {
                   return const SplashScreen();
                 }
                 return const OnboardingScreen();

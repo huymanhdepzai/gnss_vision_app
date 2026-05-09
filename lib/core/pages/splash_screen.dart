@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../app_theme.dart';
 import '../widgets/gnss_vision_icon.dart';
+import '../utils/injection_container.dart';
 import '../../features/map/presentation/pages/map_home_page.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -30,7 +32,7 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _initAnimations();
-    _navigateToHome();
+    _startInitialization();
   }
 
   void _initAnimations() {
@@ -71,35 +73,54 @@ class _SplashScreenState extends State<SplashScreen>
         Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero).animate(
           CurvedAnimation(parent: _textController, curve: Curves.easeOutCubic),
         );
+  }
 
+  Future<void> _startInitialization() async {
+    // 1. Khởi tạo animations
     _logoController.forward();
     Future.delayed(const Duration(milliseconds: 500), () {
       _textController.forward();
     });
+
+    // 2. Chờ GetIt sẵn sàng (Hive boxes mở xong)
+    await sl.allReady();
+
+    // 3. Yêu cầu quyền truy cập (nếu cần)
+    // Lưu ý: Trong thực tế, nên yêu cầu quyền khi thực sự cần thiết 
+    // thay vì yêu cầu tất cả ở đây. Nhưng để tối ưu từ code cũ:
+    await [
+      Permission.camera,
+      Permission.locationWhenInUse,
+      Permission.microphone,
+    ].request();
+
+    // 4. Chờ ít nhất 2 giây để người dùng thấy logo
+    await Future.delayed(const Duration(seconds: 2));
+
+    _navigateToHome();
   }
 
   void _navigateToHome() {
-    Timer(const Duration(seconds: 3), () {
-      Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const MapHomeScreenV2(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(
-              opacity: animation,
-              child: ScaleTransition(
-                scale: Tween<double>(begin: 1.1, end: 1.0).animate(
-                  CurvedAnimation(parent: animation, curve: Curves.easeOut),
-                ),
-                child: child,
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const MapHomeScreenV2(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 1.1, end: 1.0).animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOut),
               ),
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 800),
-        ),
-      );
-    });
+              child: child,
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 800),
+      ),
+    );
   }
 
   @override

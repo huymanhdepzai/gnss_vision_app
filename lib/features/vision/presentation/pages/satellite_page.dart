@@ -66,6 +66,7 @@ class SatelliteScreenV2 extends StatefulWidget {
 
 class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     with TickerProviderStateMixin {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   List<SatelliteData> _satellites = [];
   UserLocationData? _userLocation;
 
@@ -126,6 +127,7 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
       isRotating: true,
       zoom: 0.5,
       surface: const AssetImage('assets/images/earth-night.jpg'),
+      isDayNightCycleEnabled: false,
     );
 
     _globeController.onLoaded = () {
@@ -392,7 +394,9 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
         : 0.0;
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: context.backgroundColor,
+      endDrawer: _buildSatelliteDrawer(context),
       body: Stack(
         children: [
           _buildAnimatedBackground(),
@@ -403,11 +407,88 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
                 SizedBox(height: UIConsts.spacingSM),
                 _buildStatsOverview(context, activeFixes, avgSnr),
                 Expanded(child: _buildMainView(context)),
-                _buildBottomPanel(context),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSatelliteDrawer(BuildContext context) {
+    final filteredSats = _filteredSatellites;
+    return Drawer(
+      width: context.screenWidth * 0.85,
+      backgroundColor: Colors.transparent,
+      child: Container(
+        decoration: BoxDecoration(
+          color: context.cardColor.withOpacity(0.98),
+          borderRadius: const BorderRadius.horizontal(
+            left: Radius.circular(UIConsts.radius3XL),
+          ),
+          border: Border.all(
+            color: context.adaptiveOpacity(Colors.white, 0.1, 0.05),
+            width: 1,
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: EdgeInsets.all(UIConsts.spacingXL),
+                child: Row(
+                  children: [
+                    ModernIconContainer(
+                      icon: Icons.satellite_alt_rounded,
+                      color: AppTheme.primaryColor,
+                      size: 40,
+                      iconSize: 20,
+                    ),
+                    SizedBox(width: UIConsts.spacingMD),
+                    Text(
+                      "DANH SÁCH\nVỆ TINH",
+                      style: TextStyle(
+                        color: context.textColor,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
+                        height: 1.1,
+                      ),
+                    ),
+                    const Spacer(),
+                    PressScale(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: EdgeInsets.all(UIConsts.spacingSM),
+                        decoration: BoxDecoration(
+                          color: context.adaptiveOpacity(Colors.white, 0.05, 0.03),
+                          borderRadius: BorderRadius.circular(UIConsts.radiusMD),
+                        ),
+                        child: Icon(Icons.close_rounded, color: context.iconSecondaryColor),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildFilterChips(context),
+              SizedBox(height: UIConsts.spacingMD),
+              Expanded(
+                child: ListView.builder(
+                  padding: EdgeInsets.symmetric(horizontal: UIConsts.spacingXL),
+                  itemCount: filteredSats.length,
+                  itemBuilder: (context, index) {
+                    final sat = filteredSats[index];
+                    final color = sat.usedInFix
+                        ? _getSatelliteColor(sat.system)
+                        : Colors.grey;
+                    return _buildSatelliteListItem(context, sat, color, index);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -457,7 +538,28 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
               ),
             ),
             _buildTitleSection(context),
-            _buildStatusIndicator(context),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildStatusIndicator(context),
+                SizedBox(width: UIConsts.spacingSM),
+                PressScale(
+                  onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
+                  child: Container(
+                    padding: EdgeInsets.all(UIConsts.spacingSM),
+                    decoration: BoxDecoration(
+                      color: context.adaptiveOpacity(Colors.white, 0.1, 0.06),
+                      borderRadius: BorderRadius.circular(UIConsts.radiusMD),
+                    ),
+                    child: Icon(
+                      Icons.format_list_bulleted_rounded,
+                      color: context.iconColor,
+                      size: UIConsts.iconSizeSM,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -578,7 +680,7 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
         child: Row(
           children: [
             Expanded(
-              flex: 3,
+              flex: 4,
               child: ModernCard(
                 accentColor: qualityColor,
                 hasGlow: true,
@@ -679,7 +781,7 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
       animation: _shimmerController,
       builder: (context, child) {
         return CustomPaint(
-          size: const Size(64, 64),
+          size: const Size(48, 48),
           painter: SignalQualityGaugePainter(
             progress: quality.clamp(0.0, 1.0),
             color: color,
@@ -764,45 +866,51 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
   }
 
   Widget _buildGlobeView(BuildContext context) {
-    return Stack(
-      key: const ValueKey('globe'),
-      alignment: Alignment.center,
-      children: [
-        AnimatedBuilder(
-          animation: _pulseController,
-          builder: (context, child) {
-            return Container(
-              width: 320 * _pulseAnimation.value,
-              height: 320 * _pulseAnimation.value,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppTheme.primaryColor.withOpacity(0.05),
-                    Colors.transparent,
-                  ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          key: const ValueKey('globe'),
+          alignment: Alignment.center,
+          children: [
+            AnimatedBuilder(
+              animation: _pulseController,
+              builder: (context, child) {
+                return Container(
+                  width: 320 * _pulseAnimation.value,
+                  height: 320 * _pulseAnimation.value,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        AppTheme.primaryColor.withOpacity(0.05),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            Opacity(
+              opacity: _isGlobeLoaded ? 1.0 : 0.0,
+              child: SizedBox(
+                width: constraints.maxWidth,
+                height: constraints.maxHeight,
+                child: FlutterEarthGlobe(
+                  controller: _globeController,
+                  radius: 120,
                 ),
               ),
-            );
-          },
-        ),
-        Opacity(
-          opacity: _isGlobeLoaded ? 1.0 : 0.0,
-          child: SizedBox(
-            width: context.screenWidth,
-            height: context.screenWidth,
-            child: FlutterEarthGlobe(
-              controller: _globeController,
-              radius: 140,
             ),
-          ),
-        ),
-        if (!_isGlobeLoaded) _buildLoadingIndicator(context),
-        if (_isGlobeLoaded) ...[
-          _buildOrbitalRings(),
-          _buildConstellationLegend(context),
-        ],
-      ],
+
+            if (!_isGlobeLoaded) _buildLoadingIndicator(context),
+            if (_isGlobeLoaded) ...[
+              _buildOrbitalRings(),
+              _buildConstellationLegend(context),
+            ],
+          ],
+        );
+      },
     );
   }
 
@@ -1129,125 +1237,6 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildBottomPanel(BuildContext context) {
-    final filteredSats = _filteredSatellites;
-
-    return Container(
-      height: 240,
-      decoration: BoxDecoration(
-        color: context.cardColor.withOpacity(0.95),
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(UIConsts.radius3XL),
-        ),
-        border: Border.all(
-          color: context.adaptiveOpacity(Colors.white, 0.1, 0.05),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: context.shadowColor,
-            blurRadius: 20,
-            spreadRadius: 5,
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(UIConsts.radius3XL),
-        ),
-        child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildPanelHandle(),
-              _buildPanelHeader(context, filteredSats),
-              _buildFilterChips(context),
-              SizedBox(height: UIConsts.spacingSM),
-              Expanded(
-                child: ListView.builder(
-                  padding: EdgeInsets.symmetric(
-                      horizontal: UIConsts.spacingLG - 4),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: filteredSats.length,
-                  itemBuilder: (context, index) =>
-                      _buildSatelliteCard(context, filteredSats[index], index),
-                ),
-              ),
-              SizedBox(height: UIConsts.spacingSM),
-            ],
-          ),
-        ),
-    );
-  }
-
-  Widget _buildPanelHandle() {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: UIConsts.spacingSM),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppTheme.secondaryColor, AppTheme.primaryColor],
-              ),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPanelHeader(BuildContext context, List<SatelliteData> filteredSats) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-          UIConsts.spacingXL, 0, UIConsts.spacingXL, UIConsts.spacingSM),
-      child: Row(
-        children: [
-          ModernIconContainer(
-            icon: Icons.satellite_alt_rounded,
-            color: AppTheme.primaryColor,
-            size: 32,
-            iconSize: 16,
-          ),
-          SizedBox(width: UIConsts.spacingSM),
-          Text(
-            "VỆ TINH",
-            style: TextStyle(
-              color: context.textColor,
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 2,
-            ),
-          ),
-          SizedBox(width: UIConsts.spacingSM),
-          ModernBadge(
-            count: filteredSats.length,
-            color: AppTheme.primaryColor,
-          ),
-          const Spacer(),
-          PressScale(
-            onTap: () => _showSatelliteListSheet(context),
-            child: Container(
-              padding: EdgeInsets.all(UIConsts.spacingSM),
-              decoration: BoxDecoration(
-                color: context.adaptiveOpacity(Colors.white, 0.05, 0.03),
-                borderRadius: BorderRadius.circular(UIConsts.spacingSM),
-              ),
-              child: Icon(
-                Icons.list_rounded,
-                color: context.iconSecondaryColor,
-                size: 18,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

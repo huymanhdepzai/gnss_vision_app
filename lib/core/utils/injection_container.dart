@@ -4,18 +4,24 @@ import 'package:get_it/get_it.dart';
 final sl = GetIt.instance;
 
 Future<void> init() async {
-  await _initExternalDependencies();
+  // Đăng ký các dịch vụ ngoại vi một cách lười biếng (Lazy)
+  _initExternalDependencies();
+  
   initVisionFeature();
   initTripFeature();
   initSharedServices();
 }
 
-Future<void> _initExternalDependencies() async {
-  final tripsBox = await Hive.openBox<Map>('trips');
-  final mediaBox = await Hive.openBox<Map>('media_files');
-
-  sl.registerLazySingleton<Box<Map>>(instanceName: 'tripsBox', () => tripsBox);
-  sl.registerLazySingleton<Box<Map>>(instanceName: 'mediaBox', () => mediaBox);
+void _initExternalDependencies() {
+  // Sử dụng registerSingletonAsync nếu cần khởi tạo bất đồng bộ nhưng vẫn muốn đảm bảo duy nhất
+  sl.registerSingletonAsync<Box<Map>>(
+    () => Hive.openBox<Map>('trips'),
+    instanceName: 'tripsBox',
+  );
+  sl.registerSingletonAsync<Box<Map>>(
+    () => Hive.openBox<Map>('media_files'),
+    instanceName: 'mediaBox',
+  );
 }
 
 void initVisionFeature() {

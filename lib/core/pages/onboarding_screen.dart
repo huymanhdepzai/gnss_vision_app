@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../app_theme.dart';
+import '../utils/injection_container.dart';
 import '../widgets/gnss_vision_icon.dart';
 import '../../features/map/presentation/pages/map_home_page.dart';
 
@@ -220,8 +221,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     setState(() => _isTransitioning = false);
   }
 
-  void _startTakeover() {
+  void _startTakeover() async {
     setState(() => _isTakingOver = true);
+    
+    // Đảm bảo các dịch vụ đã sẵn sàng trước khi vào trang chủ
+    await sl.allReady();
+    
     _saveOnboardingComplete();
     _takeoverCtrl.forward().then((_) {
       if (mounted) {
