@@ -11,7 +11,7 @@ import '../../../../core/providers/theme_provider.dart';
 import '../../../../shared/widgets/theme_toggle_switch.dart';
 import '../../../../shared/widgets/voice_toggle_switch.dart';
 import '../../../voice/presentation/controllers/voice_controller.dart';
-
+import '../../../feedback/presentation/telegram_service.dart';
 class AppDrawer extends StatefulWidget {
   final VoidCallback onNavigateToVision;
   final VoidCallback onNavigateToSatellite;
@@ -672,8 +672,13 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
 
   void _showRatingDialog(bool isDark) {
     int stars = 0;
+    bool isSubmitting = false;
+    TextEditingController commentController = TextEditingController();
+    final parentMessenger = ScaffoldMessenger.of(context);
+
     showDialog(
       context: context,
+      barrierDismissible: !isSubmitting, // Chống việc bấm ra ngoài khi đang gửi
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
           backgroundColor: isDark ? AppTheme.cardDark : Colors.white,
@@ -692,50 +697,105 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
               Text('Đánh Giá Ứng Dụng', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: isDark ? Colors.white : AppTheme.textDark)),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Cảm ơn bạn đã sử dụng GNSS Vision!', style: TextStyle(fontSize: 13.5, color: isDark ? Colors.white60 : Colors.black54), textAlign: TextAlign.center),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (i) => GestureDetector(
-                  onTap: () => setState(() => stars = i + 1),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 5),
-                    child: Icon(
-                      i < stars ? Icons.star_rounded : Icons.star_outline_rounded,
-                      color: i < stars ? AppTheme.warningColor : (isDark ? Colors.white24 : Colors.black12),
-                      size: 38,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Cảm ơn bạn đã sử dụng GNSS Vision!', style: TextStyle(fontSize: 13.5, color: isDark ? Colors.white60 : Colors.black54), textAlign: TextAlign.center),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(5, (i) => GestureDetector(
+                    onTap: isSubmitting ? null : () => setState(() => stars = i + 1),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      child: Icon(
+                        i < stars ? Icons.star_rounded : Icons.star_outline_rounded,
+                        color: i < stars ? AppTheme.warningColor : (isDark ? Colors.white24 : Colors.black12),
+                        size: 38,
+                      ),
                     ),
-                  ),
-                )),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                stars == 0 ? 'Chạm để đánh giá' : stars <= 3 ? 'Cần cải thiện' : stars == 4 ? 'Tốt!' : 'Tuyệt vời!',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: stars == 0 ? (isDark ? Colors.white38 : Colors.black38) : AppTheme.warningColor),
-              ),
-            ],
+                  )),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  stars == 0 ? 'Chạm để đánh giá' : stars <= 3 ? 'Cần cải thiện' : stars == 4 ? 'Tốt!' : 'Tuyệt vời!',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: stars == 0 ? (isDark ? Colors.white38 : Colors.black38) : AppTheme.warningColor),
+                ),
+                if (stars > 0) ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: commentController,
+                    enabled: !isSubmitting,
+                    maxLines: 3,
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Nhập góp ý của bạn...',
+                      hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 13),
+                      filled: true,
+                      fillColor: isDark ? _a(Colors.white, 0.05) : _a(Colors.black, 0.03),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.all(12),
+                    ),
+                  )
+                ]
+              ],
+            ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Để sau', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontWeight: FontWeight.w500))),
+            if (!isSubmitting)
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text('Để sau', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontWeight: FontWeight.w500))
+              ),
             Container(
               decoration: BoxDecoration(gradient: AppTheme.primaryGradient, borderRadius: BorderRadius.circular(14)),
               child: ElevatedButton(
-                onPressed: stars > 0 ? () {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Cảm ơn đánh giá $stars sao!'),
-                      backgroundColor: AppTheme.successColor,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  );
+                onPressed: (stars > 0 && !isSubmitting) ? () async {
+                  setState(() => isSubmitting = true);
+
+                  try {
+                    final success = await TelegramService.sendFeedback(
+                      stars: stars,
+                      comment: commentController.text,
+                      version: _appVersion,
+                    );
+
+                    if (ctx.mounted) {
+                      Navigator.pop(ctx);
+                    }
+
+                    parentMessenger.showSnackBar(
+                      SnackBar(
+                        content: Text(success ? 'Cảm ơn bạn đã gửi đánh giá!' : 'Có lỗi xảy ra, vui lòng thử lại.'),
+                        backgroundColor: success ? AppTheme.successColor : AppTheme.warningColor,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    );
+
+                  } catch (e) {
+                    if (ctx.mounted) {
+                      setState(() => isSubmitting = false);
+                    }
+                    parentMessenger.showSnackBar(
+                      SnackBar(
+                          content: Text('Lỗi hệ thống: $e'),
+                          backgroundColor: AppTheme.warningColor
+                      ),
+                    );
+                  }
                 } : null,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)), padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
-                child: const Text('Gửi đánh giá', style: TextStyle(fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)
+                ),
+                child: isSubmitting
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text('Gửi đánh giá', style: TextStyle(fontWeight: FontWeight.w700)),
               ),
             ),
           ],
