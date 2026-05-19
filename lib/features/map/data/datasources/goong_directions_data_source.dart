@@ -14,6 +14,18 @@ abstract class GoongDirectionsDataSource {
     bool alternatives = true,
     String? destinationName,
   });
+
+  String getStaticMapRouteUrl({
+    required double originLat,
+    required double originLng,
+    required double destinationLat,
+    required double destinationLng,
+    int width = 600,
+    int height = 400,
+    String vehicle = 'car',
+    String type = 'fastest',
+    String color = '#253494',
+  });
 }
 
 class GoongDirectionsDataSourceImpl implements GoongDirectionsDataSource {
@@ -55,6 +67,32 @@ class GoongDirectionsDataSourceImpl implements GoongDirectionsDataSource {
       jsonResponse,
       destinationName: destinationName,
     );
+  }
+
+  @override
+  String getStaticMapRouteUrl({
+    required double originLat,
+    required double originLng,
+    required double destinationLat,
+    required double destinationLng,
+    int width = 600,
+    int height = 400,
+    String vehicle = 'car',
+    String type = 'fastest',
+    String color = '#253494',
+  }) {
+    final apiKey = dotenv.env['GOONG_API_KEY'] ?? '';
+    final encodedColor = color.replaceAll('#', '%23');
+    
+    return 'https://rsapi.goong.io/staticmap/route?'
+        'origin=$originLat,$originLng&'
+        'destination=$destinationLat,$destinationLng&'
+        'width=$width&'
+        'height=$height&'
+        'vehicle=$vehicle&'
+        'type=$type&'
+        'color=$encodedColor&'
+        'api_key=$apiKey';
   }
 }
 

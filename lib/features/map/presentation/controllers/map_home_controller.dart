@@ -49,6 +49,9 @@ class MapHomeController extends ChangeNotifier {
   String? _routeGeoJson;
   String? get routeGeoJson => _routeGeoJson;
 
+  String? _staticMapUrl;
+  String? get staticMapUrl => _staticMapUrl;
+
   bool _isRouteActive = false;
   bool get isRouteActive => _isRouteActive;
 
@@ -172,6 +175,12 @@ class MapHomeController extends ChangeNotifier {
       if (route != null) {
         _distance = route.distanceText;
         _duration = route.durationText;
+        _staticMapUrl = _navigationController.getStaticMapUrl(
+          originLat: _currentLocation.lat.toDouble(),
+          originLng: _currentLocation.lng.toDouble(),
+          destinationLat: _destinationLocation!.lat.toDouble(),
+          destinationLng: _destinationLocation!.lng.toDouble(),
+        );
         _routeGeoJson = '''{
           "type": "FeatureCollection",
           "features": [
@@ -212,6 +221,7 @@ class MapHomeController extends ChangeNotifier {
     _distance = '\u0110ang t\u00ednh...';
     _duration = '-- ph\u00fat';
     _routeGeoJson = null;
+    _staticMapUrl = null;
     _isRouteActive = false;
     _searchResults = [];
     _searchQuery = '';

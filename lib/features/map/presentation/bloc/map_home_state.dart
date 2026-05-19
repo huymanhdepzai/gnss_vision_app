@@ -16,6 +16,7 @@ class MapHomeState extends Equatable {
   final String distance;
   final String duration;
   final String? routeGeoJson;
+  final String? staticMapUrl;
   final bool isRouteActive;
   final List<SearchResult> searchResults;
   final bool isSearching;
@@ -25,6 +26,7 @@ class MapHomeState extends Equatable {
   final String vehicle;
   final List<NavigationRoute> availableRoutes;
   final int selectedRouteIndex;
+  final PlaceDetail? placeDetail;
 
   const MapHomeState({
     this.viewState = MapViewState.explore,
@@ -38,6 +40,7 @@ class MapHomeState extends Equatable {
     this.distance = 'Đang tính...',
     this.duration = '-- phút',
     this.routeGeoJson,
+    this.staticMapUrl,
     this.isRouteActive = false,
     this.searchResults = const [],
     this.isSearching = false,
@@ -47,6 +50,7 @@ class MapHomeState extends Equatable {
     this.vehicle = 'car',
     this.availableRoutes = const [],
     this.selectedRouteIndex = 0,
+    this.placeDetail,
   });
 
   MapHomeState copyWith({
@@ -61,6 +65,7 @@ class MapHomeState extends Equatable {
     String? distance,
     String? duration,
     String? routeGeoJson,
+    String? staticMapUrl,
     bool? isRouteActive,
     List<SearchResult>? searchResults,
     bool? isSearching,
@@ -70,6 +75,7 @@ class MapHomeState extends Equatable {
     String? vehicle,
     List<NavigationRoute>? availableRoutes,
     int? selectedRouteIndex,
+    PlaceDetail? placeDetail,
   }) {
     return MapHomeState(
       viewState: viewState ?? this.viewState,
@@ -83,6 +89,7 @@ class MapHomeState extends Equatable {
       distance: distance ?? this.distance,
       duration: duration ?? this.duration,
       routeGeoJson: routeGeoJson ?? this.routeGeoJson,
+      staticMapUrl: staticMapUrl ?? this.staticMapUrl,
       isRouteActive: isRouteActive ?? this.isRouteActive,
       searchResults: searchResults ?? this.searchResults,
       isSearching: isSearching ?? this.isSearching,
@@ -92,6 +99,7 @@ class MapHomeState extends Equatable {
       vehicle: vehicle ?? this.vehicle,
       availableRoutes: availableRoutes ?? this.availableRoutes,
       selectedRouteIndex: selectedRouteIndex ?? this.selectedRouteIndex,
+      placeDetail: placeDetail ?? this.placeDetail,
     );
   }
 
@@ -108,6 +116,7 @@ class MapHomeState extends Equatable {
         distance,
         duration,
         routeGeoJson,
+        staticMapUrl,
         isRouteActive,
         searchResults,
         isSearching,
@@ -117,5 +126,6 @@ class MapHomeState extends Equatable {
         vehicle,
         availableRoutes,
         selectedRouteIndex,
+        placeDetail,
       ];
 }

@@ -37,6 +37,22 @@ class NavigationController extends ChangeNotifier {
 
   NavigationController(this._repository);
 
+  String getStaticMapUrl({
+    required double originLat,
+    required double originLng,
+    required double destinationLat,
+    required double destinationLng,
+    String vehicle = 'car',
+  }) {
+    return _repository.getStaticMapRouteUrl(
+      originLat: originLat,
+      originLng: originLng,
+      destinationLat: destinationLat,
+      destinationLng: destinationLng,
+      vehicle: vehicle,
+    );
+  }
+
   Future<void> startNavigation(NavigationRoute route) async {
     _state = _state.copyWith(
       status: NavigationStatus.navigating,

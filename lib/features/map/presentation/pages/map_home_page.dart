@@ -37,7 +37,9 @@ class MapHomeScreenV2 extends StatelessWidget {
       create: (context) => MapHomeBloc(
         searchDataSource: GoongSearchDataSourceImpl(),
         navigationRepository:
-            NavigationRepositoryImpl(GoongDirectionsDataSourceImpl()),
+            NavigationRepositoryImpl(
+              GoongDirectionsDataSourceImpl(),
+            ),
       )
         ..add(MapHomeThemeChanged(isDark))
         ..add(const MapHomeInitLocation()),
@@ -518,24 +520,36 @@ class _MapHomeViewState extends State<_MapHomeView>
                     MapNavigationTopBar(
                         state: state, isDark: isDark),
                   if (state.viewState == MapViewState.placeDetail)
-                    MapPlaceSheet(
-                      state: state,
-                      isDark: isDark,
-                      onStartNavigation: _handleStartNavigation,
-                      onFetchAndDrawRoute: _handleFetchAndDrawRoute,
-                      onVehicleSelected: (vehicle) => context
-                          .read<MapHomeBloc>()
-                          .add(MapHomeVehicleSelected(vehicle)),
-                      onRouteSelected: (index) => context
-                          .read<MapHomeBloc>()
-                          .add(MapHomeRouteSelected(index)),
-                      slideAnimation: _sheetSlideAnimation,
-                      padding: EdgeInsets.fromLTRB(
-                          20,
-                          14,
-                          20,
-                          MediaQuery.of(context).padding.bottom +
-                              20),
+                    SlideTransition(
+                      position: _sheetSlideAnimation,
+                      child: DraggableScrollableSheet(
+                        initialChildSize: 0.45,
+                        minChildSize: 0.3,
+                        maxChildSize: 0.9,
+                        snap: true,
+                        snapSizes: const [0.3, 0.45, 0.9],
+                        builder: (context, scrollController) {
+                          return MapPlaceSheet(
+                            state: state,
+                            isDark: isDark,
+                            onStartNavigation: _handleStartNavigation,
+                            onFetchAndDrawRoute: _handleFetchAndDrawRoute,
+                            onVehicleSelected: (vehicle) => context
+                                .read<MapHomeBloc>()
+                                .add(MapHomeVehicleSelected(vehicle)),
+                            onRouteSelected: (index) => context
+                                .read<MapHomeBloc>()
+                                .add(MapHomeRouteSelected(index)),
+                            scrollController: scrollController,
+                            padding: EdgeInsets.fromLTRB(
+                                20,
+                                14,
+                                20,
+                                MediaQuery.of(context).padding.bottom +
+                                    20),
+                          );
+                        },
+                      ),
                     ),
                   if (state.viewState == MapViewState.navigating)
                     MapNavigationPanel(

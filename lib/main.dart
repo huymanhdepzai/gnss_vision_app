@@ -43,7 +43,9 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => TripController()),
         ChangeNotifierProvider(
           create: (_) => NavigationController(
-            NavigationRepositoryImpl(GoongDirectionsDataSourceImpl()),
+            NavigationRepositoryImpl(
+              GoongDirectionsDataSourceImpl(),
+            ),
           ),
         ),
       ],

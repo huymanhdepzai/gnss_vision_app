@@ -118,13 +118,13 @@ class MapNavigationTopBar extends StatelessWidget {
                             letterSpacing: -0.3),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+                    ],
+                    ),
+                    ),
+                    ],
+                    ),
+                    ),
+                    ),
+                    );
+                    }
+                    }

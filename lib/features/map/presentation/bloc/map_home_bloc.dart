@@ -51,12 +51,21 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
     ];
     final geoJson = _buildRouteGeoJson(fullPolyline);
     
+    final staticMapUrl = _navigationRepository.getStaticMapRouteUrl(
+      originLat: state.currentLat,
+      originLng: state.currentLng,
+      destinationLat: state.destinationLat!,
+      destinationLng: state.destinationLng!,
+      vehicle: state.vehicle,
+    );
+    
     emit(state.copyWith(
       selectedRouteIndex: event.index,
       route: route,
       distance: route.distanceText,
       duration: route.durationText,
       routeGeoJson: geoJson,
+      staticMapUrl: staticMapUrl,
     ));
   }
 
@@ -122,10 +131,10 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
     });
   }
 
-  void _onLocationUpdated(
+  Future<void> _onLocationUpdated(
     MapHomeLocationUpdated event,
     Emitter<MapHomeState> emit,
-  ) {
+  ) async {
     emit(state.copyWith(
       currentLat: event.lat,
       currentLng: event.lng,
@@ -191,6 +200,7 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
         destinationName:
             detail.name.isNotEmpty ? detail.name : event.description,
         destinationAddress: detail.address,
+        placeDetail: detail,
         viewState: MapViewState.placeDetail,
         isSearching: false,
       ));
@@ -247,10 +257,20 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
           ...route.polyline,
         ];
         final geoJson = _buildRouteGeoJson(fullPolyline);
+        
+        final staticMapUrl = _navigationRepository.getStaticMapRouteUrl(
+          originLat: state.currentLat,
+          originLng: state.currentLng,
+          destinationLat: state.destinationLat!,
+          destinationLng: state.destinationLng!,
+          vehicle: state.vehicle,
+        );
+
         emit(state.copyWith(
           distance: route.distanceText,
           duration: route.durationText,
           routeGeoJson: geoJson,
+          staticMapUrl: staticMapUrl,
           isRouteActive: true,
           isSearching: false,
           route: route,
@@ -270,6 +290,7 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
       currentLng: state.currentLng,
       isLocationLoaded: state.isLocationLoaded,
       viewState: MapViewState.explore,
+      placeDetail: null,
     ));
   }
 
@@ -282,6 +303,7 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
       currentLng: state.currentLng,
       isLocationLoaded: state.isLocationLoaded,
       viewState: MapViewState.explore,
+      placeDetail: null,
     ));
   }
 

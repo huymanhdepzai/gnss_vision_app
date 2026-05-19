@@ -1,3 +1,4 @@
+import 'package:equatable/equatable.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -16,18 +17,44 @@ class SearchResult {
   });
 }
 
-class PlaceDetail {
+class PlaceDetail extends Equatable {
   final String name;
   final String address;
   final double latitude;
   final double longitude;
+  final String? phoneNumber;
+  final double? rating;
+  final String? website;
+  final List<String>? openingHours;
+  final bool? isOpenNow;
+  final List<String>? types;
 
   const PlaceDetail({
     required this.name,
     required this.address,
     required this.latitude,
     required this.longitude,
+    this.phoneNumber,
+    this.rating,
+    this.website,
+    this.openingHours,
+    this.isOpenNow,
+    this.types,
   });
+
+  @override
+  List<Object?> get props => [
+        name,
+        address,
+        latitude,
+        longitude,
+        phoneNumber,
+        rating,
+        website,
+        openingHours,
+        isOpenNow,
+        types,
+      ];
 }
 
 abstract class GoongSearchDataSource {
@@ -72,25 +99,51 @@ class GoongSearchDataSourceImpl implements GoongSearchDataSource {
   @override
   Future<PlaceDetail> getPlaceDetail(String placeId) async {
     final apiKey = dotenv.env['GOONG_API_KEY'] ?? '';
-    final url = Uri.parse(
-      'https://rsapi.goong.io/Place/Detail?place_id=$placeId&api_key=$apiKey',
-    );
+    // Use Uri.https for better safety with query parameters
+    final url = Uri.https('rsapi.goong.io', '/Place/Detail', {
+      'place_id': placeId,
+      'api_key': apiKey,
+    });
 
     final response = await _client.get(url);
     if (response.statusCode != 200) {
-      throw SearchException('Place detail failed: ${response.statusCode}');
+      throw SearchException('Place detail failed with status: ${response.statusCode}');
     }
 
     final json = jsonDecode(response.body);
+    
+    // Check for Goong specific status
+    final status = json['status']?.toString();
+    if (status != 'OK') {
+      throw SearchException('Goong API Error: $status');
+    }
+
     final result = json['result'] as Map<String, dynamic>?;
     if (result == null) throw const SearchException('No result in place detail response');
 
-    final location = result['geometry']['location'] as Map<String, dynamic>;
+    final geometry = result['geometry'] as Map<String, dynamic>?;
+    final location = geometry?['location'] as Map<String, dynamic>?;
+    final openingHoursData = result['opening_hours'] as Map<String, dynamic>?;
+    
+    if (location == null) {
+      throw const SearchException('Invalid geometry in place detail response');
+    }
+
     return PlaceDetail(
       name: result['name']?.toString() ?? '',
       address: result['formatted_address']?.toString() ?? '',
-      latitude: location['lat']?.toDouble() ?? 0,
-      longitude: location['lng']?.toDouble() ?? 0,
+      latitude: (location['lat'] as num?)?.toDouble() ?? 0,
+      longitude: (location['lng'] as num?)?.toDouble() ?? 0,
+      phoneNumber: result['formatted_phone_number']?.toString() ?? result['international_phone_number']?.toString(),
+      rating: (result['rating'] as num?)?.toDouble(),
+      website: result['website']?.toString(),
+      openingHours: (openingHoursData?['weekday_text'] as List<dynamic>?)
+          ?.map((e) => e.toString())
+          .toList(),
+      isOpenNow: openingHoursData?['open_now'] as bool?,
+      types: (result['types'] as List<dynamic>?)
+          ?.map((e) => e.toString())
+          .toList(),
     );
   }
 }

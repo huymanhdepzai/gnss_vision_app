@@ -156,15 +156,16 @@ class MapNavigationPanel extends StatelessWidget {
                                       color: AppTheme.successColor,
                                       blurRadius: 16)
                                 ])),
-                            Text(
-                                "Khoảng cách: ${state.distance}",
+                            Text("Khoảng cách: ${state.distance}",
                                 style: TextStyle(
                                     color: (isDark
                                             ? Colors.white
                                             : AppTheme.textDark)
                                         .withOpacity(0.45),
                                     fontSize: 14,
-                                    fontWeight: FontWeight.w400)),
+                                    fontWeight: FontWeight.w400),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
                           ],
                         ),
                       ),
