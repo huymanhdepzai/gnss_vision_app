@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="pinGradC" x1="0.3" y1="0" x2="0.7" y2="1">
+      <stop offset="0%" stop-color="#7C6AFF"/>
+      <stop offset="100%" stop-color="#5F52E0"/>
+    </linearGradient>
+    <linearGradient id="arrowGradC" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#22D3EE" stop-opacity="0.5"/>
+    </linearGradient>
+    <radialGradient id="bgGlowC" cx="0.5" cy="0.4" r="0.5">
+      <stop offset="0%" stop-color="#7C6AFF" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#0C1222" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="pinGlowC" x="-30%" y="-20%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="14" flood-color="#7C6AFF" flood-opacity="0.35"/>
+    </filter>
+    <filter id="waveGlowC" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="#0C1222"/>
+  <rect width="1024" height="1024" fill="url(#bgGlowC)"/>
+
+  <!-- Satellite waves (behind pin) -->
+  <g filter="url(#waveGlowC)">
+    <!-- Wave arc 1 (closest, brightest) -->
+    <path d="M 590 210 A 140 120 0 0 1 720 340" fill="none" stroke="#22D3EE" stroke-width="3.5" opacity="0.85"/>
+    <path d="M 430 210 A 140 120 0 0 0 300 340" fill="none" stroke="#22D3EE" stroke-width="3.5" opacity="0.85"/>
+
+    <!-- Wave arc 2 (middle) -->
+    <path d="M 610 160 A 190 160 0 0 1 770 380" fill="none" stroke="#22D3EE" stroke-width="2.5" opacity="0.55"/>
+    <path d="M 410 160 A 190 160 0 0 0 250 380" fill="none" stroke="#22D3EE" stroke-width="2.5" opacity="0.55"/>
+
+    <!-- Wave arc 3 (farthest, faintest) -->
+    <path d="M 625 120 A 230 190 0 0 1 815 420" fill="none" stroke="#22D3EE" stroke-width="2" opacity="0.3"/>
+    <path d="M 395 120 A 230 190 0 0 0 205 420" fill="none" stroke="#22D3EE" stroke-width="2" opacity="0.3"/>
+  </g>
+
+  <!-- Location Pin body -->
+  <g filter="url(#pinGlowC)">
+    <path d="M 512 730
+             C 478 670 340 530 340 395
+             A 172 172 0 0 1 684 395
+             C 684 530 546 670 512 730
+             Z"
+          fill="url(#pinGradC)"/>
+  </g>
+
+  <!-- Pin inner gradient highlight -->
+  <circle cx="512" cy="390" r="60" fill="white" opacity="0.06"/>
+
+  <!-- Optical flow arrows inside pin -->
+  <g opacity="0.75">
+    <!-- Arrow 1 (left) -->
+    <path d="M 475 470 L 475 520 L 462 520 L 488 545 L 514 520 L 501 520 L 501 470 Z"
+          fill="#22D3EE" opacity="0.8" transform="rotate(-5, 488, 507)"/>
+    <!-- Arrow 2 (center) -->
+    <path d="M 500 450 L 500 510 L 485 510 L 512 540 L 539 510 L 524 510 L 524 450 Z"
+          fill="#22D3EE" opacity="0.9"/>
+    <!-- Arrow 3 (right) -->
+    <path d="M 527 470 L 527 520 L 514 520 L 540 545 L 566 520 L 553 520 L 553 470 Z"
+          fill="#22D3EE" opacity="0.8" transform="rotate(5, 540, 507)"/>
+  </g>
+
+  <!-- Pin head inner accuracy dot -->
+  <circle cx="512" cy="395" r="45" fill="#22D3EE" opacity="0.4"/>
+  <circle cx="512" cy="395" r="22" fill="#22D3EE" opacity="0.8"/>
+  <circle cx="512" cy="395" r="8" fill="white" opacity="0.9"/>
+
+  <!-- Pin head ring -->
+  <circle cx="512" cy="395" r="130" fill="none" stroke="white" stroke-width="1.5" opacity="0.15"/>
+</svg>

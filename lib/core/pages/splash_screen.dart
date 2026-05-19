@@ -1,7 +1,11 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../app_theme.dart';
+import '../widgets/gnss_vision_icon.dart';
+import '../utils/injection_container.dart';
 import '../../features/map/presentation/pages/map_home_page.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -23,11 +27,14 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _textFadeAnimation;
   late Animation<Offset> _textSlideAnimation;
 
+  bool _isInitializing = false;
+
   @override
   void initState() {
     super.initState();
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _initAnimations();
-    _navigateToHome();
+    _startInitialization();
   }
 
   void _initAnimations() {
@@ -68,35 +75,63 @@ class _SplashScreenState extends State<SplashScreen>
         Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero).animate(
           CurvedAnimation(parent: _textController, curve: Curves.easeOutCubic),
         );
+  }
 
-    _logoController.forward();
-    Future.delayed(const Duration(milliseconds: 500), () {
-      _textController.forward();
-    });
+  Future<void> _startInitialization() async {
+    if (_isInitializing) return;
+    _isInitializing = true;
+
+    // 1. Khởi tạo animations
+    if (mounted) _logoController.forward();
+    
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (mounted) _textController.forward();
+
+    // 2. Chờ GetIt sẵn sàng (Hive boxes mở xong)
+    await sl.allReady();
+    if (!mounted) return;
+
+    // 3. Yêu cầu quyền truy cập (nếu cần)
+    try {
+      await [
+        Permission.camera,
+        Permission.locationWhenInUse,
+        Permission.microphone,
+      ].request();
+    } catch (e) {
+      debugPrint('Error requesting permissions: $e');
+    }
+
+    if (!mounted) return;
+
+    // 4. Chờ ít nhất 1-2 giây để người dùng thấy logo
+    await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) return;
+
+    _navigateToHome();
   }
 
   void _navigateToHome() {
-    Timer(const Duration(seconds: 3), () {
-      Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const MapHomeScreenV2(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(
-              opacity: animation,
-              child: ScaleTransition(
-                scale: Tween<double>(begin: 1.1, end: 1.0).animate(
-                  CurvedAnimation(parent: animation, curve: Curves.easeOut),
-                ),
-                child: child,
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const MapHomeScreenV2(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 1.1, end: 1.0).animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOut),
               ),
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 800),
-        ),
-      );
-    });
+              child: child,
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 800),
+      ),
+    );
   }
 
   @override
@@ -186,10 +221,9 @@ class _SplashScreenState extends State<SplashScreen>
           child: Stack(
             alignment: Alignment.center,
             children: [
-              Icon(
-                Icons.explore_rounded,
-                size: 60,
-                color: Colors.white.withOpacity(0.9),
+              AnimatedGnssVisionIcon(
+                size: 100,
+                showGlow: false,
               ),
               ...List.generate(3, (index) {
                 return Transform.rotate(

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="bgGlowBg" cx="0.5" cy="0.42" r="0.7">
+      <stop offset="0%" stop-color="#1A2340"/>
+      <stop offset="60%" stop-color="#111A2E"/>
+      <stop offset="100%" stop-color="#0C1222"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bgGlowBg)"/>
+</svg>

@@ -79,17 +79,34 @@ dependencies:
   flutter_dotenv: ^6.0.0
   uuid: ^4.2.1
   intl: ^0.19.0
+  package_info_plus: ^8.0.0
+  flutter_svg: ^2.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  web:
+    generate: true
+  windows:
+    generate: true
+  macos:
+    generate: true
+
+  image_path: "assets/branding/icons/concept_D_orbit_navigator.png"
+  adaptive_icon_foreground: "assets/branding/icons/icon_foreground.png"
+  adaptive_icon_background: "assets/branding/icons/icon_background.png"
+  adaptive_icon_monochrome: "assets/branding/icons/icon_monochrome.png"
+
+  web_manifest:
+    background_color: "#0C1222"
+    theme_color: "#7C6AFF"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -97,14 +114,12 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
   assets:
-    - assets/images/earth_night.png
     - assets/images/earth-night.jpg
+    - assets/images/navigation.png
     - assets/yolov8n.tflite
     - assets/labels.txt
+    - assets/branding/icons/
     - .env
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:

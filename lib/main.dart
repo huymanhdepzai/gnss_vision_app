@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
@@ -11,24 +10,23 @@ import 'core/providers/theme_provider.dart';
 import 'features/voice/presentation/controllers/voice_controller.dart';
 import 'features/trip/presentation/controllers/trip_controller.dart';
 import 'features/trip/data/datasources/trip_service.dart';
+import 'features/map/presentation/controllers/navigation_controller.dart';
+import 'features/map/data/datasources/goong_directions_data_source.dart';
+import 'features/map/data/repositories/navigation_repository_impl.dart';
 import 'core/pages/splash_screen.dart';
+import 'core/pages/onboarding_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
+  
+  // Khởi tạo các dịch vụ cơ bản cần thiết ngay lập tức
+  await Future.wait([
+    dotenv.load(fileName: ".env"),
+    Hive.initFlutter(),
+  ]);
 
-  await Hive.initFlutter();
-  await TripService.initialize();
-
+  // Khởi tạo Dependency Injection (nhưng dời các box nặng vào bên trong)
   await init();
-
-  await [
-    Permission.camera,
-    Permission.locationWhenInUse,
-    Permission.microphone,
-    Permission.photos,
-    Permission.videos,
-  ].request();
 
   runApp(const MyApp());
 }
@@ -43,6 +41,13 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => VoiceController()),
         ChangeNotifierProvider(create: (_) => TripController()),
+        ChangeNotifierProvider(
+          create: (_) => NavigationController(
+            NavigationRepositoryImpl(
+              GoongDirectionsDataSourceImpl(),
+            ),
+          ),
+        ),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
@@ -52,7 +57,20 @@ class MyApp extends StatelessWidget {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProvider.themeMode,
-            home: const SplashScreen(),
+            home: FutureBuilder<bool>(
+              future: OnboardingScreen.hasCompletedOnboarding(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    backgroundColor: AppTheme.backgroundDark,
+                  );
+                }
+                if (snapshot.data == true) {
+                  return const SplashScreen();
+                }
+                return const OnboardingScreen();
+              },
+            ),
           );
         },
       ),

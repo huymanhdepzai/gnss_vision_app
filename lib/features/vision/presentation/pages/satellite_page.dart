@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -9,20 +8,30 @@ import 'package:flutter_earth_globe/flutter_earth_globe_controller.dart';
 import 'package:flutter_earth_globe/point.dart';
 import 'package:flutter_earth_globe/globe_coordinates.dart';
 import 'package:flutter_earth_globe/point_connection.dart';
+import '../../../../core/app_theme.dart';
+import '../../../../core/widgets/modern_ui.dart';
+import '../../../../core/widgets/modern_animations.dart';
+import '../../../../core/extensions/context_extensions.dart';
+import 'satellite_detail_page.dart';
 
-// ============================================================
-// SATELLITE SCREEN V2 - MODERN 3D UI
-// ============================================================
-// Tính năng mới:
-// - Glassmorphism & Neumorphism
-// - Animated transitions (Hero, Fade, Scale, Slide)
-// - Particle background với animation
-// - Shimmer loading effect
-// - Pulse animation cho user location
-// - Gradient text & icons
-// - 3D card hover effects
-// - Ambient glow effects
-// ============================================================
+const Map<String, Color> kSatelliteSystemColors = {
+  'GPS': Color(0xFF00D4FF),
+  'GLONASS': Color(0xFFFF5252),
+  'GALILEO': Color(0xFFB388FF),
+  'BEIDOU': Color(0xFF69F0AE),
+  'QZSS': Color(0xFFFFAB40),
+};
+
+const Map<String, String> kSatelliteSystemLabels = {
+  'ALL': 'Tất cả',
+  'GPS': 'GPS',
+  'GLONASS': 'GLO',
+  'GALILEO': 'GAL',
+  'BEIDOU': 'BDS',
+  'QZSS': 'QZSS',
+};
+
+const List<String> kFilterSystems = ['ALL', 'GPS', 'GLONASS', 'GALILEO', 'BEIDOU'];
 
 class SatelliteData {
   final int prn;
@@ -49,14 +58,15 @@ class UserLocationData {
 }
 
 class SatelliteScreenV2 extends StatefulWidget {
-  const SatelliteScreenV2({Key? key}) : super(key: key);
+  const SatelliteScreenV2({super.key});
 
   @override
-  _SatelliteScreenV2State createState() => _SatelliteScreenV2State();
+  State<SatelliteScreenV2> createState() => _SatelliteScreenV2State();
 }
 
 class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     with TickerProviderStateMixin {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   List<SatelliteData> _satellites = [];
   UserLocationData? _userLocation;
 
@@ -66,18 +76,12 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
   bool _showGlobe = true;
   bool _isUsingRealData = false;
   bool _isGlobeLoaded = false;
+  String _filterSystem = 'ALL';
 
-  // Animation Controllers
-  late AnimationController _fadeController;
-  late AnimationController _slideController;
   late AnimationController _pulseController;
   late AnimationController _shimmerController;
-  late AnimationController _floatingController;
-  late AnimationController _glowController;
+  late AnimationController _radarSweepController;
 
-  // Curved Animations
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
   late Animation<double> _pulseAnimation;
 
   static const EventChannel _gnssChannel = EventChannel('gnss_status_channel');
@@ -86,70 +90,44 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
   final Set<String> _activePointIds = {};
   final Set<String> _activeConnectionIds = {};
 
+  
+
   @override
   void initState() {
     super.initState();
-
-    _initAnimationControllers();
+    _initAnimations();
     _initGlobeController();
     _initRealGnssData();
   }
 
-  void _initAnimationControllers() {
-    _fadeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-
-    _slideController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
-
+  void _initAnimations() {
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 3000),
     )..repeat();
 
     _shimmerController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 4000),
     )..repeat();
 
-    _floatingController = AnimationController(
+    _radarSweepController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 3000),
-    )..repeat(reverse: true);
+    )..repeat();
 
-    _glowController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    )..repeat(reverse: true);
-
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeOut));
-
-    _slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
-          CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
-        );
-
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.5).animate(
+    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.15).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
-
-    _fadeController.forward();
-    _slideController.forward();
   }
 
   void _initGlobeController() {
     _globeController = FlutterEarthGlobeController(
-      rotationSpeed: 0.02, // Giảm tốc độ tự động xoay để cảm giác mượt hơn khi dùng tay trượt
+      rotationSpeed: 0.005,
       isRotating: true,
       zoom: 0.5,
       surface: const AssetImage('assets/images/earth-night.jpg'),
+      isDayNightCycleEnabled: false,
     );
 
     _globeController.onLoaded = () {
@@ -159,7 +137,6 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
       }
     };
 
-    // Fallback: Nếu sau 2 giây không thấy gọi onLoaded, tự động kích hoạt
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted && !_isGlobeLoaded) {
         setState(() => _isGlobeLoaded = true);
@@ -170,12 +147,9 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
 
   @override
   void dispose() {
-    _fadeController.dispose();
-    _slideController.dispose();
     _pulseController.dispose();
     _shimmerController.dispose();
-    _floatingController.dispose();
-    _glowController.dispose();
+    _radarSweepController.dispose();
     _gnssSubscription?.cancel();
     _mockTimer?.cancel();
     super.dispose();
@@ -201,17 +175,18 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
             final List<dynamic> rawList = event as List<dynamic>;
             if (rawList.isEmpty && !_isUsingRealData) return;
 
-            final random = Random();
             List<SatelliteData> realSats = [];
 
             for (var sat in rawList) {
               realSats.add(
                 SatelliteData(
                   prn: sat['svid'] ?? 0,
-                  elevation: (sat['elevationDegrees'] ?? 0.0).toDouble(),
+                  elevation:
+                      (sat['elevationDegrees'] ?? 0.0).toDouble(),
                   azimuth: (sat['azimuthDegrees'] ?? 0.0).toDouble(),
                   snr: (sat['cn0DbHz'] ?? 0.0).toDouble(),
-                  system: _getConstellationName(sat['constellationType'] ?? 0),
+                  system:
+                      _getConstellationName(sat['constellationType'] ?? 0),
                   usedInFix: sat['usedInFix'] ?? false,
                 ),
               );
@@ -237,6 +212,19 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     } else {
       _startMockDataFallback();
     }
+  }
+
+  List<SatelliteData> get _filteredSatellites {
+    if (_filterSystem == 'ALL') return _satellites;
+    return _satellites.where((s) => s.system == _filterSystem).toList();
+  }
+
+  Map<String, int> get _constellationCounts {
+    final counts = <String, int>{};
+    for (var s in _satellites) {
+      counts[s.system] = (counts[s.system] ?? 0) + 1;
+    }
+    return counts;
   }
 
   void _updateGlobePoints() {
@@ -316,20 +304,7 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
   }
 
   Color _getSatelliteColor(String system) {
-    switch (system) {
-      case "GPS":
-        return const Color(0xFF00D4FF);
-      case "GLONASS":
-        return const Color(0xFFFF5252);
-      case "GALILEO":
-        return const Color(0xFFB388FF);
-      case "BEIDOU":
-        return const Color(0xFF69F0AE);
-      case "QZSS":
-        return const Color(0xFFFFAB40);
-      default:
-        return Colors.white;
-    }
+    return kSatelliteSystemColors[system] ?? Colors.white;
   }
 
   String _getConstellationName(int type) {
@@ -353,13 +328,28 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     }
   }
 
+  String _getSignalQuality(double avgSnr) {
+    if (avgSnr >= 35) return 'Xuất sắc';
+    if (avgSnr >= 25) return 'Tốt';
+    if (avgSnr >= 15) return 'Trung bình';
+    return 'Yếu';
+  }
+
+  Color _getSignalQualityColor(double avgSnr) {
+    if (avgSnr >= 35) return AppTheme.successColor;
+    if (avgSnr >= 25) return AppTheme.secondaryColor;
+    if (avgSnr >= 15) return AppTheme.warningColor;
+    return AppTheme.accentColor;
+  }
+
   void _startMockDataFallback() {
     if (_mockTimer != null && _mockTimer!.isActive) return;
 
     final random = Random();
     List<SatelliteData> sats = [];
     for (int i = 0; i < 12; i++) {
-      String sys = i % 3 == 0 ? "GLONASS" : (i % 4 == 0 ? "GALILEO" : "GPS");
+      String sys =
+          i % 3 == 0 ? "GLONASS" : (i % 4 == 0 ? "GALILEO" : "GPS");
       sats.add(
         SatelliteData(
           prn: i + 10,
@@ -377,15 +367,15 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
       _updateGlobePoints();
     }
 
-    _mockTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _mockTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
       if (_isUsingRealData) return;
       setState(() {
         _satellites = _satellites.map((s) {
           return SatelliteData(
             prn: s.prn,
-            elevation: (s.elevation + 0.1) % 90,
-            azimuth: (s.azimuth + 0.2) % 360,
-            snr: (s.snr + random.nextDouble() * 2 - 1).clamp(10.0, 50.0),
+            elevation: (s.elevation + 0.02) % 90,
+            azimuth: (s.azimuth + 0.05) % 360,
+            snr: (s.snr + random.nextDouble() * 0.4 - 0.2).clamp(10.0, 50.0),
             system: s.system,
             usedInFix: s.usedInFix,
           );
@@ -400,26 +390,23 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     int activeFixes = _satellites.where((s) => s.usedInFix).length;
     double avgSnr = _satellites.isNotEmpty
         ? _satellites.map((s) => s.snr).reduce((a, b) => a + b) /
-              _satellites.length
+            _satellites.length
         : 0.0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E21),
+      key: _scaffoldKey,
+      backgroundColor: context.backgroundColor,
+      endDrawer: _buildSatelliteDrawer(context),
       body: Stack(
         children: [
-          // Animated Background
           _buildAnimatedBackground(),
-
-          // Ambient Glow Effects
-          ..._buildAmbientGlows(),
-
           SafeArea(
             child: Column(
               children: [
-                _buildAppBar(),
-                _buildStatsOverview(activeFixes, avgSnr),
-                Expanded(child: _buildMainView()),
-                _buildBottomPanel(),
+                _buildAppBar(context),
+                SizedBox(height: UIConsts.spacingSM),
+                _buildStatsOverview(context, activeFixes, avgSnr),
+                Expanded(child: _buildMainView(context)),
               ],
             ),
           ),
@@ -428,90 +415,77 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     );
   }
 
-  Widget _buildAnimatedBackground() {
-    return AnimatedBuilder(
-      animation: _floatingController,
-      builder: (context, child) {
-        return CustomPaint(
-          painter: AnimatedStarFieldPainter(_floatingController.value),
-          size: Size.infinite,
-        );
-      },
-    );
-  }
-
-  List<Widget> _buildAmbientGlows() {
-    return [
-      Positioned(
-        top: -150,
-        right: -100,
-        child: AnimatedBuilder(
-          animation: _glowController,
-          builder: (context, child) {
-            return Transform.translate(
-              offset: Offset(0, _glowController.value * 20),
-              child: Container(
-                width: 350,
-                height: 350,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      Colors.blueAccent.withOpacity(0.15 * _glowController.value),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
+  Widget _buildSatelliteDrawer(BuildContext context) {
+    final filteredSats = _filteredSatellites;
+    return Drawer(
+      width: context.screenWidth * 0.85,
+      backgroundColor: Colors.transparent,
+      child: Container(
+        decoration: BoxDecoration(
+          color: context.cardColor.withOpacity(0.98),
+          borderRadius: const BorderRadius.horizontal(
+            left: Radius.circular(UIConsts.radius3XL),
+          ),
+          border: Border.all(
+            color: context.adaptiveOpacity(Colors.white, 0.1, 0.05),
+            width: 1,
+          ),
         ),
-      ),
-      Positioned(
-        bottom: 200,
-        left: -50,
-        child: AnimatedBuilder(
-          animation: _glowController,
-          builder: (context, child) {
-            return Transform.translate(
-              offset: Offset(0, _glowController.value * -15),
-              child: Container(
-                width: 250,
-                height: 250,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      Colors.purpleAccent.withOpacity(
-                        0.1 * (1 - _glowController.value),
-                      ),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    ];
-  }
-
-  Widget _buildAppBar() {
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: SlideTransition(
-        position: _slideAnimation,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          decoration: _buildGlassDecoration(),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildBackButton(),
-              _buildTitleSection(),
-              _buildStatusIndicator(),
+              Padding(
+                padding: EdgeInsets.all(UIConsts.spacingXL),
+                child: Row(
+                  children: [
+                    // ModernIconContainer(
+                    //   icon: Icons.satellite_alt_rounded,
+                    //   color: AppTheme.primaryColor,
+                    //   size: 40,
+                    //   iconSize: 20,
+                    // ),
+                    SizedBox(width: UIConsts.spacingMD),
+                    Text(
+                      "DANH SÁCH VỆ TINH",
+                      style: TextStyle(
+                        color: context.textColor,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
+                        height: 1.1,
+                      ),
+                    ),
+                    const Spacer(),
+                    PressScale(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: EdgeInsets.all(UIConsts.spacingSM),
+                        decoration: BoxDecoration(
+                          color: context.adaptiveOpacity(Colors.white, 0.05, 0.03),
+                          borderRadius: BorderRadius.circular(UIConsts.radiusMD),
+                        ),
+                        child: Icon(Icons.close_rounded, color: context.iconSecondaryColor),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildFilterChips(context),
+              SizedBox(height: UIConsts.spacingMD),
+              Expanded(
+                child: ListView.builder(
+                  padding: EdgeInsets.symmetric(horizontal: UIConsts.spacingXL),
+                  itemCount: filteredSats.length,
+                  itemBuilder: (context, index) {
+                    final sat = filteredSats[index];
+                    final color = sat.usedInFix
+                        ? _getSatelliteColor(sat.system)
+                        : Colors.grey;
+                    return _buildSatelliteListItem(context, sat, color, index);
+                  },
+                ),
+              ),
             ],
           ),
         ),
@@ -519,30 +493,85 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     );
   }
 
-  Widget _buildBackButton() {
-    return GestureDetector(
-      onTap: () => Navigator.pop(context),
+  Widget _buildAnimatedBackground() {
+    return AnimatedBuilder(
+      animation: _shimmerController,
+      builder: (context, child) {
+        return CustomPaint(
+          painter: AnimatedStarFieldPainter(_shimmerController.value),
+          size: Size.infinite,
+        );
+      },
+    );
+  }
+
+  Widget _buildAppBar(BuildContext context) {
+    return EntranceAnimation(
+      type: EntranceType.fadeSlideUp,
+      duration: UIConsts.animEntrance,
       child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
+        margin: EdgeInsets.symmetric(
+          horizontal: UIConsts.spacingLG,
+          vertical: UIConsts.spacingSM,
         ),
-        child: const Icon(
-          Icons.arrow_back_ios_new,
-          color: Colors.white70,
-          size: 20,
+        padding: EdgeInsets.symmetric(
+          horizontal: UIConsts.spacingLG,
+          vertical: UIConsts.spacingMD,
+        ),
+        decoration: AppTheme.glassDecoration(isDark: context.isDark),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            PressScale(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                padding: EdgeInsets.all(UIConsts.spacingSM),
+                decoration: BoxDecoration(
+                  color: context.adaptiveOpacity(Colors.white, 0.1, 0.06),
+                  borderRadius: BorderRadius.circular(UIConsts.radiusMD),
+                ),
+                child: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: context.iconColor,
+                  size: UIConsts.iconSizeSM,
+                ),
+              ),
+            ),
+            _buildTitleSection(context),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildStatusIndicator(context),
+                SizedBox(width: UIConsts.spacingSM),
+                PressScale(
+                  onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
+                  child: Container(
+                    padding: EdgeInsets.all(UIConsts.spacingSM),
+                    decoration: BoxDecoration(
+                      color: context.adaptiveOpacity(Colors.white, 0.1, 0.06),
+                      borderRadius: BorderRadius.circular(UIConsts.radiusMD),
+                    ),
+                    child: Icon(
+                      Icons.format_list_bulleted_rounded,
+                      color: context.iconColor,
+                      size: UIConsts.iconSizeSM,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildTitleSection() {
+  Widget _buildTitleSection(BuildContext context) {
     return Column(
       children: [
         ShaderMask(
           shaderCallback: (bounds) => const LinearGradient(
-            colors: [Color(0xFF00D4FF), Color(0xFF6C63FF)],
+            colors: [AppTheme.secondaryColor, AppTheme.primaryColor],
           ).createShader(bounds),
           child: const Text(
             "ĐỊNH VỊ VỆ TINH",
@@ -554,14 +583,19 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
             ),
           ),
         ),
-        const SizedBox(height: 2),
+        SizedBox(height: UIConsts.spacingXS),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          padding: EdgeInsets.symmetric(
+            horizontal: UIConsts.spacingSM,
+            vertical: UIConsts.spacingXS,
+          ),
           decoration: BoxDecoration(
             color: _isUsingRealData
-                ? Colors.greenAccent.withOpacity(0.2)
-                : Colors.orangeAccent.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(8),
+                ? AppTheme.successColor.withOpacity(
+                    context.isDark ? 0.2 : 0.15)
+                : AppTheme.warningColor.withOpacity(
+                    context.isDark ? 0.2 : 0.15),
+            borderRadius: BorderRadius.circular(UIConsts.radiusSM),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -572,26 +606,27 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: _isUsingRealData
-                      ? Colors.greenAccent
-                      : Colors.orangeAccent,
+                      ? AppTheme.successColor
+                      : AppTheme.warningColor,
                   boxShadow: [
                     BoxShadow(
-                      color: _isUsingRealData
-                          ? Colors.greenAccent.withOpacity(0.5)
-                          : Colors.orangeAccent.withOpacity(0.5),
+                      color: (_isUsingRealData
+                              ? AppTheme.successColor
+                              : AppTheme.warningColor)
+                          .withOpacity(0.5),
                       blurRadius: 8,
                       spreadRadius: 2,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: UIConsts.spacingSM),
               Text(
                 _isUsingRealData ? "GNSS TRỰC TIẾP" : "MÔ PHỎNG",
                 style: TextStyle(
                   color: _isUsingRealData
-                      ? Colors.greenAccent
-                      : Colors.orangeAccent,
+                      ? AppTheme.successColor
+                      : AppTheme.warningColor,
                   fontSize: 9,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1,
@@ -604,220 +639,344 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     );
   }
 
-  Widget _buildStatusIndicator() {
-    return AnimatedBuilder(
-      animation: _pulseController,
-      builder: (context, child) {
-        return Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: _isUsingRealData
-                  ? Colors.greenAccent.withOpacity(0.3)
-                  : Colors.white24,
-              width: 1,
-            ),
-            boxShadow: _isUsingRealData
-                ? [
-                    BoxShadow(
-                      color: Colors.greenAccent.withOpacity(
-                        0.2 * _pulseAnimation.value,
-                      ),
-                      blurRadius: 15,
-                      spreadRadius: 2,
-                    ),
-                  ]
-                : null,
+  Widget _buildStatusIndicator(BuildContext context) {
+    return BreathingGlow(
+      glowColor: _isUsingRealData ? AppTheme.successColor : Colors.white24,
+      minOpacity: 0.1,
+      maxOpacity: 0.3,
+      child: Container(
+        padding: EdgeInsets.all(UIConsts.spacingMD - 2),
+        decoration: BoxDecoration(
+          color: context.adaptiveOpacity(Colors.white, 0.05, 0.03),
+          borderRadius: BorderRadius.circular(UIConsts.radiusLG),
+          border: Border.all(
+            color: _isUsingRealData
+                ? AppTheme.successColor.withOpacity(0.3)
+                : context.adaptiveOpacity(Colors.white, 0.15, 0.1),
+            width: 1,
           ),
-          child: Icon(
-            Icons.settings_input_antenna_rounded,
-            color: _isUsingRealData ? Colors.greenAccent : Colors.white24,
-            size: 22,
+        ),
+        child: Icon(
+          Icons.settings_input_antenna_rounded,
+          color: _isUsingRealData ? AppTheme.successColor : context.iconSecondaryColor,
+          size: UIConsts.iconSizeMD,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsOverview(
+      BuildContext context, int activeFixes, double avgSnr) {
+    final qualityColor = _getSignalQualityColor(avgSnr);
+    final qualityLabel = _getSignalQuality(avgSnr);
+    final signalQuality = avgSnr / 50.0;
+
+    return EntranceAnimation(
+      type: EntranceType.fadeSlideUp,
+      delay: const Duration(milliseconds: 100),
+      duration: UIConsts.animEntrance,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: UIConsts.spacingLG),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 4,
+              child: ModernCard(
+                accentColor: qualityColor,
+                hasGlow: true,
+                padding: EdgeInsets.symmetric(
+                  vertical: UIConsts.spacingLG,
+                  horizontal: UIConsts.spacingLG,
+                ),
+                child: Row(
+                  children: [
+                    _buildSignalQualityGauge(signalQuality, qualityColor),
+                    SizedBox(width: UIConsts.spacingMD),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            qualityLabel,
+                            style: TextStyle(
+                              color: qualityColor,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          SizedBox(height: UIConsts.spacingXS),
+                          Row(
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: qualityColor,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: qualityColor.withOpacity(0.6),
+                                      blurRadius: 6,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(width: UIConsts.spacingXS),
+                              Text(
+                                'SNR: ${avgSnr.toStringAsFixed(1)} dB-Hz',
+                                style: TextStyle(
+                                  color: context.textSecondaryColor,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(width: UIConsts.spacingSM),
+            Expanded(
+              flex: 2,
+              child: ModernCard(
+                accentColor: AppTheme.secondaryColor,
+                padding: EdgeInsets.symmetric(vertical: UIConsts.spacingLG),
+                child: _buildStatItem(
+                  context,
+                  "TRONG TẦM",
+                  "${_satellites.length}",
+                  AppTheme.secondaryColor,
+                  Icons.satellite_alt_rounded,
+                ),
+              ),
+            ),
+            SizedBox(width: UIConsts.spacingSM),
+            Expanded(
+              flex: 2,
+              child: ModernCard(
+                accentColor: AppTheme.successColor,
+                padding: EdgeInsets.symmetric(vertical: UIConsts.spacingLG),
+                child: _buildStatItem(
+                  context,
+                  "CỐ ĐỊNH",
+                  "$activeFixes",
+                  AppTheme.successColor,
+                  Icons.gps_fixed_rounded,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSignalQualityGauge(double quality, Color color) {
+    return AnimatedBuilder(
+      animation: _shimmerController,
+      builder: (context, child) {
+        return CustomPaint(
+          size: const Size(48, 48),
+          painter: SignalQualityGaugePainter(
+            progress: quality.clamp(0.0, 1.0),
+            color: color,
+            shimmerValue: _shimmerController.value,
           ),
         );
       },
-    );
-  }
-
-  Widget _buildStatsOverview(int activeFixes, double avgSnr) {
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: SlideTransition(
-        position: _slideAnimation,
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          padding: const EdgeInsets.symmetric(vertical: 18),
-          decoration: _buildGlassDecoration(),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildStatItem(
-                "TRONG TẦM NHÌN",
-                "${_satellites.length}",
-                const Color(0xFF00D4FF),
-                Icons.satellite_alt_rounded,
-              ),
-              _buildVerticalDivider(),
-              _buildStatItem(
-                "ĐANG SỬ DỤNG",
-                "$activeFixes",
-                const Color(0xFF69F0AE),
-                Icons.my_location_rounded,
-              ),
-              _buildVerticalDivider(),
-              _buildStatItem(
-                "SNR TB",
-                "${avgSnr.toStringAsFixed(1)}",
-                const Color(0xFFFFAB40),
-                Icons.signal_cellular_alt_rounded,
-                suffix: "dB",
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVerticalDivider() {
-    return Container(
-      height: 40,
-      width: 1,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Colors.transparent, Colors.white24, Colors.transparent],
-        ),
-      ),
     );
   }
 
   Widget _buildStatItem(
+    BuildContext context,
     String label,
     String value,
     Color color,
-    IconData icon, {
-    String suffix = "",
-  }) {
-    return Expanded(
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              TweenAnimationBuilder<double>(
-                tween: Tween(
-                  begin: 0,
-                  end: double.parse(value.isEmpty ? "0" : value),
-                ),
-                duration: const Duration(milliseconds: 800),
-                builder: (context, val, child) {
-                  return Text(
-                    val.toStringAsFixed(0),
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: 'monospace',
-                      shadows: [
-                        Shadow(color: color.withOpacity(0.5), blurRadius: 10),
-                      ],
-                    ),
-                  );
-                },
-              ),
-              if (suffix.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    suffix,
-                    style: TextStyle(
-                      color: color.withOpacity(0.7),
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+    IconData icon,
+  ) {
+    return Column(
+      children: [
+        SizedBox(height: UIConsts.spacingSM),
+        AnimatedCounter(
+          value: int.parse(value.isEmpty ? "0" : value),
+          duration: UIConsts.animNormal,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            fontFamily: 'monospace',
+            shadows: [
+              Shadow(color: color.withOpacity(0.5), blurRadius: 10),
             ],
           ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
-              fontSize: 9,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1,
-            ),
+        ),
+        SizedBox(height: UIConsts.spacingXS),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: context.textSecondaryColor,
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  Widget _buildMainView() {
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 600),
-      transitionBuilder: (child, animation) {
-        return FadeTransition(
-          opacity: animation,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.9, end: 1.0).animate(animation),
-            child: child,
-          ),
-        );
-      },
-      child: _showGlobe ? _buildGlobeView() : _buildRadarView(),
-    );
-  }
-
-  Widget _buildGlobeView() {
+  Widget _buildMainView(BuildContext context) {
     return Stack(
-      key: const ValueKey('globe'),
       alignment: Alignment.center,
       children: [
-        AnimatedBuilder(
-          animation: _pulseController,
-          builder: (context, child) {
-            return Container(
-              width: 320 * _pulseAnimation.value,
-              height: 320 * _pulseAnimation.value,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    Colors.blueAccent.withOpacity(0.05),
-                    Colors.transparent,
-                  ],
-                ),
+        AnimatedSwitcher(
+          duration: UIConsts.animSlow,
+          transitionBuilder: (child, animation) {
+            return FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(
+                scale:
+                    Tween<double>(begin: 0.9, end: 1.0).animate(animation),
+                child: child,
               ),
             );
           },
+          child: _showGlobe ? _buildGlobeView(context) : _buildRadarView(context),
         ),
-        Opacity(
-          opacity: _isGlobeLoaded ? 1.0 : 0.0,
-          child: SizedBox(
-            width: MediaQuery.of(context).size.width,
-            height: MediaQuery.of(context).size.width,
-            child: FlutterEarthGlobe(
-              controller: _globeController,
-              radius: 140,
-              // isInteractive: true, // Cho phép xoay và thu phóng bằng tay
+        _buildViewToggle(context),
+      ],
+    );
+  }
+
+  Widget _buildGlobeView(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          key: const ValueKey('globe'),
+          alignment: Alignment.center,
+          children: [
+            AnimatedBuilder(
+              animation: _pulseController,
+              builder: (context, child) {
+                return Container(
+                  width: 320 * _pulseAnimation.value,
+                  height: 320 * _pulseAnimation.value,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        AppTheme.primaryColor.withOpacity(0.05),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
+
+            Opacity(
+              opacity: _isGlobeLoaded ? 1.0 : 0.0,
+              child: SizedBox(
+                width: constraints.maxWidth,
+                height: constraints.maxHeight,
+                child: FlutterEarthGlobe(
+                  controller: _globeController,
+                  radius: 120,
+                ),
+              ),
+            ),
+
+            if (!_isGlobeLoaded) _buildLoadingIndicator(context),
+            if (_isGlobeLoaded) ...[
+              _buildOrbitalRings(),
+              _buildConstellationLegend(context),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildConstellationLegend(BuildContext context) {
+    final counts = _constellationCounts;
+    final systems = ['GPS', 'GLONASS', 'GALILEO', 'BEIDOU'];
+
+    return Positioned(
+      top: UIConsts.spacingSM,
+      left: UIConsts.spacingSM,
+      child: EntranceAnimation(
+        type: EntranceType.fadeSlideRight,
+        delay: const Duration(milliseconds: 400),
+        child: Container(
+          padding: EdgeInsets.all(UIConsts.spacingSM),
+          decoration: AppTheme.cardDecoration(
+            isDark: context.isDark,
+            accentColor: AppTheme.primaryColor,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'HỆ THỐNG',
+                style: TextStyle(
+                  color: context.textSecondaryColor,
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              SizedBox(height: UIConsts.spacingSM - 2),
+              ...systems.map((sys) {
+                final count = counts[sys] ?? 0;
+                final color = kSatelliteSystemColors[sys] ?? Colors.white;
+                return Padding(
+                  padding: EdgeInsets.only(bottom: UIConsts.spacingXS),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: color,
+                          boxShadow: [
+                            BoxShadow(
+                              color: color.withOpacity(0.5),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: UIConsts.spacingSM),
+                      Text(
+                        sys,
+                        style: TextStyle(
+                          color: context.textSecondaryColor,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(width: UIConsts.spacingSM),
+                      ModernBadge(
+                        count: count,
+                        color: color,
+                        fontSize: 9,
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
           ),
         ),
-        if (!_isGlobeLoaded)
-          _buildLoadingIndicator(),
-
-        if (_isGlobeLoaded) 
-          _buildOrbitalRings(),
-        _buildViewToggle(),
-      ],
+      ),
     );
   }
 
@@ -825,10 +984,10 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     return Positioned.fill(
       child: IgnorePointer(
         child: AnimatedBuilder(
-          animation: _floatingController,
+          animation: _pulseController,
           builder: (context, child) {
             return CustomPaint(
-              painter: OrbitalRingsPainter(_floatingController.value),
+              painter: OrbitalRingsPainter(_pulseController.value),
             );
           },
         ),
@@ -836,32 +995,81 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     );
   }
 
-  Widget _buildRadarView() {
+  Widget _buildRadarView(BuildContext context) {
     return Padding(
       key: const ValueKey('radar'),
-      padding: const EdgeInsets.all(30.0),
+      padding: EdgeInsets.symmetric(horizontal: UIConsts.spacingLG),
       child: Container(
-        decoration: _buildGlassDecoration(),
-        padding: const EdgeInsets.all(20),
-        child: CustomPaint(
-          size: Size.infinite,
-          painter: ModernRadarPainter(
-            _satellites,
-            _pulseController,
-            _shimmerController,
+        decoration: AppTheme.glassDecoration(isDark: context.isDark),
+        padding: EdgeInsets.all(UIConsts.spacingLG),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(UIConsts.radius2XL),
+          child: Stack(
+            children: [
+              CustomPaint(
+                size: Size.infinite,
+                painter: ModernRadarPainter(
+                  _satellites,
+                  _pulseController,
+                  _radarSweepController,
+                ),
+              ),
+              _buildRadarCompassLabels(),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildLoadingIndicator() {
+  Widget _buildRadarCompassLabels() {
+    final compassDirs = [
+      CompassLabel('N', Alignment.topCenter, Icons.arrow_upward_rounded),
+      CompassLabel('S', Alignment.bottomCenter, Icons.arrow_downward_rounded),
+      CompassLabel('E', Alignment.centerRight, Icons.arrow_forward_rounded),
+      CompassLabel('W', Alignment.centerLeft, Icons.arrow_back_rounded),
+    ];
+
+    return Stack(
+      children: compassDirs.map((dir) {
+        return Align(
+          alignment: dir.alignment,
+          child: Container(
+            margin: EdgeInsets.all(UIConsts.spacingXS),
+            padding: EdgeInsets.symmetric(
+              horizontal: UIConsts.spacingSM,
+              vertical: UIConsts.spacingXS,
+            ),
+            decoration: BoxDecoration(
+              color: context.cardColor.withOpacity(0.85),
+              borderRadius: BorderRadius.circular(UIConsts.spacingSM),
+              border: Border.all(
+                color: AppTheme.secondaryColor.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Text(
+              dir.label,
+              style: const TextStyle(
+                color: AppTheme.secondaryColor,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildLoadingIndicator(BuildContext context) {
     return Container(
       width: 280,
       height: 280,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Colors.white.withOpacity(0.05),
+        color: context.adaptiveOpacity(Colors.white, 0.05, 0.02),
       ),
       child: Center(
         child: Column(
@@ -877,9 +1085,9 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
                     shape: BoxShape.circle,
                     gradient: SweepGradient(
                       colors: [
-                        Colors.blueAccent.withOpacity(0.1),
-                        Colors.blueAccent,
-                        Colors.blueAccent.withOpacity(0.1),
+                        AppTheme.primaryColor.withOpacity(0.1),
+                        AppTheme.primaryColor,
+                        AppTheme.primaryColor.withOpacity(0.1),
                       ],
                       stops: [
                         0.0,
@@ -891,11 +1099,11 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
                 );
               },
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: UIConsts.spacingLG),
             Text(
               "Đang tải địa cầu...",
               style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
+                color: context.textSecondaryColor,
                 fontSize: 12,
               ),
             ),
@@ -905,26 +1113,38 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     );
   }
 
-  Widget _buildViewToggle() {
+  Widget _buildViewToggle(BuildContext context) {
     return Positioned(
-      bottom: 20,
+      bottom: UIConsts.spacingSM,
       child: Container(
-        padding: const EdgeInsets.all(4),
+        padding: EdgeInsets.all(3),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.6),
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+          color: context.adaptiveOpacity(Colors.white, 0.06, 0.04),
+          borderRadius: BorderRadius.circular(UIConsts.radiusFull),
+          border: Border.all(
+            color: context.adaptiveOpacity(Colors.white, 0.1, 0.06),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildToggleButton(
+              context,
               "ĐỊA CẦU 3D",
               Icons.public_rounded,
               _showGlobe,
               () => _switchView(true),
             ),
             _buildToggleButton(
+              context,
               "SKYPLOT",
               Icons.radar_rounded,
               !_showGlobe,
@@ -942,35 +1162,65 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
   }
 
   Widget _buildToggleButton(
+    BuildContext context,
     String text,
     IconData icon,
     bool active,
     VoidCallback onTap,
   ) {
-    return GestureDetector(
+    return PressScale(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        duration: UIConsts.animNormal,
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.symmetric(
+          horizontal: UIConsts.spacingLG,
+          vertical: UIConsts.spacingSM + 2,
+        ),
         decoration: BoxDecoration(
           gradient: active
               ? const LinearGradient(
-                  colors: [Color(0xFF00D4FF), Color(0xFF6C63FF)],
+                  colors: [AppTheme.secondaryColor, AppTheme.primaryColor],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 )
               : null,
-          borderRadius: BorderRadius.circular(26),
+          color: active ? null : Colors.transparent,
+          borderRadius: BorderRadius.circular(UIConsts.radiusFull - 2),
+          boxShadow: active
+              ? [
+                  BoxShadow(
+                    color: AppTheme.primaryColor.withOpacity(0.4),
+                    blurRadius: 12,
+                    spreadRadius: -2,
+                  ),
+                ]
+              : null,
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: active ? Colors.white : Colors.white38, size: 16),
-            const SizedBox(width: 8),
+            AnimatedScale(
+              scale: active ? 1.0 : 0.9,
+              duration: UIConsts.animNormal,
+              child: Icon(
+                icon,
+                color: active
+                    ? Colors.white
+                    : context.iconSecondaryColor,
+                size: UIConsts.iconSizeSM - 2,
+              ),
+            ),
+            SizedBox(width: UIConsts.spacingSM - 2),
             Text(
               text,
               style: TextStyle(
-                color: active ? Colors.white : Colors.white38,
+                color: active
+                    ? Colors.white
+                    : context.iconSecondaryColor,
                 fontSize: 11,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
+                fontWeight: active ? FontWeight.bold : FontWeight.w600,
+                letterSpacing: 0.5,
               ),
             ),
           ],
@@ -979,86 +1229,192 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     );
   }
 
-  Widget _buildBottomPanel() {
-    return Container(
-      height: 220,
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F172A).withOpacity(0.9),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 20,
-            spreadRadius: 5,
-          ),
-        ],
+  Widget _buildFilterChips(BuildContext context) {
+    return SizedBox(
+      height: 32,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(horizontal: UIConsts.spacingXL),
+        children: kFilterSystems.map((sys) {
+          final isActive = _filterSystem == sys;
+          final color = sys == 'ALL'
+              ? AppTheme.primaryColor
+              : (kSatelliteSystemColors[sys] ?? Colors.white);
+          final count = sys == 'ALL'
+              ? _satellites.length
+              : _satellites.where((s) => s.system == sys).length;
+          final label = kSatelliteSystemLabels[sys] ?? sys;
+
+          return Padding(
+            padding: EdgeInsets.only(right: UIConsts.spacingSM),
+            child: ModernChip(
+              label: '$label $count',
+              color: color,
+              isSelected: isActive,
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _filterSystem = sys);
+              },
+            ),
+          );
+        }).toList(),
       ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  void _showSatelliteListSheet(BuildContext context) {
+    context.showModernBottomSheet(
+      maxHeightRatio: 0.7,
+      child: ModernBottomSheet(
+        title: "DANH SÁCH VỆ TINH",
+        accentColor: AppTheme.primaryColor,
+        child: Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.symmetric(
+                  horizontal: UIConsts.spacingXL,
+                  vertical: UIConsts.spacingSM),
+              child: Row(
+                children: [
+                  ModernBadge(
+                    text: "${_satellites.length} vệ tinh",
+                    color: AppTheme.primaryColor,
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: EdgeInsets.symmetric(
+                    horizontal: UIConsts.spacingXL),
+                itemCount: _satellites.length,
+                itemBuilder: (context, index) {
+                  final sat = _satellites[index];
+                  final color = sat.usedInFix
+                      ? _getSatelliteColor(sat.system)
+                      : Colors.grey;
+                  return _buildSatelliteListItem(context, sat, color, index);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSatelliteListItem(
+      BuildContext context, SatelliteData sat, Color color, int index) {
+    return EntranceAnimation(
+      delay: Duration(milliseconds: index * 50),
+      duration: const Duration(milliseconds: 400),
+      type: EntranceType.fadeSlideLeft,
+      child: PressScale(
+        onTap: () {
+          HapticFeedback.mediumImpact();
+          Navigator.push(
+            context,
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) =>
+                  SatelliteDetailScreen(satellite: sat, themeColor: color),
+              transitionsBuilder:
+                  (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              transitionDuration: UIConsts.animSlow,
+            ),
+          );
+        },
+        child: Container(
+          margin: EdgeInsets.only(bottom: UIConsts.spacingSM),
+          padding: EdgeInsets.all(UIConsts.spacingLG - 2),
+          decoration: AppTheme.cardDecoration(
+            isDark: context.isDark,
+            accentColor: sat.usedInFix ? color : null,
+          ),
+          child: Row(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(25, 20, 25, 15),
-                child: Row(
+              ModernAvatar(
+                initials: "#${sat.prn}",
+                color: color,
+                size: UIConsts.avatarSizeLG,
+              ),
+              SizedBox(width: UIConsts.spacingMD),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 4,
-                      height: 16,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF00D4FF), Color(0xFF6C63FF)],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
+                    Row(
+                      children: [
+                        ModernBadge(
+                          text: sat.system,
+                          color: color,
+                          fontSize: 9,
                         ),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
+                        SizedBox(width: UIConsts.spacingSM),
+                        if (sat.usedInFix)
+                          ModernBadge(
+                            text: "FIX",
+                            color: AppTheme.successColor,
+                            fontSize: 7,
+                          ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      "DANH SÁCH VỆ TINH",
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.blueAccent.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        "${_satellites.length}",
-                        style: const TextStyle(
-                          color: Colors.blueAccent,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                    SizedBox(height: UIConsts.spacingXS),
+                    Row(
+                      children: [
+                        Icon(Icons.height_rounded,
+                            color: context.iconSecondaryColor,
+                            size: UIConsts.iconSizeXS),
+                        SizedBox(width: UIConsts.spacingXS),
+                        Text(
+                          "${sat.elevation.toStringAsFixed(1)}°",
+                          style: TextStyle(
+                              color: context.textSecondaryColor,
+                              fontSize: 11),
                         ),
-                      ),
+                        SizedBox(width: UIConsts.spacingMD),
+                        Icon(Icons.explore_rounded,
+                            color: context.iconSecondaryColor,
+                            size: UIConsts.iconSizeXS),
+                        SizedBox(width: UIConsts.spacingXS),
+                        Text(
+                          "${sat.azimuth.toStringAsFixed(1)}°",
+                          style: TextStyle(
+                              color: context.textSecondaryColor,
+                              fontSize: 11),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _satellites.length,
-                  itemBuilder: (context, index) =>
-                      _buildSatelliteCard(_satellites[index], index),
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    "${sat.snr.toInt()}",
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                  Text(
+                    "dB-Hz",
+                    style: TextStyle(
+                      color: color.withOpacity(0.5),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 15),
+              SizedBox(width: UIConsts.spacingXS),
+              Icon(Icons.chevron_right_rounded,
+                  color: context.iconSecondaryColor,
+                  size: UIConsts.iconSizeSM),
             ],
           ),
         ),
@@ -1066,56 +1422,53 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     );
   }
 
-  Widget _buildSatelliteCard(SatelliteData sat, int index) {
+  Widget _buildSatelliteCard(
+      BuildContext context, SatelliteData sat, int index) {
     Color color = _getSatelliteColor(sat.system);
     if (!sat.usedInFix) color = Colors.grey;
 
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: Duration(milliseconds: 400 + (index * 100)),
-      curve: Curves.easeOutBack,
-      builder: (context, val, child) {
-        return Transform.scale(
-          scale: val,
-          child: Opacity(
-            opacity: val.clamp(0.0, 1.0),
-            child: Container(
-              width: 110,
-              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withOpacity(0.08),
-                    Colors.white.withOpacity(0.02),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: color.withOpacity(0.3), width: 1),
-                boxShadow: sat.usedInFix
-                    ? [
-                        BoxShadow(
-                          color: color.withOpacity(0.15),
-                          blurRadius: 15,
-                          spreadRadius: -5,
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildCardHeader(sat, color),
-                  _buildSignalBar(sat, color),
-                  _buildCardFooter(sat, color),
-                ],
-              ),
+    return EntranceAnimation(
+      delay: Duration(milliseconds: index * 80),
+      duration: const Duration(milliseconds: 500),
+      type: EntranceType.scaleFade,
+      child: PressScale(
+        onTap: () {
+          HapticFeedback.mediumImpact();
+          Navigator.push(
+            context,
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) =>
+                  SatelliteDetailScreen(satellite: sat, themeColor: color),
+              transitionsBuilder:
+                  (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              transitionDuration: UIConsts.animSlow,
             ),
+          );
+        },
+        child: Container(
+          width: 120,
+          margin: EdgeInsets.symmetric(
+              horizontal: UIConsts.spacingSM - 2,
+              vertical: UIConsts.spacingXS),
+          padding: EdgeInsets.symmetric(
+              horizontal: UIConsts.spacingMD,
+              vertical: UIConsts.spacingSM),
+          decoration: AppTheme.cardDecoration(
+            isDark: context.isDark,
+            accentColor: sat.usedInFix ? color : null,
           ),
-        );
-      },
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildCardHeader(sat, color),
+              _buildSignalBar(sat, color, context),
+              _buildCardFooter(sat, color, context),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1123,61 +1476,68 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          "#${sat.prn}",
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
+        Hero(
+          tag: 'sat_prn_${sat.prn}',
+          child: Material(
+            color: Colors.transparent,
+            child: Text(
+              "#${sat.prn}",
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
           ),
         ),
-        Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Icon(
-            sat.usedInFix ? Icons.bolt_rounded : Icons.bolt_outlined,
+        Hero(
+          tag: 'sat_icon_${sat.prn}',
+          child: ModernIconContainer(
+            icon: sat.usedInFix ? Icons.bolt_rounded : Icons.bolt_outlined,
             color: color,
-            size: 12,
+            size: 24,
+            iconSize: 12,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSignalBar(SatelliteData sat, Color color) {
+  Widget _buildSignalBar(SatelliteData sat, Color color, BuildContext context) {
     return Expanded(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: EdgeInsets.symmetric(vertical: UIConsts.spacingXS),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: List.generate(5, (i) {
             double fillHeight = ((sat.snr / 50) * 5 - i).clamp(0.0, 1.0);
             return Container(
               width: 6,
-              height: 30,
+              height: 28,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color:
+                    context.adaptiveOpacity(Colors.white, 0.1, 0.05),
                 borderRadius: BorderRadius.circular(3),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Container(
-                    width: 6,
-                    height: 30 * fillHeight,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.topCenter,
-                        colors: [color, color.withOpacity(0.5)],
+                  Flexible(
+                    child: Container(
+                      width: 6,
+                      height: 28 * fillHeight,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [color, color.withOpacity(0.5)],
+                        ),
+                        borderRadius: BorderRadius.circular(3),
+                        boxShadow: [
+                          BoxShadow(
+                              color: color.withOpacity(0.5), blurRadius: 5),
+                        ],
                       ),
-                      borderRadius: BorderRadius.circular(3),
-                      boxShadow: [
-                        BoxShadow(color: color.withOpacity(0.5), blurRadius: 5),
-                      ],
                     ),
                   ),
                 ],
@@ -1189,26 +1549,46 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     );
   }
 
-  Widget _buildCardFooter(SatelliteData sat, Color color) {
+  Widget _buildCardFooter(
+      SatelliteData sat, Color color, BuildContext context) {
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: EdgeInsets.symmetric(
+              horizontal: UIConsts.spacingSM - 2,
+              vertical: UIConsts.spacingXS),
           decoration: BoxDecoration(
             color: color.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(UIConsts.spacingSM),
           ),
-          child: Text(
-            sat.system,
-            style: TextStyle(
-              color: color,
-              fontSize: 9,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                sat.system,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              SizedBox(width: UIConsts.spacingXS),
+              Icon(Icons.height_rounded,
+                  color: color.withOpacity(0.6),
+                  size: UIConsts.iconSizeXS),
+              Text(
+                "${sat.elevation.toStringAsFixed(0)}°",
+                style: TextStyle(
+                  color: color.withOpacity(0.7),
+                  fontSize: 7,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: UIConsts.spacingXS),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -1216,7 +1596,7 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
               "${sat.snr.toInt()}",
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: FontWeight.bold,
                 fontFamily: 'monospace',
               ),
@@ -1224,8 +1604,8 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
             Text(
               " dB",
               style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontSize: 10,
+                color: context.textSecondaryColor,
+                fontSize: 9,
               ),
             ),
           ],
@@ -1233,40 +1613,122 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
       ],
     );
   }
-
-  BoxDecoration _buildGlassDecoration() {
-    return BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Colors.white.withOpacity(0.1), Colors.white.withOpacity(0.05)],
-      ),
-      borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
-    );
-  }
 }
 
-// ============================================================
-// CUSTOM PAINTERS
-// ============================================================
+class CompassLabel {
+  final String label;
+  final Alignment alignment;
+  final IconData icon;
+
+  CompassLabel(this.label, this.alignment, this.icon);
+}
+
+class SignalQualityGaugePainter extends CustomPainter {
+  final double progress;
+  final Color color;
+  final double shimmerValue;
+
+  SignalQualityGaugePainter({
+    required this.progress,
+    required this.color,
+    required this.shimmerValue,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 6;
+    const startAngle = -pi * 0.75;
+    const sweepAngle = pi * 1.5;
+
+    final bgPaint = Paint()
+      ..color = Colors.white.withOpacity(0.08)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 6
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      startAngle,
+      sweepAngle,
+      false,
+      bgPaint,
+    );
+
+    final progressAngle = sweepAngle * progress.clamp(0.0, 1.0);
+
+    final gradientPaint = Paint()
+      ..shader = SweepGradient(
+        startAngle: startAngle,
+        endAngle: startAngle + progressAngle,
+        colors: [color.withOpacity(0.6), color],
+        transform: GradientRotation(startAngle),
+      ).createShader(Rect.fromCircle(center: center, radius: radius))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 6
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      startAngle,
+      progressAngle,
+      false,
+      gradientPaint,
+    );
+
+    final glowPaint = Paint()
+      ..color = color.withOpacity(0.3)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+
+    final endAngle = startAngle + progressAngle;
+    final endX = center.dx + radius * cos(endAngle);
+    final endY = center.dy + radius * sin(endAngle);
+
+    canvas.drawCircle(Offset(endX, endY), 8, glowPaint);
+    canvas.drawCircle(Offset(endX, endY), 4, Paint()..color = color);
+    canvas.drawCircle(Offset(endX, endY), 2, Paint()..color = Colors.white);
+
+    final percentText = TextPainter(
+      text: TextSpan(
+        text: '${(progress * 100).toStringAsFixed(0)}%',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          fontFamily: 'monospace',
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    percentText.paint(canvas, Offset(
+      center.dx - percentText.width / 2,
+      center.dy - percentText.height / 2,
+    ));
+  }
+
+  @override
+  bool shouldRepaint(covariant SignalQualityGaugePainter oldDelegate) => true;
+}
 
 class AnimatedStarFieldPainter extends CustomPainter {
   final double animationValue;
 
   AnimatedStarFieldPainter(this.animationValue);
 
+  static final _random = Random(42);
+
   @override
   void paint(Canvas canvas, Size size) {
-    final random = Random(42);
+    final random = _random;
 
     for (int i = 0; i < 150; i++) {
       double x = random.nextDouble() * size.width;
       double y = random.nextDouble() * size.height;
       double radius = random.nextDouble() * 1.5 + 0.5;
 
-      double twinkle = sin(animationValue * pi * 2 + i * 0.5) * 0.3 + 0.7;
-      double opacity = (random.nextDouble() * 0.4 + 0.2) * twinkle;
+      double twinkle = sin(animationValue * pi * 2 + i * 0.5) * 0.15 + 0.85;
+      double opacity = (random.nextDouble() * 0.25 + 0.15) * twinkle;
 
       final paint = Paint()
         ..color = Colors.white.withOpacity(opacity.clamp(0.0, 1.0))
@@ -1279,13 +1741,13 @@ class AnimatedStarFieldPainter extends CustomPainter {
       double x = random.nextDouble() * size.width;
       double y = random.nextDouble() * size.height;
 
-      double pulse = sin(animationValue * pi * 2 + i) * 0.5 + 0.5;
+      double pulse = sin(animationValue * pi * 2 + i) * 0.3 + 0.5;
 
       final paint = Paint()
-        ..color = Colors.blueAccent.withOpacity(0.15 * pulse)
+        ..color = AppTheme.primaryColor.withOpacity(0.08 * pulse)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
 
-      canvas.drawCircle(Offset(x, y), 3 + pulse * 2, paint);
+      canvas.drawCircle(Offset(x, y), 2 + pulse * 1.5, paint);
     }
   }
 
@@ -1305,7 +1767,7 @@ class OrbitalRingsPainter extends CustomPainter {
 
     for (int i = 0; i < 3; i++) {
       double radius = baseRadius + (i * 30);
-      double rotation = animationValue * pi * 2 + (i * pi / 3);
+      double rotation = animationValue * pi * 0.5 + (i * pi / 3);
 
       canvas.save();
       canvas.translate(center.dx, center.dy);
@@ -1313,7 +1775,7 @@ class OrbitalRingsPainter extends CustomPainter {
       canvas.translate(-center.dx, -center.dy);
 
       final paint = Paint()
-        ..color = Colors.blueAccent.withOpacity(0.08)
+        ..color = AppTheme.primaryColor.withOpacity(0.05)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1;
 
@@ -1329,21 +1791,22 @@ class OrbitalRingsPainter extends CustomPainter {
 class ModernRadarPainter extends CustomPainter {
   final List<SatelliteData> satellites;
   final AnimationController pulseController;
-  final AnimationController shimmerController;
+  final AnimationController sweepController;
 
   ModernRadarPainter(
     this.satellites,
     this.pulseController,
-    this.shimmerController,
+    this.sweepController,
   );
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final maxRadius = min(size.width, size.height) / 2 - 20;
+    final maxRadius = min(size.width, size.height) / 2 - 30;
 
     _drawRadarBackground(canvas, center, maxRadius);
     _drawGridLines(canvas, center, maxRadius);
+    _drawGridLabels(canvas, center, maxRadius);
     _drawRadialLines(canvas, center, maxRadius);
     _drawSweepingLine(canvas, center, maxRadius);
     _drawSatellites(canvas, center, maxRadius);
@@ -1352,7 +1815,7 @@ class ModernRadarPainter extends CustomPainter {
 
   void _drawRadarBackground(Canvas canvas, Offset center, double radius) {
     final gradient = RadialGradient(
-      colors: [Colors.blueAccent.withOpacity(0.1), Colors.transparent],
+      colors: [AppTheme.primaryColor.withOpacity(0.08), Colors.transparent],
       stops: const [0.0, 1.0],
     );
 
@@ -1367,21 +1830,56 @@ class ModernRadarPainter extends CustomPainter {
   }
 
   void _drawGridLines(Canvas canvas, Offset center, double radius) {
+    final elevations = [
+      (30.0, '30°'),
+      (60.0, '60°'),
+    ];
+
     for (int i = 1; i <= 3; i++) {
+      final r = radius * i / 3;
       final paint = Paint()
-        ..color = Colors.blueAccent.withOpacity(0.2)
+        ..color = AppTheme.primaryColor.withOpacity(0.15)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1;
 
-      canvas.drawCircle(center, radius * i / 3, paint);
+      canvas.drawCircle(center, r, paint);
     }
+
+    for (var entry in elevations) {
+      final r = radius * ((90 - entry.$1) / 90);
+      final labelPainter = TextPainter(
+        text: TextSpan(
+          text: entry.$2,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.25),
+            fontSize: 8,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      labelPainter.paint(canvas,
+          Offset(center.dx + 4, center.dy - r - labelPainter.height - 2));
+    }
+  }
+
+  void _drawGridLabels(Canvas canvas, Offset center, double radius) {
+    canvas.drawCircle(
+        center,
+        radius,
+        Paint()
+          ..color = AppTheme.secondaryColor.withOpacity(0.12)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5);
   }
 
   void _drawRadialLines(Canvas canvas, Offset center, double radius) {
     for (int i = 0; i < 12; i++) {
       double angle = (i * 30) * pi / 180;
       final paint = Paint()
-        ..color = Colors.white.withOpacity(0.05)
+        ..color =
+            Colors.white.withOpacity(i % 3 == 0 ? 0.08 : 0.04)
         ..strokeWidth = 1;
 
       canvas.drawLine(
@@ -1396,25 +1894,28 @@ class ModernRadarPainter extends CustomPainter {
   }
 
   void _drawSweepingLine(Canvas canvas, Offset center, double radius) {
-    double sweepAngle = (shimmerController.value * 360) * pi / 180;
+    double sweepAngle = (sweepController.value * 360) * pi / 180;
+
+    final sweepGradient = SweepGradient(
+      center: Alignment.center,
+      startAngle: sweepAngle - 0.8,
+      endAngle: sweepAngle,
+      colors: [
+        Colors.transparent,
+        AppTheme.secondaryColor.withOpacity(0.15),
+        AppTheme.secondaryColor.withOpacity(0.05),
+      ],
+      transform: GradientRotation(sweepAngle - pi / 2),
+    );
 
     final sweepPaint = Paint()
-      ..shader = SweepGradient(
-        center: Alignment.center,
-        startAngle: sweepAngle - 0.5,
-        endAngle: sweepAngle,
-        colors: [
-          Colors.transparent,
-          Colors.cyanAccent.withOpacity(0.3),
-          Colors.cyanAccent.withOpacity(0.1),
-        ],
-        transform: GradientRotation(sweepAngle - pi / 2),
-      ).createShader(Rect.fromCircle(center: center, radius: radius));
+      ..shader = sweepGradient
+          .createShader(Rect.fromCircle(center: center, radius: radius));
 
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
-      sweepAngle - pi / 2 - 0.5,
-      0.5,
+      sweepAngle - pi / 2 - 0.8,
+      0.8,
       true,
       sweepPaint,
     );
@@ -1426,9 +1927,9 @@ class ModernRadarPainter extends CustomPainter {
         center.dy + radius * sin(sweepAngle),
       ),
       Paint()
-        ..color = Colors.cyanAccent.withOpacity(0.5)
-        ..strokeWidth = 2
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+        ..color = AppTheme.secondaryColor.withOpacity(0.4)
+        ..strokeWidth = 1.5
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
     );
   }
 
@@ -1445,8 +1946,13 @@ class ModernRadarPainter extends CustomPainter {
       if (sat.usedInFix) {
         canvas.drawCircle(
           Offset(x, y),
-          15 + pulseController.value * 5,
-          Paint()..color = color.withOpacity(0.1),
+          10 + pulseController.value * 3,
+          Paint()..color = color.withOpacity(0.06),
+        );
+        canvas.drawCircle(
+          Offset(x, y),
+          7 + pulseController.value * 2,
+          Paint()..color = color.withOpacity(0.08),
         );
       }
 
@@ -1455,47 +1961,48 @@ class ModernRadarPainter extends CustomPainter {
         8,
         Paint()..color = color.withOpacity(0.3),
       );
-      canvas.drawCircle(Offset(x, y), 5, Paint()..color = color);
+
+      final satPaint = Paint()..color = color;
+      satPaint.style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(x, y), 5, satPaint);
+
+      canvas.drawCircle(
+          Offset(x, y), 3, Paint()..color = Colors.white.withOpacity(0.8));
 
       final textPainter = TextPainter(
         text: TextSpan(
           text: "${sat.prn}",
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 9,
-            fontWeight: FontWeight.bold,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.9),
+            fontSize: 8,
+            fontWeight: FontWeight.w700,
           ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
 
-      textPainter.paint(canvas, Offset(x + 10, y - 5));
+      textPainter.paint(canvas, Offset(x + 9, y - 5));
     }
   }
 
   void _drawCenterPulse(Canvas canvas, Offset center) {
     canvas.drawCircle(
       center,
-      10 + pulseController.value * 10,
-      Paint()..color = Colors.cyanAccent.withOpacity(0.2),
+      8 + pulseController.value * 4,
+      Paint()..color = AppTheme.secondaryColor.withOpacity(0.06),
     );
-    canvas.drawCircle(center, 6, Paint()..color = Colors.cyanAccent);
-    canvas.drawCircle(center, 3, Paint()..color = Colors.white);
+    canvas.drawCircle(
+      center,
+      6,
+      Paint()..color = AppTheme.secondaryColor.withOpacity(0.12),
+    );
+    canvas.drawCircle(center, 4,
+        Paint()..color = AppTheme.secondaryColor.withOpacity(0.5));
+    canvas.drawCircle(center, 2, Paint()..color = Colors.white);
   }
 
-  Color _getSatelliteColor(String system) {
-    switch (system) {
-      case "GPS":
-        return const Color(0xFF00D4FF);
-      case "GLONASS":
-        return const Color(0xFFFF5252);
-      case "GALILEO":
-        return const Color(0xFFB388FF);
-      case "BEIDOU":
-        return const Color(0xFF69F0AE);
-      default:
-        return Colors.white;
-    }
+Color _getSatelliteColor(String system) {
+    return kSatelliteSystemColors[system] ?? Colors.white;
   }
 
   @override
