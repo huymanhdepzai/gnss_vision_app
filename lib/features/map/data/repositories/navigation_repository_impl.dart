@@ -10,22 +10,24 @@ class NavigationRepositoryImpl implements NavigationRepository {
   NavigationRepositoryImpl(this._dataSource);
 
   @override
-  Future<Either<Failure, NavigationRoute>> getRoute({
+  Future<Either<Failure, List<NavigationRoute>>> getRoute({
     required double originLat,
     required double originLng,
     required double destinationLat,
     required double destinationLng,
     String vehicle = 'car',
+    bool alternatives = true,
   }) async {
     try {
-      final route = await _dataSource.getRoute(
+      final routes = await _dataSource.getRoute(
         originLat: originLat,
         originLng: originLng,
         destinationLat: destinationLat,
         destinationLng: destinationLng,
         vehicle: vehicle,
+        alternatives: alternatives,
       );
-      return Right(route);
+      return Right(routes);
     } catch (e) {
       return Left(
         NetworkFailure(message: 'Không thể lấy đường đi: ${e.toString()}'),

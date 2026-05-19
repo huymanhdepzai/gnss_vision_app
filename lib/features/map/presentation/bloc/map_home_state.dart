@@ -21,6 +21,10 @@ class MapHomeState extends Equatable {
   final bool isSearching;
   final String searchQuery;
   final NavigationRoute? route;
+  final String? mapStyleUrl;
+  final String vehicle;
+  final List<NavigationRoute> availableRoutes;
+  final int selectedRouteIndex;
 
   const MapHomeState({
     this.viewState = MapViewState.explore,
@@ -39,6 +43,10 @@ class MapHomeState extends Equatable {
     this.isSearching = false,
     this.searchQuery = '',
     this.route,
+    this.mapStyleUrl,
+    this.vehicle = 'car',
+    this.availableRoutes = const [],
+    this.selectedRouteIndex = 0,
   });
 
   MapHomeState copyWith({
@@ -58,6 +66,10 @@ class MapHomeState extends Equatable {
     bool? isSearching,
     String? searchQuery,
     NavigationRoute? route,
+    String? mapStyleUrl,
+    String? vehicle,
+    List<NavigationRoute>? availableRoutes,
+    int? selectedRouteIndex,
   }) {
     return MapHomeState(
       viewState: viewState ?? this.viewState,
@@ -76,6 +88,10 @@ class MapHomeState extends Equatable {
       isSearching: isSearching ?? this.isSearching,
       searchQuery: searchQuery ?? this.searchQuery,
       route: route ?? this.route,
+      mapStyleUrl: mapStyleUrl ?? this.mapStyleUrl,
+      vehicle: vehicle ?? this.vehicle,
+      availableRoutes: availableRoutes ?? this.availableRoutes,
+      selectedRouteIndex: selectedRouteIndex ?? this.selectedRouteIndex,
     );
   }
 
@@ -97,5 +113,9 @@ class MapHomeState extends Equatable {
         isSearching,
         searchQuery,
         route,
+        mapStyleUrl,
+        vehicle,
+        availableRoutes,
+        selectedRouteIndex,
       ];
 }

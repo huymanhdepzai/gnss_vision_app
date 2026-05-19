@@ -5,12 +5,13 @@ import '../../domain/entities/navigation_route.dart';
 import '../models/navigation_route_model.dart';
 
 abstract class GoongDirectionsDataSource {
-  Future<NavigationRoute> getRoute({
+  Future<List<NavigationRoute>> getRoute({
     required double originLat,
     required double originLng,
     required double destinationLat,
     required double destinationLng,
     String vehicle = 'car',
+    bool alternatives = true,
     String? destinationName,
   });
 }
@@ -22,12 +23,13 @@ class GoongDirectionsDataSourceImpl implements GoongDirectionsDataSource {
     : _client = client ?? http.Client();
 
   @override
-  Future<NavigationRoute> getRoute({
+  Future<List<NavigationRoute>> getRoute({
     required double originLat,
     required double originLng,
     required double destinationLat,
     required double destinationLng,
     String vehicle = 'car',
+    bool alternatives = true,
     String? destinationName,
   }) async {
     final apiKey = dotenv.env['GOONG_API_KEY'] ?? '';
@@ -36,6 +38,7 @@ class GoongDirectionsDataSourceImpl implements GoongDirectionsDataSource {
       'origin=$originLat,$originLng&'
       'destination=$destinationLat,$destinationLng&'
       'vehicle=$vehicle&'
+      'alternatives=$alternatives&'
       'api_key=$apiKey',
     );
 
@@ -48,12 +51,10 @@ class GoongDirectionsDataSourceImpl implements GoongDirectionsDataSource {
     }
 
     final jsonResponse = jsonDecode(response.body);
-    final route = NavigationRouteModel.fromJson(
+    return NavigationRouteModel.fromListJson(
       jsonResponse,
       destinationName: destinationName,
     );
-
-    return route;
   }
 }
 

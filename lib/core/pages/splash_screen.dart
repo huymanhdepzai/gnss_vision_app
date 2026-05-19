@@ -27,6 +27,8 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _textFadeAnimation;
   late Animation<Offset> _textSlideAnimation;
 
+  bool _isInitializing = false;
+
   @override
   void initState() {
     super.initState();
@@ -76,26 +78,35 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _startInitialization() async {
+    if (_isInitializing) return;
+    _isInitializing = true;
+
     // 1. Khởi tạo animations
-    _logoController.forward();
-    Future.delayed(const Duration(milliseconds: 500), () {
-      _textController.forward();
-    });
+    if (mounted) _logoController.forward();
+    
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (mounted) _textController.forward();
 
     // 2. Chờ GetIt sẵn sàng (Hive boxes mở xong)
     await sl.allReady();
+    if (!mounted) return;
 
     // 3. Yêu cầu quyền truy cập (nếu cần)
-    // Lưu ý: Trong thực tế, nên yêu cầu quyền khi thực sự cần thiết 
-    // thay vì yêu cầu tất cả ở đây. Nhưng để tối ưu từ code cũ:
-    await [
-      Permission.camera,
-      Permission.locationWhenInUse,
-      Permission.microphone,
-    ].request();
+    try {
+      await [
+        Permission.camera,
+        Permission.locationWhenInUse,
+        Permission.microphone,
+      ].request();
+    } catch (e) {
+      debugPrint('Error requesting permissions: $e');
+    }
 
-    // 4. Chờ ít nhất 2 giây để người dùng thấy logo
-    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
+    // 4. Chờ ít nhất 1-2 giây để người dùng thấy logo
+    await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) return;
 
     _navigateToHome();
   }

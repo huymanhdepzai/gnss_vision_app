@@ -182,12 +182,16 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   Future<void> _playIntro() async {
     await _blobCtrl.forward();
+    if (!mounted) return;
     _logoCtrl.forward();
     await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
     _titleCtrl.forward();
     await Future.delayed(const Duration(milliseconds: 200));
+    if (!mounted) return;
     _subtitleCtrl.forward();
     await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
     setState(() => _introPlaying = false);
     _mockupCtrl.forward();
     _pageCtrl.forward();
@@ -198,14 +202,16 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     setState(() => _isTransitioning = true);
     if (_currentPage < _totalPages - 1) {
       await _pageCtrl.reverse();
+      if (!mounted) return;
       await _mockupCtrl.reverse();
+      if (!mounted) return;
       setState(() => _currentPage++);
       _mockupCtrl.forward(from: 0);
       _pageCtrl.forward(from: 0);
     } else {
       _startTakeover();
     }
-    setState(() => _isTransitioning = false);
+    if (mounted) setState(() => _isTransitioning = false);
   }
 
   void _goToPage(int i) async {
@@ -214,11 +220,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     }
     setState(() => _isTransitioning = true);
     await _pageCtrl.reverse();
+    if (!mounted) return;
     await _mockupCtrl.reverse();
+    if (!mounted) return;
     setState(() => _currentPage = i);
     _mockupCtrl.forward(from: 0);
     _pageCtrl.forward(from: 0);
-    setState(() => _isTransitioning = false);
+    if (mounted) setState(() => _isTransitioning = false);
   }
 
   void _startTakeover() async {
@@ -226,6 +234,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     
     // Đảm bảo các dịch vụ đã sẵn sàng trước khi vào trang chủ
     await sl.allReady();
+    if (!mounted) return;
     
     _saveOnboardingComplete();
     _takeoverCtrl.forward().then((_) {

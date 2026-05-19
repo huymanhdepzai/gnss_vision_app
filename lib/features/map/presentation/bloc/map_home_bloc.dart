@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 
 import '../../data/datasources/goong_search_data_source.dart';
@@ -32,6 +33,55 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
     on<MapHomeResetToExplore>(_onResetToExplore);
     on<MapHomeClearSearch>(_onClearSearch);
     on<MapHomeLocationUpdated>(_onLocationUpdated);
+    on<MapHomeThemeChanged>(_onThemeChanged);
+    on<MapHomeVehicleSelected>(_onVehicleSelected);
+    on<MapHomeRouteSelected>(_onRouteSelected);
+  }
+
+  void _onRouteSelected(
+    MapHomeRouteSelected event,
+    Emitter<MapHomeState> emit,
+  ) {
+    if (event.index < 0 || event.index >= state.availableRoutes.length) return;
+    
+    final route = state.availableRoutes[event.index];
+    final fullPolyline = <List<double>>[
+      [state.currentLng, state.currentLat],
+      ...route.polyline,
+    ];
+    final geoJson = _buildRouteGeoJson(fullPolyline);
+    
+    emit(state.copyWith(
+      selectedRouteIndex: event.index,
+      route: route,
+      distance: route.distanceText,
+      duration: route.durationText,
+      routeGeoJson: geoJson,
+    ));
+  }
+
+  void _onVehicleSelected(
+    MapHomeVehicleSelected event,
+    Emitter<MapHomeState> emit,
+  ) {
+    emit(state.copyWith(vehicle: event.vehicle));
+    if (state.destinationLat != null && state.destinationLng != null) {
+      add(const MapHomeFetchRoute());
+    }
+  }
+
+  void _onThemeChanged(
+    MapHomeThemeChanged event,
+    Emitter<MapHomeState> emit,
+  ) {
+    final styleUrl = _buildMapStyleUrl(event.isDarkMode);
+    emit(state.copyWith(mapStyleUrl: styleUrl));
+  }
+
+  String _buildMapStyleUrl(bool isDark) {
+    final mapTilesKey = dotenv.env['GOONG_MAPTILES_KEY'] ?? '';
+    final style = isDark ? 'navigation_night' : 'navigation_day';
+    return 'https://tiles.goong.io/assets/$style.json?api_key=$mapTilesKey';
   }
 
   Future<void> _onInitLocation(
@@ -177,6 +227,7 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
       originLng: state.currentLng,
       destinationLat: state.destinationLat!,
       destinationLng: state.destinationLng!,
+      vehicle: state.vehicle,
     );
 
     result.fold(
@@ -184,7 +235,13 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
         debugPrint('Route fetch error: ${failure.message}');
         emit(state.copyWith(isSearching: false));
       },
-      (route) {
+      (routes) {
+        if (routes.isEmpty) {
+          emit(state.copyWith(isSearching: false));
+          return;
+        }
+
+        final route = routes[0];
         final fullPolyline = <List<double>>[
           [state.currentLng, state.currentLat],
           ...route.polyline,
@@ -197,6 +254,8 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
           isRouteActive: true,
           isSearching: false,
           route: route,
+          availableRoutes: routes,
+          selectedRouteIndex: 0,
         ));
       },
     );

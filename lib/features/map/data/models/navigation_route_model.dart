@@ -17,7 +17,7 @@ class NavigationRouteModel extends NavigationRoute {
     required super.destinationName,
   });
 
-  factory NavigationRouteModel.fromJson(
+  static List<NavigationRouteModel> fromListJson(
     Map<String, dynamic> json, {
     String? destinationName,
   }) {
@@ -26,7 +26,18 @@ class NavigationRouteModel extends NavigationRoute {
       throw const FormatException('No routes found in response');
     }
 
-    final route = routes[0];
+    return routes
+        .map((routeJson) => NavigationRouteModel.fromSingleRouteJson(
+              routeJson as Map<String, dynamic>,
+              destinationName: destinationName,
+            ))
+        .toList();
+  }
+
+  factory NavigationRouteModel.fromSingleRouteJson(
+    Map<String, dynamic> route, {
+    String? destinationName,
+  }) {
     final legs = route['legs'] as List<dynamic>?;
     if (legs == null || legs.isEmpty) {
       throw const FormatException('No legs found in route');
@@ -83,7 +94,7 @@ class NavigationRouteModel extends NavigationRoute {
     }
 
     return NavigationRouteModel(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: '${DateTime.now().millisecondsSinceEpoch}_${route.hashCode}',
       totalDistance: totalDistanceValue,
       totalDuration: totalDurationValue,
       distanceText: distanceStr,

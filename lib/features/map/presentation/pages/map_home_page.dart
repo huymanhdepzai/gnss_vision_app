@@ -32,12 +32,15 @@ class MapHomeScreenV2 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.read<ThemeProvider>().isDarkMode;
     return BlocProvider(
       create: (context) => MapHomeBloc(
         searchDataSource: GoongSearchDataSourceImpl(),
         navigationRepository:
             NavigationRepositoryImpl(GoongDirectionsDataSourceImpl()),
-      )..add(const MapHomeInitLocation()),
+      )
+        ..add(MapHomeThemeChanged(isDark))
+        ..add(const MapHomeInitLocation()),
       child: const _MapHomeView(),
     );
   }
@@ -78,17 +81,8 @@ class _MapHomeViewState extends State<_MapHomeView>
   }
 
   void _onThemeChanged() {
-    if (_mapboxMap != null) {
-      _updateMapStyle(context.read<ThemeProvider>().isDarkMode);
-    }
-  }
-
-  void _updateMapStyle(bool isDark) {
-    final mapTilesKey = dotenv.env['GOONG_MAPTILES_KEY'] ?? '';
-    final style = isDark ? 'navigation_night' : 'navigation_day';
-    _mapboxMap?.loadStyleURI(
-      'https://tiles.goong.io/assets/$style.json?api_key=$mapTilesKey',
-    );
+    context.read<MapHomeBloc>().add(
+        MapHomeThemeChanged(context.read<ThemeProvider>().isDarkMode));
   }
 
   void _initVoiceController() {
@@ -198,7 +192,10 @@ class _MapHomeViewState extends State<_MapHomeView>
 
   void _onMapCreated(MapboxMap mapboxMap) {
     _mapboxMap = mapboxMap;
-    _updateMapStyle(context.read<ThemeProvider>().isDarkMode);
+    final state = context.read<MapHomeBloc>().state;
+    if (state.mapStyleUrl != null) {
+      _mapboxMap?.loadStyleURI(state.mapStyleUrl!);
+    }
   }
 
   void _onStyleLoaded(StyleLoadedEventData data) async {
@@ -433,9 +430,16 @@ class _MapHomeViewState extends State<_MapHomeView>
               previous.destinationLng != current.destinationLng ||
               previous.routeGeoJson != current.routeGeoJson ||
               previous.viewState != current.viewState ||
-              previous.route != current.route,
+              previous.route != current.route ||
+              previous.mapStyleUrl != current.mapStyleUrl,
           listener: (context, state) {
-            if (state.viewState == MapViewState.navigating && state.route != null) {
+            if (_previousState.mapStyleUrl != state.mapStyleUrl &&
+                state.mapStyleUrl != null) {
+              _mapboxMap?.loadStyleURI(state.mapStyleUrl!);
+            }
+
+            if (state.viewState == MapViewState.navigating &&
+                state.route != null) {
               final navCtrl = context.read<NavigationController>();
               if (navCtrl.currentRoute != state.route) {
                 navCtrl.startNavigation(state.route!);
@@ -519,6 +523,12 @@ class _MapHomeViewState extends State<_MapHomeView>
                       isDark: isDark,
                       onStartNavigation: _handleStartNavigation,
                       onFetchAndDrawRoute: _handleFetchAndDrawRoute,
+                      onVehicleSelected: (vehicle) => context
+                          .read<MapHomeBloc>()
+                          .add(MapHomeVehicleSelected(vehicle)),
+                      onRouteSelected: (index) => context
+                          .read<MapHomeBloc>()
+                          .add(MapHomeRouteSelected(index)),
                       slideAnimation: _sheetSlideAnimation,
                       padding: EdgeInsets.fromLTRB(
                           20,

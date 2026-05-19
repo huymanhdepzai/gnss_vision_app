@@ -60,3 +60,27 @@ class MapHomeLocationUpdated extends MapHomeEvent {
   @override
   List<Object?> get props => [lat, lng];
 }
+
+class MapHomeThemeChanged extends MapHomeEvent {
+  final bool isDarkMode;
+  const MapHomeThemeChanged(this.isDarkMode);
+
+  @override
+  List<Object?> get props => [isDarkMode];
+}
+
+class MapHomeVehicleSelected extends MapHomeEvent {
+  final String vehicle;
+  const MapHomeVehicleSelected(this.vehicle);
+
+  @override
+  List<Object?> get props => [vehicle];
+}
+
+class MapHomeRouteSelected extends MapHomeEvent {
+  final int index;
+  const MapHomeRouteSelected(this.index);
+
+  @override
+  List<Object?> get props => [index];
+}

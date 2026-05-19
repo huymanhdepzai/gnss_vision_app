@@ -73,7 +73,14 @@ class NavigationController extends ChangeNotifier {
         _errorMessage = failure.message;
         notifyListeners();
       },
-      (route) {
+      (routes) {
+        if (routes.isEmpty) {
+          _isLoading = false;
+          _errorMessage = 'Không tìm thấy tuyến đường nào';
+          notifyListeners();
+          return;
+        }
+        final route = routes[0];
         final enrichedRoute = route.copyWith(
           destinationName: destinationName.isNotEmpty
               ? destinationName

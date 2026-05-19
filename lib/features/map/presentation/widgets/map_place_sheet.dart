@@ -9,6 +9,8 @@ class MapPlaceSheet extends StatelessWidget {
   final bool isDark;
   final VoidCallback onStartNavigation;
   final VoidCallback onFetchAndDrawRoute;
+  final ValueChanged<String> onVehicleSelected;
+  final ValueChanged<int> onRouteSelected;
   final Animation<Offset> slideAnimation;
   final EdgeInsets padding;
 
@@ -18,6 +20,8 @@ class MapPlaceSheet extends StatelessWidget {
     required this.isDark,
     required this.onStartNavigation,
     required this.onFetchAndDrawRoute,
+    required this.onVehicleSelected,
+    required this.onRouteSelected,
     required this.slideAnimation,
     required this.padding,
   }) : super(key: key);
@@ -119,6 +123,12 @@ class MapPlaceSheet extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     _buildInfoRow(),
+                    const SizedBox(height: 16),
+                    _buildVehicleSelection(),
+                    if (state.availableRoutes.length > 1) ...[
+                      const SizedBox(height: 16),
+                      _buildRouteSelection(),
+                    ],
                     const SizedBox(height: 28),
                     Row(
                       children: [
@@ -194,6 +204,140 @@ class MapPlaceSheet extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildVehicleSelection() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _vehicleOption('car', Icons.directions_car_rounded, 'Ô tô'),
+        const SizedBox(width: 12),
+        _vehicleOption('bike', Icons.two_wheeler_rounded, 'Xe máy'),
+        const SizedBox(width: 12),
+        _vehicleOption('foot', Icons.directions_walk_rounded, 'Đi bộ'),
+      ],
+    );
+  }
+
+  Widget _vehicleOption(String vehicleType, IconData icon, String label) {
+    final isSelected = state.vehicle == vehicleType;
+    final color = isSelected
+        ? AppTheme.primaryColor
+        : (isDark ? Colors.white54 : Colors.black54);
+
+    return GestureDetector(
+      onTap: () {
+        if (!isSelected) {
+          HapticFeedback.lightImpact();
+          onVehicleSelected(vehicleType);
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? _a(AppTheme.primaryColor, isDark ? 0.15 : 0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? AppTheme.primaryColor
+                : (isDark ? Colors.white12 : Colors.black12),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: color),
+            if (isSelected) ...[
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ]
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRouteSelection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Tuyến đường thay thế",
+          style: TextStyle(
+            color: isDark ? Colors.white70 : AppTheme.textDark.withOpacity(0.7),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 60,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: state.availableRoutes.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              final route = state.availableRoutes[index];
+              final isSelected = state.selectedRouteIndex == index;
+              return GestureDetector(
+                onTap: () {
+                  if (!isSelected) {
+                    HapticFeedback.selectionClick();
+                    onRouteSelected(index);
+                  }
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? _a(AppTheme.secondaryColor, isDark ? 0.15 : 0.08)
+                        : (isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02)),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppTheme.secondaryColor
+                          : (isDark ? Colors.white10 : Colors.black.withOpacity(0.1)),
+                      width: 1.5,
+                    ),
+                    ),
+                    child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        route.durationText,
+                        style: TextStyle(
+                          color: isSelected ? AppTheme.secondaryColor : (isDark ? Colors.white60 : Colors.black54),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        route.distanceText,
+                        style: TextStyle(
+                          color: isSelected ? AppTheme.secondaryColor.withOpacity(0.7) : (isDark ? Colors.white30 : Colors.black.withOpacity(0.3)),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
