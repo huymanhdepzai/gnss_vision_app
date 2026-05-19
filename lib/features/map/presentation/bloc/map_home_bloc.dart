@@ -144,6 +144,9 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
         viewState: MapViewState.placeDetail,
         isSearching: false,
       ));
+      
+      // Tự động tính toán lộ trình ngay khi chọn địa điểm
+      add(const MapHomeFetchRoute());
     } catch (e) {
       debugPrint('Place detail error: $e');
       emit(state.copyWith(

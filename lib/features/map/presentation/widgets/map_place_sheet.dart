@@ -22,8 +22,12 @@ class MapPlaceSheet extends StatelessWidget {
     required this.padding,
   }) : super(key: key);
 
+  Color _a(Color c, double o) => c.withOpacity(o);
+
   @override
   Widget build(BuildContext context) {
+    final textColor = isDark ? Colors.white : AppTheme.textDark;
+    
     return Positioned(
       bottom: 0,
       left: 0,
@@ -32,145 +36,104 @@ class MapPlaceSheet extends StatelessWidget {
         position: slideAnimation,
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isDark
-                  ? [
-                      AppTheme.cardDark.withOpacity(0.98),
-                      AppTheme.surfaceDark.withOpacity(0.96)
-                    ]
-                  : [
-                      Colors.white.withOpacity(0.98),
-                      AppTheme.cardLight.withOpacity(0.96)
-                    ],
-            ),
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border.all(
-                color: (isDark ? AppTheme.primaryColor : AppTheme.outlineLight)
-                    .withOpacity(0.15),
-                width: 1.5),
+            color: isDark ? AppTheme.backgroundDark : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
             boxShadow: [
               BoxShadow(
-                  color: (isDark ? AppTheme.primaryColor : Colors.black)
-                      .withOpacity(isDark ? 0.12 : 0.05),
-                  blurRadius: 50,
-                  offset: const Offset(0, -15)),
-              BoxShadow(
-                  color: Colors.black.withOpacity(isDark ? 0.5 : 0.05),
-                  blurRadius: 30,
-                  offset: const Offset(0, -8)),
+                color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
+                blurRadius: 40,
+                offset: const Offset(0, -10),
+              ),
             ],
           ),
           child: ClipRRect(
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(28)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-              child: Padding(
-                padding: padding,
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                padding: EdgeInsets.fromLTRB(20, 12, 20, padding.bottom),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: isDark
+                        ? [_a(AppTheme.primaryColor, 0.08), _a(AppTheme.backgroundDark, 0.95)]
+                        : [Colors.white, _a(AppTheme.surfaceLight, 0.9)],
+                  ),
+                  border: Border.all(
+                    color: isDark ? _a(Colors.white, 0.08) : _a(AppTheme.primaryColor, 0.06),
+                    width: 1,
+                  ),
+                ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Center(
-                        child: Container(
-                            width: 40,
-                            height: 4,
-                            decoration: BoxDecoration(
-                                gradient: AppTheme.primaryGradient,
-                                borderRadius: BorderRadius.circular(2),
-                                boxShadow: [
-                                  BoxShadow(
-                                      color:
-                                          AppTheme.primaryColor.withOpacity(0.3),
-                                      blurRadius: 8)
-                                ]))),
-                    const SizedBox(height: 22),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  AppTheme.accentColor.withOpacity(0.22),
-                                  AppTheme.accentColor.withOpacity(0.06)
-                                ]),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                                color:
-                                    AppTheme.accentColor.withOpacity(0.25),
-                                width: 1.5),
-                            boxShadow: [
-                              BoxShadow(
-                                  color:
-                                      AppTheme.accentColor.withOpacity(0.2),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 4)),
-                              BoxShadow(
-                                  color: isDark
-                                      ? Colors.white.withOpacity(0.08)
-                                      : Colors.black.withOpacity(0.02),
-                                  blurRadius: 6,
-                                  offset: const Offset(-2, -2)),
-                            ],
-                          ),
-                          child: const Icon(Icons.place_rounded,
-                              color: AppTheme.accentColor, size: 26),
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: isDark ? _a(Colors.white, 0.2) : _a(Colors.black, 0.1),
+                          borderRadius: BorderRadius.circular(2),
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildPlaceIcon(),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(state.destinationName,
-                                  style: TextStyle(
-                                      fontSize: 19,
-                                      fontWeight: FontWeight.w800,
-                                      color: isDark
-                                          ? Colors.white
-                                          : AppTheme.textDark,
-                                      letterSpacing: -0.3),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis),
-                              const SizedBox(height: 3),
-                              Text(state.destinationAddress,
-                                  style: TextStyle(
-                                      color: (isDark
-                                              ? Colors.white
-                                              : AppTheme.textDark)
-                                          .withOpacity(0.4),
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w400),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis),
+                              Text(
+                                state.destinationName,
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                  color: textColor,
+                                  letterSpacing: -0.5,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                state.destinationAddress,
+                                style: TextStyle(
+                                  color: textColor.withOpacity(0.5),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w400,
+                                  height: 1.4,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ],
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 24),
+                    _buildInfoRow(),
+                    const SizedBox(height: 28),
                     Row(
                       children: [
                         Expanded(
-                            child: _buildGradientButton(
-                                text: "Bắt đầu",
-                                icon: Icons.navigation_rounded,
-                                gradient: const LinearGradient(colors: [
-                                  AppTheme.primaryColor,
-                                  AppTheme.secondaryColor
-                                ]),
-                                onTap: onStartNavigation)),
+                          child: _buildPrimaryButton(
+                            text: "Bắt đầu",
+                            icon: Icons.navigation_rounded,
+                            onTap: onStartNavigation,
+                          ),
+                        ),
                         const SizedBox(width: 12),
-                        Expanded(
-                            child: _buildOutlineButton(
-                                text: "Xem đường",
-                                icon: Icons.route_rounded,
-                                onTap: onFetchAndDrawRoute)),
+                        _buildSecondaryButton(
+                          icon: Icons.route_rounded,
+                          onTap: onFetchAndDrawRoute,
+                        ),
                       ],
                     ),
                   ],
@@ -183,10 +146,104 @@ class MapPlaceSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildGradientButton({
+  Widget _buildPlaceIcon() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_a(AppTheme.accentColor, 0.2), _a(AppTheme.accentColor, 0.05)],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _a(AppTheme.accentColor, 0.2), width: 1),
+      ),
+      child: const Icon(Icons.place_rounded, color: AppTheme.accentColor, size: 28),
+    );
+  }
+
+  Widget _buildInfoRow() {
+    return Row(
+      children: [
+        _infoChip(Icons.straighten_rounded, state.distance, AppTheme.primaryColor),
+        const SizedBox(width: 12),
+        _infoChip(Icons.access_time_rounded, state.duration, AppTheme.secondaryColor),
+      ],
+    );
+  }
+
+  Widget _infoChip(IconData icon, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: _a(color, isDark ? 0.08 : 0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _a(color, 0.12), width: 1),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Text(
+            value,
+            style: TextStyle(
+              color: isDark ? _a(Colors.white, 0.8) : AppTheme.textDark,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPrimaryButton({
     required String text,
     required IconData icon,
-    required Gradient gradient,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.heavyImpact();
+        onTap();
+      },
+      child: Container(
+        height: 56,
+        decoration: BoxDecoration(
+          gradient: AppTheme.primaryGradient,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primaryColor.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: Colors.white, size: 22),
+              const SizedBox(width: 10),
+              Text(
+                text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSecondaryButton({
+    required IconData icon,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -195,94 +252,20 @@ class MapPlaceSheet extends StatelessWidget {
         onTap();
       },
       child: Container(
-        height: 54,
+        height: 56,
+        width: 56,
         decoration: BoxDecoration(
-          gradient: gradient,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-                color: AppTheme.primaryColor.withOpacity(0.35),
-                blurRadius: 20,
-                offset: const Offset(0, 8)),
-            BoxShadow(
-                color: AppTheme.secondaryColor.withOpacity(0.15),
-                blurRadius: 8,
-                offset: const Offset(-2, -2)),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.25),
-                        shape: BoxShape.circle),
-                    child: Icon(icon, color: Colors.white, size: 20)),
-                const SizedBox(width: 10),
-                Text(text,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.3,
-                        shadows: [
-                          Shadow(
-                              color: Colors.black26,
-                              blurRadius: 4,
-                              offset: Offset(0, 2))
-                        ])),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOutlineButton({
-    required String text,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        onTap();
-      },
-      child: Container(
-        height: 54,
-        decoration: BoxDecoration(
+          color: isDark ? _a(Colors.white, 0.05) : _a(AppTheme.primaryColor, 0.04),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
-              color: AppTheme.secondaryColor.withOpacity(0.45), width: 1.5),
-          borderRadius: BorderRadius.circular(16),
-          color: AppTheme.secondaryColor.withOpacity(0.06),
-          boxShadow: [
-            BoxShadow(
-                color: AppTheme.secondaryColor.withOpacity(0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 4)),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: Center(
-            child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, color: AppTheme.secondaryColor, size: 20),
-                  const SizedBox(width: 10),
-                  Text(text,
-                      style: TextStyle(
-                          color: AppTheme.secondaryColor,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.3)),
-                ]),
+            color: isDark ? _a(Colors.white, 0.1) : _a(AppTheme.primaryColor, 0.1),
+            width: 1,
           ),
+        ),
+        child: Icon(
+          icon,
+          color: isDark ? Colors.white70 : AppTheme.primaryColor,
+          size: 24,
         ),
       ),
     );

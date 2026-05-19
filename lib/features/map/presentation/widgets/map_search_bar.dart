@@ -121,10 +121,28 @@ class MapSearchBar extends StatelessWidget {
                 if (state.viewState == MapViewState.explore)
                   const SizedBox(width: 8),
                 if (state.viewState == MapViewState.placeDetail)
-                  _buildSearchIconButton(
-                      onTap: onBackTap,
-                      icon: Icons.arrow_back_ios_new_rounded,
-                      isDark: isDark)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            state.destinationName,
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
                 else if (state.viewState == MapViewState.explore)
                   Expanded(
                     child: TextField(
