@@ -87,28 +87,54 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.delayed(const Duration(milliseconds: 500));
     if (mounted) _textController.forward();
 
-    // 2. Chờ GetIt sẵn sàng (Hive boxes mở xong)
-    await sl.allReady();
+    // 2. Yêu cầu quyền truy cập TRƯỚC (để nếu Activity restart thì phần nặng chưa chạy)
+    await _handlePermissions();
+
     if (!mounted) return;
 
-    // 3. Yêu cầu quyền truy cập (nếu cần)
+    // 3. Chờ GetIt sẵn sàng (Hive boxes mở xong) với timeout
     try {
-      await [
-        Permission.camera,
-        Permission.locationWhenInUse,
-        Permission.microphone,
-      ].request();
+      debugPrint('Waiting for GetIt services to be ready...');
+      await sl.allReady(timeout: const Duration(seconds: 15));
+      debugPrint('GetIt services ready.');
     } catch (e) {
-      debugPrint('Error requesting permissions: $e');
+      debugPrint('Error or Timeout waiting for services: $e');
+      // Vẫn tiếp tục nếu timeout, để tránh treo app hoàn toàn
     }
-
+    
     if (!mounted) return;
 
-    // 4. Chờ ít nhất 1-2 giây để người dùng thấy logo
+    // 4. Chờ ít nhất 1 giây để người dùng thấy logo
     await Future.delayed(const Duration(seconds: 1));
     if (!mounted) return;
 
     _navigateToHome();
+  }
+
+  Future<void> _handlePermissions() async {
+    try {
+      final permissions = [
+        Permission.camera,
+        Permission.locationWhenInUse,
+        Permission.microphone,
+      ];
+
+      for (var permission in permissions) {
+        if (!mounted) return;
+        
+        final status = await permission.status;
+        if (!status.isGranted) {
+          debugPrint('Requesting permission: $permission');
+          final result = await permission.request();
+          debugPrint('Permission $permission result: $result');
+          
+          // Sau mỗi lần yêu cầu, đợi một chút để OS ổn định
+          await Future.delayed(const Duration(milliseconds: 600));
+        }
+      }
+    } catch (e) {
+      debugPrint('Error requesting permissions: $e');
+    }
   }
 
   void _navigateToHome() {
