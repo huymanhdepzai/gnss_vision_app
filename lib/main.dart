@@ -19,20 +19,30 @@ import 'core/pages/onboarding_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Khởi tạo các dịch vụ cơ bản cần thiết ngay lập tức
   await Future.wait([
     dotenv.load(fileName: ".env"),
     Hive.initFlutter(),
   ]);
-
-  // Khởi tạo Dependency Injection (nhưng dời các box nặng vào bên trong)
   await init();
 
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late Future<bool> _onboardingFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _onboardingFuture = OnboardingScreen.hasCompletedOnboarding();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,11 +68,16 @@ class MyApp extends StatelessWidget {
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProvider.themeMode,
             home: FutureBuilder<bool>(
-              future: OnboardingScreen.hasCompletedOnboarding(),
+              future: _onboardingFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Scaffold(
                     backgroundColor: AppTheme.backgroundDark,
+                    body: Center(
+                      child: CircularProgressIndicator(
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
                   );
                 }
                 if (snapshot.data == true) {

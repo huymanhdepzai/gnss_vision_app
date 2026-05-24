@@ -4,6 +4,11 @@ import 'package:get_it/get_it.dart';
 final sl = GetIt.instance;
 
 Future<void> init() async {
+  // Tránh đăng ký lại nếu đã được khởi tạo (hữu ích khi Activity restart)
+  if (sl.isRegistered<Box<Map>>(instanceName: 'tripsBox')) {
+    return;
+  }
+  
   // Đăng ký các dịch vụ ngoại vi một cách lười biếng (Lazy)
   _initExternalDependencies();
   
