@@ -1244,6 +1244,94 @@ class ModernDialog extends StatelessWidget {
   }
 }
 
+class ModernConfirmDialog extends StatelessWidget {
+  final String title;
+  final String message;
+  final String confirmLabel;
+  final String cancelLabel;
+  final bool isDestructive;
+
+  const ModernConfirmDialog({
+    super.key,
+    required this.title,
+    required this.message,
+    this.confirmLabel = 'XÁC NHẬN',
+    this.cancelLabel = 'HỦY',
+    this.isDestructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ModernDialog(
+      title: title,
+      subtitle: message,
+      icon: isDestructive ? Icons.warning_amber_rounded : Icons.help_outline_rounded,
+      isDanger: isDestructive,
+      content: const SizedBox.shrink(),
+      primaryActionText: confirmLabel,
+      secondaryActionText: cancelLabel,
+      onPrimaryAction: () => Navigator.pop(context, true),
+      onSecondaryAction: () => Navigator.pop(context, false),
+    );
+  }
+}
+
+class ModernInputDialog extends StatefulWidget {
+  final String title;
+  final String? subtitle;
+  final String hintText;
+  final String initialValue;
+  final String confirmLabel;
+  final String cancelLabel;
+
+  const ModernInputDialog({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.hintText = '',
+    this.initialValue = '',
+    this.confirmLabel = 'XÁC NHẬN',
+    this.cancelLabel = 'HỦY',
+  });
+
+  @override
+  State<ModernInputDialog> createState() => _ModernInputDialogState();
+}
+
+class _ModernInputDialogState extends State<ModernInputDialog> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ModernDialog(
+      title: widget.title,
+      subtitle: widget.subtitle,
+      icon: Icons.edit_note_rounded,
+      content: ModernTextField(
+        controller: _controller,
+        hint: widget.hintText,
+        maxLines: 1,
+      ),
+      primaryActionText: widget.confirmLabel,
+      secondaryActionText: widget.cancelLabel,
+      onPrimaryAction: () => Navigator.pop(context, _controller.text),
+      onSecondaryAction: () => Navigator.pop(context),
+    );
+  }
+}
+
 class ModernBottomSheet extends StatelessWidget {
   final String? title;
   final Widget child;
