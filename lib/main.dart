@@ -67,25 +67,7 @@ class _MyAppState extends State<MyApp> {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProvider.themeMode,
-            home: FutureBuilder<bool>(
-              future: _onboardingFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Scaffold(
-                    backgroundColor: AppTheme.backgroundDark,
-                    body: Center(
-                      child: CircularProgressIndicator(
-                        color: AppTheme.primaryColor,
-                      ),
-                    ),
-                  );
-                }
-                if (snapshot.data == true) {
-                  return const SplashScreen();
-                }
-                return const OnboardingScreen();
-              },
-            ),
+            home: const SplashScreen(),
           );
         },
       ),
