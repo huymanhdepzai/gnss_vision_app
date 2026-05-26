@@ -30,6 +30,7 @@ class _DayNightInteractiveSceneState extends State<DayNightInteractiveScene> wit
       duration: const Duration(milliseconds: 800),
       value: widget.isDark ? 1.0 : 0.0,
     );
+    _dragValue = _controller.value;
 
     _controller.addListener(() {
       setState(() {
