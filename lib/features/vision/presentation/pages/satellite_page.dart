@@ -491,6 +491,88 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     );
   }
 
+  Widget _buildDrawerDataActions(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: UIConsts.spacingXL),
+      child: Column(
+        children: [
+          ModernSectionHeader(
+            title: "DỮ LIỆU & LỊCH SỬ",
+            color: AppTheme.primaryColor,
+          ),
+          SizedBox(height: UIConsts.spacingMD),
+          Row(
+            children: [
+              Expanded(
+                child: _buildCompactDrawerAction(
+                  context,
+                  "XUẤT FILE",
+                  Icons.file_download_rounded,
+                  AppTheme.primaryColor,
+                  _exportRawData,
+                ),
+              ),
+              SizedBox(width: UIConsts.spacingMD),
+              Expanded(
+                child: _buildCompactDrawerAction(
+                  context,
+                  "LỊCH SỬ",
+                  Icons.folder_shared_rounded,
+                  AppTheme.secondaryColor,
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SatelliteExportListPage()),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: UIConsts.spacingXL),
+          const ModernDivider(indent: 0, endIndent: 0),
+          SizedBox(height: UIConsts.spacingXL),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactDrawerAction(
+    BuildContext context,
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return PressScale(
+      onTap: () {
+        Navigator.pop(context);
+        onTap();
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: UIConsts.spacingMD),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(UIConsts.radiusLG),
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            SizedBox(height: UIConsts.spacingXS),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSatelliteDrawer(BuildContext context) {
     final filteredSats = _filteredSatellites;
     return Drawer(
@@ -547,6 +629,7 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
                   ],
                 ),
               ),
+              _buildDrawerDataActions(context),
               _buildFilterChips(context),
               SizedBox(height: UIConsts.spacingMD),
               Expanded(
@@ -623,41 +706,6 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                PressScale(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const SatelliteExportListPage()),
-                  ),
-                  child: Container(
-                    padding: EdgeInsets.all(UIConsts.spacingSM),
-                    decoration: BoxDecoration(
-                      color: context.adaptiveOpacity(Colors.white, 0.1, 0.06),
-                      borderRadius: BorderRadius.circular(UIConsts.radiusMD),
-                    ),
-                    child: Icon(
-                      Icons.folder_shared_rounded,
-                      color: context.iconColor,
-                      size: UIConsts.iconSizeSM,
-                    ),
-                  ),
-                ),
-                SizedBox(width: UIConsts.spacingSM),
-                PressScale(
-                  onTap: _exportRawData,
-                  child: Container(
-                    padding: EdgeInsets.all(UIConsts.spacingSM),
-                    decoration: BoxDecoration(
-                      color: context.adaptiveOpacity(Colors.white, 0.1, 0.06),
-                      borderRadius: BorderRadius.circular(UIConsts.radiusMD),
-                    ),
-                    child: Icon(
-                      Icons.file_download_rounded,
-                      color: context.iconColor,
-                      size: UIConsts.iconSizeSM,
-                    ),
-                  ),
-                ),
-                SizedBox(width: UIConsts.spacingSM),
                 _buildStatusIndicator(context),
                 SizedBox(width: UIConsts.spacingSM),
                 PressScale(

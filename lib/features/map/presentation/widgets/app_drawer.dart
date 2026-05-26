@@ -8,10 +8,11 @@ import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../../../core/app_theme.dart';
 import '../../../../core/providers/theme_provider.dart';
-import '../../../../shared/widgets/theme_toggle_switch.dart';
 import '../../../../shared/widgets/voice_toggle_switch.dart';
 import '../../../voice/presentation/controllers/voice_controller.dart';
 import '../../../feedback/presentation/telegram_service.dart';
+import 'day_night_scene.dart';
+
 class AppDrawer extends StatefulWidget {
   final VoidCallback onNavigateToVision;
   final VoidCallback onNavigateToSatellite;
@@ -170,8 +171,8 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildHeader(isDark),
-                    const SizedBox(height: 24),
+                    _buildThemeSceneSection(),
+                    const SizedBox(height: 16),
                     _accentSection(isDark, AppTheme.primaryColor, [
                       _navItem(context, isDark, Icons.auto_awesome_rounded, 'GNSS-Vision', 'Cảm biến & nhận dạng AI', AppTheme.primaryColor, AppTheme.secondaryColor, widget.onNavigateToVision),
                       _navDivider(isDark),
@@ -206,6 +207,24 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildThemeSceneSection() {
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, _) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: DayNightInteractiveScene(
+            isDark: themeProvider.isDarkMode,
+            onThemeChanged: (isDark) {
+              if (isDark != themeProvider.isDarkMode) {
+                themeProvider.setThemeMode(isDark);
+              }
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -374,8 +393,6 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
         final d = themeProvider.isDarkMode;
         return Column(
           children: [
-            _toggleRow(d, Icons.dark_mode_outlined, 'Giao diện', d, AppTheme.primaryColor, const ThemeToggleSwitch(width: 56, height: 28)),
-            const SizedBox(height: 12),
             _toggleRow(d, Icons.mic_none_rounded, 'Giọng nói', voiceController.isEnabled, voiceController.isEnabled ? AppTheme.successColor : Colors.grey, const VoiceToggleSwitch(width: 56, height: 28)),
             if (voiceController.isEnabled) ...[
               const SizedBox(height: 10),
