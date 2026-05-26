@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/physics.dart';
 import '../../../../core/app_theme.dart';
 
@@ -17,8 +18,9 @@ class DayNightInteractiveScene extends StatefulWidget {
   State<DayNightInteractiveScene> createState() => _DayNightInteractiveSceneState();
 }
 
-class _DayNightInteractiveSceneState extends State<DayNightInteractiveScene> with SingleTickerProviderStateMixin {
+class _DayNightInteractiveSceneState extends State<DayNightInteractiveScene> with TickerProviderStateMixin {
   late AnimationController _controller;
+  late AnimationController _continuousController;
   double _dragValue = 0;
   bool _isDragging = false;
 
@@ -31,6 +33,11 @@ class _DayNightInteractiveSceneState extends State<DayNightInteractiveScene> wit
       value: widget.isDark ? 1.0 : 0.0,
     );
     _dragValue = _controller.value;
+
+    _continuousController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat();
 
     _controller.addListener(() {
       setState(() {
@@ -57,6 +64,7 @@ class _DayNightInteractiveSceneState extends State<DayNightInteractiveScene> wit
   @override
   void dispose() {
     _controller.dispose();
+    _continuousController.dispose();
     super.dispose();
   }
 
@@ -98,18 +106,29 @@ class _DayNightInteractiveSceneState extends State<DayNightInteractiveScene> wit
     }
   }
 
+  void _toggleTheme() {
+    if (_controller.isAnimating) return;
+    HapticFeedback.lightImpact();
+    if (widget.isDark) {
+      _controller.animateTo(0.0, curve: Curves.easeInOutCubic);
+    } else {
+      _controller.animateTo(1.0, curve: Curves.easeInOutCubic);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final progress = _dragValue;
     final hintText = progress == 0.0 
-        ? "Swipe to begin night cycle" 
+        ? "Chạm hoặc vuốt để bắt đầu chu kỳ đêm" 
         : progress == 1.0 
-            ? "Full cycle – drag to fine-tune" 
-            : "Du hành thời gian: ${(progress * 100).toInt()}%";
+            ? "Đang ở chế độ Đêm – vuốt ngược lại để đổi" 
+            : "Thời gian: ${(progress * 100).toInt()}%";
 
     return Column(
       children: [
         GestureDetector(
+          onTap: _toggleTheme,
           onHorizontalDragStart: _onHorizontalDragStart,
           onHorizontalDragUpdate: _onHorizontalDragUpdate,
           onHorizontalDragEnd: _onHorizontalDragEnd,
@@ -126,59 +145,145 @@ class _DayNightInteractiveSceneState extends State<DayNightInteractiveScene> wit
                 ),
               ],
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: CustomPaint(
-                painter: DayNightPainter(progress: progress),
-              ),
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: AnimatedBuilder(
+                    animation: _continuousController,
+                    builder: (context, _) {
+                      return CustomPaint(
+                        size: Size.infinite,
+                        painter: DayNightPainter(progress: progress),
+                      );
+                    },
+                  ),
+                ),
+                // Overlay hint for first-time or better affordance
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.touch_app_rounded,
+                      size: 14,
+                      color: Colors.white.withOpacity(0.6),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
+        const SizedBox(height: 16),
+        // Improved Slider Control
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          decoration: BoxDecoration(
+            color: widget.isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02),
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                progress < 0.5 ? "GIAO DIỆN NGÀY" : "GIAO DIỆN ĐÊM",
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  color: progress < 0.5 ? AppTheme.primaryColor : AppTheme.secondaryColor,
-                  letterSpacing: 1.2,
+              _buildIconButton(
+                icon: Icons.wb_sunny_rounded,
+                isActive: progress < 0.5,
+                color: Colors.orangeAccent,
+                onTap: () => _controller.animateTo(0.0, curve: Curves.easeInOutCubic),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Column(
+                    children: [
+                      Container(
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            return Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                AnimatedContainer(
+                                  duration: const Duration(milliseconds: 100),
+                                  width: constraints.maxWidth * progress,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        AppTheme.primaryColor,
+                                        AppTheme.secondaryColor,
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(3),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppTheme.primaryColor.withOpacity(0.3),
+                                        blurRadius: 4,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Visible Thumb
+                                Positioned(
+                                  left: (constraints.maxWidth * progress) - 8,
+                                  top: -5,
+                                  child: Container(
+                                    width: 16,
+                                    height: 16,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.2),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                      border: Border.all(
+                                        color: progress < 0.5 ? AppTheme.primaryColor : AppTheme.secondaryColor,
+                                        width: 2,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        progress < 0.5 ? "GIAO DIỆN NGÀY" : "GIAO DIỆN ĐÊM",
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          color: (progress < 0.5 ? AppTheme.primaryColor : AppTheme.secondaryColor).withOpacity(0.8),
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              Container(
-                width: 100,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-                child: Stack(
-                  children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 100),
-                      width: 100 * progress,
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.primaryGradient,
-                        borderRadius: BorderRadius.circular(2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.primaryColor.withOpacity(0.3),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+              _buildIconButton(
+                icon: Icons.nightlight_round,
+                isActive: progress >= 0.5,
+                color: const Color(0xFF90CAF9),
+                onTap: () => _controller.animateTo(1.0, curve: Curves.easeInOutCubic),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         Text(
           hintText,
           style: TextStyle(
@@ -188,6 +293,41 @@ class _DayNightInteractiveSceneState extends State<DayNightInteractiveScene> wit
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildIconButton({
+    required IconData icon,
+    required bool isActive,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.mediumImpact();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: isActive ? color.withOpacity(0.15) : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isActive ? color.withOpacity(0.3) : Colors.transparent,
+              width: 1,
+            ),
+          ),
+          child: Icon(
+            icon,
+            size: 20,
+            color: isActive ? color : Colors.grey.withOpacity(0.4),
+          ),
+        ),
+      ),
     );
   }
 }
