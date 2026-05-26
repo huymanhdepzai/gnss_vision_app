@@ -412,20 +412,58 @@ class DayNightPainter extends CustomPainter {
 
   void _drawClouds(Canvas canvas, Size size) {
     final random = math.Random(123);
-    final cloudColor = Color.lerp(Colors.white, Colors.white24, progress)!;
     
     for (int i = 0; i < 5; i++) {
-      final speed = random.nextDouble() * 20 + 10;
-      final x = (random.nextDouble() * size.width + (DateTime.now().millisecondsSinceEpoch / 1000.0 * speed)) % (size.width + 100) - 50;
-      final y = random.nextDouble() * size.height * 0.4 + 20;
-      final scale = random.nextDouble() * 0.5 + 0.5;
+      final speed = random.nextDouble() * 15 + 8;
+      final time = DateTime.now().millisecondsSinceEpoch / 1000.0;
+      final x = (random.nextDouble() * size.width + (time * speed)) % (size.width + 200) - 100;
+      final y = random.nextDouble() * size.height * 0.35 + 15;
+      final scale = random.nextDouble() * 0.6 + 0.7;
+      final opacity = (0.7 * (1 - progress * 0.4)).clamp(0.1, 0.7);
 
-      // Simple cloud shape
-      final paint = Paint()..color = cloudColor.withOpacity(0.8 * (1 - progress * 0.5));
-      canvas.drawCircle(Offset(x, y), 20 * scale, paint);
-      canvas.drawCircle(Offset(x + 15 * scale, y + 5 * scale), 15 * scale, paint);
-      canvas.drawCircle(Offset(x - 15 * scale, y + 5 * scale), 15 * scale, paint);
+      _drawSingleRealisticCloud(canvas, Offset(x, y), scale, opacity, progress);
     }
+  }
+
+  void _drawSingleRealisticCloud(Canvas canvas, Offset center, double scale, double opacity, double progress) {
+    final cloudColor = Color.lerp(Colors.white, const Color(0xFFB0BEC5), progress)!;
+    final shadowColor = Color.lerp(const Color(0xFFE1F5FE), const Color(0xFF263238), progress)!;
+
+    final paint = Paint()
+      ..color = cloudColor.withOpacity(opacity)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 12 * scale);
+
+    // Main cloud body (organic cluster)
+    final path = Path();
+    _addCloudPuff(path, center, 25 * scale);
+    _addCloudPuff(path, center + Offset(20 * scale, 5 * scale), 20 * scale);
+    _addCloudPuff(path, center + Offset(-18 * scale, 8 * scale), 18 * scale);
+    _addCloudPuff(path, center + Offset(35 * scale, 12 * scale), 15 * scale);
+    _addCloudPuff(path, center + Offset(-5 * scale, -10 * scale), 15 * scale);
+
+    // Draw shadow/depth layer
+    final shadowPaint = Paint()
+      ..color = shadowColor.withOpacity(opacity * 0.5)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 15 * scale);
+    canvas.drawPath(path.shift(Offset(0, 5 * scale)), shadowPaint);
+
+    // Draw main body
+    canvas.drawPath(path, paint);
+
+    // Highlights (sun/moon light)
+    final highlightColor = progress < 0.5 ? Colors.white : const Color(0xFFE1F5FE);
+    final highlightPaint = Paint()
+      ..color = highlightColor.withOpacity(opacity * 0.8)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8 * scale);
+    
+    final highlightPath = Path();
+    _addCloudPuff(highlightPath, center + Offset(-5 * scale, -5 * scale), 12 * scale);
+    _addCloudPuff(highlightPath, center + Offset(15 * scale, -2 * scale), 10 * scale);
+    canvas.drawPath(highlightPath, highlightPaint);
+  }
+
+  void _addCloudPuff(Path path, Offset center, double radius) {
+    path.addOval(Rect.fromCircle(center: center, radius: radius));
   }
 
   void _drawSunMoon(Canvas canvas, Size size) {
