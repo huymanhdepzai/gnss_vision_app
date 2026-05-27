@@ -339,13 +339,26 @@ class DayNightPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final sunMoonPos = _getSunMoonPosition(size);
     _drawSky(canvas, size);
     _drawStars(canvas, size);
-    _drawGodRays(canvas, size);
+    _drawGodRays(canvas, size, sunMoonPos);
     _drawClouds(canvas, size);
-    _drawSunMoon(canvas, size);
+    _drawSunMoon(canvas, size, sunMoonPos);
     _drawBirds(canvas, size);
     _drawWater(canvas, size);
+  }
+
+  Offset _getSunMoonPosition(Size size) {
+    final centerX = size.width / 2;
+    final centerY = size.height * 0.55;
+    final radiusX = size.width * 0.4;
+    final radiusY = size.height * 0.3;
+    final angle = math.pi + (progress * math.pi);
+    return Offset(
+      centerX + radiusX * math.cos(angle),
+      centerY + radiusY * math.sin(angle),
+    );
   }
 
   void _drawSky(Canvas canvas, Size size) {
@@ -388,7 +401,7 @@ class DayNightPainter extends CustomPainter {
     }
   }
 
-  void _drawGodRays(Canvas canvas, Size size) {
+  void _drawGodRays(Canvas canvas, Size size, Offset sunPos) {
     if (progress > 0.4) return;
 
     final opacity = (1.0 - progress / 0.4).clamp(0.0, 1.0);
@@ -396,12 +409,10 @@ class DayNightPainter extends CustomPainter {
       ..color = Colors.white.withOpacity(0.15 * opacity)
       ..style = PaintingStyle.fill;
 
-    final center = Offset(size.width * 0.2, size.height * 0.3);
-    
     for (int i = 0; i < 8; i++) {
       final angle = (i * 45 + progress * 50) * math.pi / 180;
       final path = Path()
-        ..moveTo(center.dx, center.dy)
+        ..moveTo(sunPos.dx, sunPos.dy)
         ..relativeLineTo(math.cos(angle - 0.1) * 200, math.sin(angle - 0.1) * 200)
         ..relativeLineTo(math.cos(angle + 0.1) * 10, math.sin(angle + 0.1) * 10)
         ..close();
@@ -466,33 +477,31 @@ class DayNightPainter extends CustomPainter {
     path.addOval(Rect.fromCircle(center: center, radius: radius));
   }
 
-  void _drawSunMoon(Canvas canvas, Size size) {
-    // Arc path for Sun/Moon
-    final centerX = size.width / 2;
-    final centerY = size.height * 0.8;
-    final radius = size.width * 0.4;
-    
-    final angle = math.pi + (progress * math.pi);
-    final x = centerX + radius * math.cos(angle);
-    final y = centerY + radius * math.sin(angle);
-
+  void _drawSunMoon(Canvas canvas, Size size, Offset pos) {
     if (progress < 0.5) {
       // Draw Sun
       final sunPaint = Paint()
         ..color = Colors.orangeAccent
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-      canvas.drawCircle(Offset(x, y), 20, sunPaint);
-      canvas.drawCircle(Offset(x, y), 15, Paint()..color = Colors.yellow);
+      canvas.drawCircle(pos, 20, sunPaint);
+      canvas.drawCircle(pos, 15, Paint()..color = Colors.yellow);
     } else {
-      // Draw Moon
-      final moonPaint = Paint()
-        ..color = Colors.white
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-      canvas.drawCircle(Offset(x, y), 18, moonPaint);
-      canvas.drawCircle(Offset(x, y), 15, Paint()..color = const Color(0xFFE0E0E0));
+      // Draw Moon Glow
+      final glowPaint = Paint()
+        ..color = Colors.white.withOpacity(0.3)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+      canvas.drawCircle(pos, 20, glowPaint);
+
+      // Draw Crescent Moon using Path operation
+      final moonPath = Path()..addOval(Rect.fromCircle(center: pos, radius: 15));
+      final cutPath = Path()..addOval(Rect.fromCircle(center: Offset(pos.dx - 6, pos.dy - 6), radius: 14));
       
-      // Crescent effect
-      canvas.drawCircle(Offset(x - 8, y - 5), 14, Paint()..color = Color.lerp(const Color(0xFF0D47A1), const Color(0xFF000511), (progress-0.5)*2)!);
+      final crescentPath = Path.combine(PathOperation.difference, moonPath, cutPath);
+      
+      final moonPaint = Paint()
+        ..color = const Color(0xFFF5F5F5); // Slightly off-white for moon
+        
+      canvas.drawPath(crescentPath, moonPaint);
     }
   }
 
