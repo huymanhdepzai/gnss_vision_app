@@ -1,8 +1,13 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:flutter_earth_globe/flutter_earth_globe.dart';
 import 'package:flutter_earth_globe/flutter_earth_globe_controller.dart';
 import 'package:flutter_earth_globe/point.dart';
@@ -13,6 +18,7 @@ import '../../../../core/widgets/modern_ui.dart';
 import '../../../../core/widgets/modern_animations.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import 'satellite_detail_page.dart';
+import 'satellite_export_list_page.dart';
 
 const Map<String, Color> kSatelliteSystemColors = {
   'GPS': Color(0xFF00D4FF),
@@ -342,6 +348,76 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     return AppTheme.accentColor;
   }
 
+  Future<void> _exportRawData() async {
+    if (_satellites.isEmpty) {
+      context.showModernSnackBar(
+        message: 'Không có dữ liệu vệ tinh để xuất',
+        icon: Icons.warning_amber_rounded,
+        color: context.warningColor,
+      );
+      return;
+    }
+
+    // 1. Ask for filename
+    final now = DateTime.now();
+    final defaultFileName = 'GNSS_RAW_${DateFormat('yyyyMMdd_HHmmss').format(now)}';
+    
+    final fileName = await context.showModernDialog<String>(
+      child: ModernInputDialog(
+        title: 'Đặt tên tệp',
+        subtitle: 'Dữ liệu sẽ được xuất dưới định dạng .csv',
+        hintText: 'Tên tệp',
+        initialValue: defaultFileName,
+        confirmLabel: 'TIẾP THEO',
+      ),
+    );
+
+    if (fileName == null || fileName.isEmpty) return;
+
+    // 2. Ask for save location
+    String? selectedDirectory = await FilePicker.getDirectoryPath(
+      dialogTitle: 'Chọn nơi lưu tệp',
+    );
+
+    if (selectedDirectory == null) return;
+
+    try {
+      final fullFileName = fileName.endsWith('.csv') ? fileName : '$fileName.csv';
+      
+      String csvContent = 'Timestamp,SVID,System,Elevation,Azimuth,SNR,UsedInFix\n';
+      final timestamp = now.toIso8601String();
+      
+      for (var sat in _satellites) {
+        csvContent += '$timestamp,${sat.prn},${sat.system},${sat.elevation.toStringAsFixed(2)},${sat.azimuth.toStringAsFixed(2)},${sat.snr.toStringAsFixed(2)},${sat.usedInFix}\n';
+      }
+
+      final file = File('$selectedDirectory/$fullFileName');
+      await file.writeAsString(csvContent);
+
+      // Also save a copy to app docs for the internal list
+      final appDir = await getApplicationDocumentsDirectory();
+      // Ensure we use a GNSS_ prefix if we want it to show up in the list (as per our list filter)
+      final internalFileName = fullFileName.startsWith('GNSS_') ? fullFileName : 'GNSS_$fullFileName';
+      await File('${appDir.path}/$internalFileName').writeAsString(csvContent);
+
+      if (mounted) {
+        context.showModernSnackBar(
+          message: 'Đã lưu tệp thành công!',
+          icon: Icons.check_circle_rounded,
+          color: context.successColor,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showModernSnackBar(
+          message: 'Lỗi khi lưu tệp: $e',
+          icon: Icons.error_outline_rounded,
+          color: context.errorColor,
+        );
+      }
+    }
+  }
+
   void _startMockDataFallback() {
     if (_mockTimer != null && _mockTimer!.isActive) return;
 
@@ -415,6 +491,88 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     );
   }
 
+  Widget _buildDrawerDataActions(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: UIConsts.spacingXL),
+      child: Column(
+        children: [
+          ModernSectionHeader(
+            title: "DỮ LIỆU & LỊCH SỬ",
+            color: AppTheme.primaryColor,
+          ),
+          SizedBox(height: UIConsts.spacingMD),
+          Row(
+            children: [
+              Expanded(
+                child: _buildCompactDrawerAction(
+                  context,
+                  "XUẤT FILE",
+                  Icons.file_download_rounded,
+                  AppTheme.primaryColor,
+                  _exportRawData,
+                ),
+              ),
+              SizedBox(width: UIConsts.spacingMD),
+              Expanded(
+                child: _buildCompactDrawerAction(
+                  context,
+                  "LỊCH SỬ",
+                  Icons.folder_shared_rounded,
+                  AppTheme.secondaryColor,
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SatelliteExportListPage()),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: UIConsts.spacingXL),
+          const ModernDivider(indent: 0, endIndent: 0),
+          SizedBox(height: UIConsts.spacingXL),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactDrawerAction(
+    BuildContext context,
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return PressScale(
+      onTap: () {
+        Navigator.pop(context);
+        onTap();
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: UIConsts.spacingMD),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(UIConsts.radiusLG),
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            SizedBox(height: UIConsts.spacingXS),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSatelliteDrawer(BuildContext context) {
     final filteredSats = _filteredSatellites;
     return Drawer(
@@ -471,6 +629,7 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
                   ],
                 ),
               ),
+              _buildDrawerDataActions(context),
               _buildFilterChips(context),
               SizedBox(height: UIConsts.spacingMD),
               Expanded(
@@ -537,7 +696,13 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
                 ),
               ),
             ),
-            _buildTitleSection(context),
+            const SizedBox(width: UIConsts.spacingSM),
+            Flexible(
+              child: Center(
+                child: _buildTitleSection(context),
+              ),
+            ),
+            const SizedBox(width: UIConsts.spacingSM),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -723,12 +888,15 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
                                 ),
                               ),
                               SizedBox(width: UIConsts.spacingXS),
-                              Text(
-                                'SNR: ${avgSnr.toStringAsFixed(1)} dB-Hz',
-                                style: TextStyle(
-                                  color: context.textSecondaryColor,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
+                              Expanded(
+                                child: Text(
+                                  'SNR: ${avgSnr.toStringAsFixed(1)} dB-Hz',
+                                  style: TextStyle(
+                                    color: context.textSecondaryColor,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],

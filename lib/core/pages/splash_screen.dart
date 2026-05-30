@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../app_theme.dart';
 import '../widgets/gnss_vision_icon.dart';
 import '../utils/injection_container.dart';
+import 'onboarding_screen.dart';
 import '../../features/map/presentation/pages/map_home_page.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -117,33 +118,42 @@ class _SplashScreenState extends State<SplashScreen>
         Permission.camera,
         Permission.locationWhenInUse,
         Permission.microphone,
+        Permission.notification,
       ];
 
-      for (var permission in permissions) {
-        if (!mounted) return;
-        
-        final status = await permission.status;
-        if (!status.isGranted) {
-          debugPrint('Requesting permission: $permission');
-          final result = await permission.request();
-          debugPrint('Permission $permission result: $result');
-          
-          // Sau mỗi lần yêu cầu, đợi một chút để OS ổn định
-          await Future.delayed(const Duration(milliseconds: 600));
-        }
-      }
+      // Yêu cầu tất cả các quyền cùng lúc. 
+      // Plugin permission_handler sẽ tự động điều phối hiển thị lần lượt trên Native side.
+      // Cách tiếp cận này ổn định hơn việc dùng vòng lặp đợi từng kết quả, 
+      // tránh lỗi bị ngắt quãng do Activity bị pause/resume.
+      Map<Permission, PermissionStatus> statuses = await permissions.request();
+      
+      statuses.forEach((permission, status) {
+        debugPrint('Permission $permission result: $status');
+      });
+
+      // Đợi một khoảng ngắn sau khi hoàn tất để đảm bảo UI/Hệ thống ổn định
+      await Future.delayed(const Duration(milliseconds: 500));
     } catch (e) {
       debugPrint('Error requesting permissions: $e');
     }
   }
 
-  void _navigateToHome() {
+  Future<void> _navigateToHome() async {
     if (!mounted) return;
+
+    // Kiểm tra trạng thái onboarding
+    final bool onboardingComplete = await OnboardingScreen.hasCompletedOnboarding();
+    
+    if (!mounted) return;
+
+    final Widget nextScreen = onboardingComplete 
+        ? const MapHomeScreenV2() 
+        : const OnboardingScreen();
+
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const MapHomeScreenV2(),
+        pageBuilder: (context, animation, secondaryAnimation) => nextScreen,
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
             opacity: animation,
