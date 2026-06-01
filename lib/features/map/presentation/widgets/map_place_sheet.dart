@@ -6,7 +6,7 @@ import '../bloc/map_home_state.dart';
 
 import '../../data/datasources/goong_search_data_source.dart';
 
-class MapPlaceSheet extends StatelessWidget {
+class MapPlaceSheet extends StatefulWidget {
   final MapHomeState state;
   final bool isDark;
   final VoidCallback onStartNavigation;
@@ -28,20 +28,27 @@ class MapPlaceSheet extends StatelessWidget {
     required this.padding,
   }) : super(key: key);
 
+  @override
+  State<MapPlaceSheet> createState() => _MapPlaceSheetState();
+}
+
+class _MapPlaceSheetState extends State<MapPlaceSheet> {
+  bool _isDetailsExpanded = false;
+
   Color _a(Color c, double o) => c.withOpacity(o);
 
   @override
   Widget build(BuildContext context) {
-    final textColor = isDark ? Colors.white : AppTheme.textDark;
-    final detail = state.placeDetail;
+    final textColor = widget.isDark ? Colors.white : AppTheme.textDark;
+    final detail = widget.state.placeDetail;
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.backgroundDark : Colors.white,
+        color: widget.isDark ? AppTheme.backgroundDark : Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
+            color: Colors.black.withOpacity(widget.isDark ? 0.4 : 0.08),
             blurRadius: 40,
             offset: const Offset(0, -10),
           ),
@@ -56,19 +63,19 @@ class MapPlaceSheet extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: isDark
+                colors: widget.isDark
                     ? [_a(AppTheme.primaryColor, 0.08), _a(AppTheme.backgroundDark, 0.95)]
                     : [Colors.white, _a(AppTheme.surfaceLight, 0.9)],
               ),
               border: Border.all(
-                color: isDark ? _a(Colors.white, 0.08) : _a(AppTheme.primaryColor, 0.06),
+                color: widget.isDark ? _a(Colors.white, 0.08) : _a(AppTheme.primaryColor, 0.06),
                 width: 1,
               ),
             ),
             child: SingleChildScrollView(
-              controller: scrollController,
+              controller: widget.scrollController,
               physics: const ClampingScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(20, 12, 20, padding.bottom + 20),
+              padding: EdgeInsets.fromLTRB(20, 12, 20, widget.padding.bottom + 20),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -78,7 +85,7 @@ class MapPlaceSheet extends StatelessWidget {
                       width: 40,
                       height: 5,
                       decoration: BoxDecoration(
-                        color: isDark ? _a(Colors.white, 0.2) : _a(Colors.black, 0.1),
+                        color: widget.isDark ? _a(Colors.white, 0.2) : _a(Colors.black, 0.1),
                         borderRadius: BorderRadius.circular(2.5),
                       ),
                     ),
@@ -94,7 +101,7 @@ class MapPlaceSheet extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              state.destinationName,
+                              widget.state.destinationName,
                               style: TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.w900,
@@ -129,7 +136,7 @@ class MapPlaceSheet extends StatelessWidget {
                                 ],
                               ),
                             Text(
-                              state.destinationAddress,
+                              widget.state.destinationAddress,
                               style: TextStyle(
                                 color: textColor.withOpacity(0.5),
                                 fontSize: 13,
@@ -147,12 +154,12 @@ class MapPlaceSheet extends StatelessWidget {
                   const SizedBox(height: 16),
                   if (detail != null) 
                     _buildDetailedInfoSection(detail)
-                  else if (state.isSearching)
+                  else if (widget.state.isSearching)
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 30),
                       decoration: BoxDecoration(
-                        color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.02),
+                        color: widget.isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.02),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Column(
@@ -167,7 +174,7 @@ class MapPlaceSheet extends StatelessWidget {
                             "Đang tải thông tin chi tiết...",
                             style: TextStyle(
                               fontSize: 12,
-                              color: isDark ? Colors.white54 : Colors.black54,
+                              color: widget.isDark ? Colors.white54 : Colors.black54,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -178,7 +185,7 @@ class MapPlaceSheet extends StatelessWidget {
                   _buildInfoRow(),
                   const SizedBox(height: 16),
                   _buildVehicleSelection(),
-                  if (state.availableRoutes.length > 1) ...[
+                  if (widget.state.availableRoutes.length > 1) ...[
                     const SizedBox(height: 16),
                     _buildRouteSelection(),
                   ],
@@ -189,13 +196,13 @@ class MapPlaceSheet extends StatelessWidget {
                         child: _buildPrimaryButton(
                           text: "Bắt đầu",
                           icon: Icons.navigation_rounded,
-                          onTap: onStartNavigation,
+                          onTap: widget.onStartNavigation,
                         ),
                       ),
                       const SizedBox(width: 12),
                       _buildSecondaryButton(
                         icon: Icons.route_rounded,
-                        onTap: onFetchAndDrawRoute,
+                        onTap: widget.onFetchAndDrawRoute,
                       ),
                     ],
                   ),
@@ -209,63 +216,104 @@ class MapPlaceSheet extends StatelessWidget {
   }
 
   Widget _buildDetailedInfoSection(PlaceDetail detail) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.02),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
-          width: 1,
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOutCubic,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: widget.isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.02),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: widget.isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+            width: 1,
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "Thông tin địa điểm",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white70 : AppTheme.textDark.withOpacity(0.7),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _isDetailsExpanded = !_isDetailsExpanded;
+                });
+              },
+              child: Container(
+                color: Colors.transparent,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.info_outline_rounded, size: 18, color: AppTheme.primaryColor),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Thông tin địa điểm",
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: widget.isDark ? Colors.white70 : AppTheme.textDark.withOpacity(0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        Text(
+                          _isDetailsExpanded ? "Thu gọn" : "Xem thêm",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.primaryColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Icon(
+                          _isDetailsExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                          color: AppTheme.primaryColor,
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              if (detail.types != null && detail.types!.isNotEmpty)
+            ),
+            if (_isDetailsExpanded) ...[
+              const SizedBox(height: 16),
+              if (detail.types != null && detail.types!.isNotEmpty) ...[
                 _buildCategoryBadge(detail.types!.first),
+                const SizedBox(height: 12),
+              ],
+              _buildDetailItem(
+                Icons.access_time_filled_rounded,
+                detail.isOpenNow == null 
+                    ? "Không rõ trạng thái mở cửa" 
+                    : (detail.isOpenNow! ? "Đang mở cửa" : "Hiện tại đóng cửa"),
+                detail.isOpenNow == true ? Colors.green : (detail.isOpenNow == false ? Colors.red : Colors.grey),
+                isAvailable: detail.isOpenNow != null,
+              ),
+              const SizedBox(height: 12),
+              _buildDetailItem(
+                Icons.phone_rounded, 
+                detail.phoneNumber ?? "Chưa cập nhật số điện thoại", 
+                Colors.blue,
+                isAvailable: detail.phoneNumber != null,
+              ),
+              const SizedBox(height: 12),
+              _buildDetailItem(
+                Icons.language_rounded, 
+                detail.website ?? "Chưa có thông tin website", 
+                Colors.green,
+                isAvailable: detail.website != null,
+              ),
+              if (detail.openingHours != null && detail.openingHours!.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _buildOpeningHoursSummary(detail.openingHours!),
+              ],
             ],
-          ),
-          const SizedBox(height: 16),
-          _buildDetailItem(
-            Icons.phone_rounded, 
-            detail.phoneNumber ?? "Chưa cập nhật số điện thoại", 
-            Colors.blue,
-            isAvailable: detail.phoneNumber != null,
-          ),
-          const SizedBox(height: 12),
-          _buildDetailItem(
-            Icons.language_rounded, 
-            detail.website ?? "Chưa có thông tin website", 
-            Colors.green,
-            isAvailable: detail.website != null,
-          ),
-          const SizedBox(height: 12),
-          _buildDetailItem(
-            Icons.access_time_filled_rounded,
-            detail.isOpenNow == null 
-                ? "Không rõ trạng thái mở cửa" 
-                : (detail.isOpenNow! ? "Đang mở cửa" : "Hiện tại đóng cửa"),
-            detail.isOpenNow == true ? Colors.green : (detail.isOpenNow == false ? Colors.red : Colors.grey),
-            isAvailable: detail.isOpenNow != null,
-          ),
-          if (detail.openingHours != null && detail.openingHours!.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _buildOpeningHoursSummary(detail.openingHours!),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -309,8 +357,8 @@ class MapPlaceSheet extends StatelessWidget {
               fontSize: 13,
               fontWeight: isAvailable ? FontWeight.w600 : FontWeight.w400,
               color: isAvailable 
-                  ? (isDark ? Colors.white.withOpacity(0.9) : AppTheme.textDark)
-                  : (isDark ? Colors.white38 : Colors.black38),
+                  ? (widget.isDark ? Colors.white.withOpacity(0.9) : AppTheme.textDark)
+                  : (widget.isDark ? Colors.white38 : Colors.black38),
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -354,9 +402,9 @@ class MapPlaceSheet extends StatelessWidget {
   Widget _buildInfoRow() {
     return Row(
       children: [
-        _infoChip(Icons.straighten_rounded, state.distance, AppTheme.primaryColor),
+        _infoChip(Icons.straighten_rounded, widget.state.distance, AppTheme.primaryColor),
         const SizedBox(width: 12),
-        _infoChip(Icons.access_time_rounded, state.duration, AppTheme.secondaryColor),
+        _infoChip(Icons.access_time_rounded, widget.state.duration, AppTheme.secondaryColor),
       ],
     );
   }
@@ -365,7 +413,7 @@ class MapPlaceSheet extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: _a(color, isDark ? 0.08 : 0.04),
+        color: _a(color, widget.isDark ? 0.08 : 0.04),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: _a(color, 0.12), width: 1),
       ),
@@ -376,7 +424,7 @@ class MapPlaceSheet extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              color: isDark ? _a(Colors.white, 0.8) : AppTheme.textDark,
+              color: widget.isDark ? _a(Colors.white, 0.8) : AppTheme.textDark,
               fontSize: 13,
               fontWeight: FontWeight.w700,
             ),
@@ -400,16 +448,16 @@ class MapPlaceSheet extends StatelessWidget {
   }
 
   Widget _vehicleOption(String vehicleType, IconData icon, String label) {
-    final isSelected = state.vehicle == vehicleType;
+    final isSelected = widget.state.vehicle == vehicleType;
     final color = isSelected
         ? AppTheme.primaryColor
-        : (isDark ? Colors.white54 : Colors.black54);
+        : (widget.isDark ? Colors.white54 : Colors.black54);
 
     return GestureDetector(
       onTap: () {
         if (!isSelected) {
           HapticFeedback.lightImpact();
-          onVehicleSelected(vehicleType);
+          widget.onVehicleSelected(vehicleType);
         }
       },
       child: AnimatedContainer(
@@ -417,13 +465,13 @@ class MapPlaceSheet extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
-              ? _a(AppTheme.primaryColor, isDark ? 0.15 : 0.1)
+              ? _a(AppTheme.primaryColor, widget.isDark ? 0.15 : 0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
                 ? AppTheme.primaryColor
-                : (isDark ? Colors.white12 : Colors.black12),
+                : (widget.isDark ? Colors.white12 : Colors.black12),
           ),
         ),
         child: Row(
@@ -453,7 +501,7 @@ class MapPlaceSheet extends StatelessWidget {
         Text(
           "Tuyến đường thay thế",
           style: TextStyle(
-            color: isDark ? Colors.white70 : AppTheme.textDark.withOpacity(0.7),
+            color: widget.isDark ? Colors.white70 : AppTheme.textDark.withOpacity(0.7),
             fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
@@ -463,16 +511,16 @@ class MapPlaceSheet extends StatelessWidget {
           height: 60,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: state.availableRoutes.length,
+            itemCount: widget.state.availableRoutes.length,
             separatorBuilder: (_, __) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
-              final route = state.availableRoutes[index];
-              final isSelected = state.selectedRouteIndex == index;
+              final route = widget.state.availableRoutes[index];
+              final isSelected = widget.state.selectedRouteIndex == index;
               return GestureDetector(
                 onTap: () {
                   if (!isSelected) {
                     HapticFeedback.selectionClick();
-                    onRouteSelected(index);
+                    widget.onRouteSelected(index);
                   }
                 },
                 child: AnimatedContainer(
@@ -481,13 +529,13 @@ class MapPlaceSheet extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? _a(AppTheme.secondaryColor, isDark ? 0.15 : 0.08)
-                        : (isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02)),
+                        ? _a(AppTheme.secondaryColor, widget.isDark ? 0.15 : 0.08)
+                        : (widget.isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02)),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: isSelected
                           ? AppTheme.secondaryColor
-                          : (isDark ? Colors.white10 : Colors.black.withOpacity(0.1)),
+                          : (widget.isDark ? Colors.white10 : Colors.black.withOpacity(0.1)),
                       width: 1.5,
                     ),
                     ),
@@ -497,7 +545,7 @@ class MapPlaceSheet extends StatelessWidget {
                       Text(
                         route.durationText,
                         style: TextStyle(
-                          color: isSelected ? AppTheme.secondaryColor : (isDark ? Colors.white60 : Colors.black54),
+                          color: isSelected ? AppTheme.secondaryColor : (widget.isDark ? Colors.white60 : Colors.black54),
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
                         ),
@@ -505,7 +553,7 @@ class MapPlaceSheet extends StatelessWidget {
                       Text(
                         route.distanceText,
                         style: TextStyle(
-                          color: isSelected ? AppTheme.secondaryColor.withOpacity(0.7) : (isDark ? Colors.white30 : Colors.black.withOpacity(0.3)),
+                          color: isSelected ? AppTheme.secondaryColor.withOpacity(0.7) : (widget.isDark ? Colors.white30 : Colors.black.withOpacity(0.3)),
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
                         ),
@@ -578,16 +626,16 @@ class MapPlaceSheet extends StatelessWidget {
         height: 56,
         width: 56,
         decoration: BoxDecoration(
-          color: isDark ? _a(Colors.white, 0.05) : _a(AppTheme.primaryColor, 0.04),
+          color: widget.isDark ? _a(Colors.white, 0.05) : _a(AppTheme.primaryColor, 0.04),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: isDark ? _a(Colors.white, 0.1) : _a(AppTheme.primaryColor, 0.1),
+            color: widget.isDark ? _a(Colors.white, 0.1) : _a(AppTheme.primaryColor, 0.1),
             width: 1,
           ),
         ),
         child: Icon(
           icon,
-          color: isDark ? Colors.white70 : AppTheme.primaryColor,
+          color: widget.isDark ? Colors.white70 : AppTheme.primaryColor,
           size: 24,
         ),
       ),

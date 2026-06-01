@@ -114,14 +114,6 @@ class LoginPage extends StatelessWidget {
                 type: EntranceType.fadeSlideUp,
                 child: Column(
                   children: [
-                    Text(
-                      'Chào mừng quay trở lại',
-                      style: context.theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: context.textColor.withOpacity(0.8),
-                      ),
-                    ),
-                    const SizedBox(height: UIConsts.spacingXL),
                     ModernCard(
                       padding: const EdgeInsets.symmetric(
                         horizontal: UIConsts.spacingLG,
