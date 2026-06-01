@@ -1,0 +1,1 @@
+{"flutter":{"platforms":{"android":{"default":{"projectId":"gnss-vision-app","appId":"1:389279439458:android:a597129cf0b9c1b31c4f3b","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"gnss-vision-app","configurations":{"android":"1:389279439458:android:a597129cf0b9c1b31c4f3b","ios":"1:389279439458:ios:7e33779d7b0d8bec1c4f3b"}}}}}}

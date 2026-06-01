@@ -1,13 +1,17 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../app_theme.dart';
-import '../widgets/gnss_vision_icon.dart';
-import '../utils/injection_container.dart';
-import 'onboarding_screen.dart';
+import '../../features/auth/presentation/bloc/auth_bloc.dart';
+import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/map/presentation/pages/map_home_page.dart';
+import '../app_theme.dart';
+import '../utils/injection_container.dart';
+import '../widgets/gnss_vision_icon.dart';
+import 'onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -88,28 +92,48 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.delayed(const Duration(milliseconds: 500));
     if (mounted) _textController.forward();
 
-    // 2. Yêu cầu quyền truy cập TRƯỚC (để nếu Activity restart thì phần nặng chưa chạy)
+    // 2. Yêu cầu quyền truy cập TRƯỚC
     await _handlePermissions();
 
     if (!mounted) return;
 
-    // 3. Chờ GetIt sẵn sàng (Hive boxes mở xong) với timeout
+    // 3. Chờ GetIt sẵn sàng
     try {
       debugPrint('Waiting for GetIt services to be ready...');
       await sl.allReady(timeout: const Duration(seconds: 15));
       debugPrint('GetIt services ready.');
     } catch (e) {
       debugPrint('Error or Timeout waiting for services: $e');
-      // Vẫn tiếp tục nếu timeout, để tránh treo app hoàn toàn
     }
     
     if (!mounted) return;
 
-    // 4. Chờ ít nhất 1 giây để người dùng thấy logo
+    // 4. Đợi AuthBloc xác định trạng thái
+    await _waitForAuth();
+
+    if (!mounted) return;
+
+    // 5. Chờ ít nhất 1 giây để người dùng thấy logo (nếu nhanh quá)
     await Future.delayed(const Duration(seconds: 1));
     if (!mounted) return;
 
     _navigateToHome();
+  }
+
+  Future<void> _waitForAuth() async {
+    // Nếu AuthBloc đang ở trạng thái initial hoặc loading, chờ nó hoàn thành
+    final authBloc = context.read<AuthBloc>();
+    
+    bool isDetermined(AuthState state) => state.maybeWhen(
+      authenticated: (_) => true,
+      unauthenticated: () => true,
+      error: (_) => true,
+      orElse: () => false,
+    );
+
+    if (!isDetermined(authBloc.state)) {
+      await authBloc.stream.firstWhere((state) => isDetermined(state));
+    }
   }
 
   Future<void> _handlePermissions() async {
@@ -121,17 +145,12 @@ class _SplashScreenState extends State<SplashScreen>
         Permission.notification,
       ];
 
-      // Yêu cầu tất cả các quyền cùng lúc. 
-      // Plugin permission_handler sẽ tự động điều phối hiển thị lần lượt trên Native side.
-      // Cách tiếp cận này ổn định hơn việc dùng vòng lặp đợi từng kết quả, 
-      // tránh lỗi bị ngắt quãng do Activity bị pause/resume.
       Map<Permission, PermissionStatus> statuses = await permissions.request();
       
       statuses.forEach((permission, status) {
         debugPrint('Permission $permission result: $status');
       });
 
-      // Đợi một khoảng ngắn sau khi hoàn tất để đảm bảo UI/Hệ thống ổn định
       await Future.delayed(const Duration(milliseconds: 500));
     } catch (e) {
       debugPrint('Error requesting permissions: $e');
@@ -141,19 +160,30 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _navigateToHome() async {
     if (!mounted) return;
 
-    // Kiểm tra trạng thái onboarding
+    // 1. Kiểm tra trạng thái onboarding
     final bool onboardingComplete = await OnboardingScreen.hasCompletedOnboarding();
-    
     if (!mounted) return;
 
-    final Widget nextScreen = onboardingComplete 
-        ? const MapHomeScreenV2() 
-        : const OnboardingScreen();
+    if (!onboardingComplete) {
+      _pushScreen(const OnboardingScreen());
+      return;
+    }
 
+    // 2. Kiểm tra trạng thái đăng nhập
+    final authState = context.read<AuthBloc>().state;
+    authState.maybeWhen(
+      authenticated: (_) => _pushScreen(const MapHomeScreenV2()),
+      unauthenticated: () => _pushScreen(const LoginPage()),
+      error: (_) => _pushScreen(const LoginPage()),
+      orElse: () => _pushScreen(const LoginPage()),
+    );
+  }
+
+  void _pushScreen(Widget screen) {
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => nextScreen,
+        pageBuilder: (context, animation, secondaryAnimation) => screen,
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
             opacity: animation,

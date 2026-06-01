@@ -13,6 +13,10 @@ import '../../../voice/presentation/controllers/voice_controller.dart';
 import '../../../feedback/presentation/telegram_service.dart';
 import 'day_night_scene.dart';
 
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../auth/presentation/pages/login_page.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
 class AppDrawer extends StatefulWidget {
   final VoidCallback onNavigateToVision;
   final VoidCallback onNavigateToSatellite;
@@ -198,6 +202,10 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
                       _navDivider(isDark),
                       _actionTile(isDark, Icons.star_outline_rounded, 'Đánh giá ứng dụng', 'Góp ý & đóng góp cải thiện', AppTheme.warningColor, () => _showRatingDialog(isDark)),
                     ]),
+                    const SizedBox(height: 14),
+                    _accentSection(isDark, Colors.redAccent, [
+                      _navItem(context, isDark, Icons.logout_rounded, 'Đăng xuất', 'Thoát khỏi tài khoản', Colors.redAccent, Colors.orangeAccent, () => _showLogoutDialog(context, isDark)),
+                    ]),
                     const SizedBox(height: 16),
                     _buildFooter(isDark),
                   ],
@@ -206,6 +214,52 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context, bool isDark) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? AppTheme.cardDark : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            Icon(Icons.logout_rounded, color: Colors.redAccent),
+            const SizedBox(width: 12),
+            Text('Đăng xuất', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: isDark ? Colors.white : AppTheme.textDark)),
+          ],
+        ),
+        content: Text('Bạn có chắc chắn muốn đăng xuất khỏi tài khoản không?', style: TextStyle(fontSize: 14, color: isDark ? Colors.white70 : Colors.black87)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Hủy', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontWeight: FontWeight.w500)),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Colors.redAccent, Color(0xFFFF5252)]),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ElevatedButton(
+              onPressed: () {
+                ctx.read<AuthBloc>().add(const AuthEvent.logoutRequested());
+                Navigator.of(ctx).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                  (route) => false,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Đăng xuất', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
       ),
     );
   }
