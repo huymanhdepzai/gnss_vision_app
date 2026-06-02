@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import '../../domain/entities/satellite_data.dart';
 import '../../../../core/app_theme.dart';
 import '../../../../core/widgets/modern_ui.dart';
 import '../../../../core/widgets/modern_animations.dart';
@@ -165,26 +167,33 @@ class _SatelliteDetailScreenState extends State<SatelliteDetailScreen>
       children: [
         Hero(
           tag: 'sat_icon_${widget.satellite.prn}',
-          child: Container(
+          child: SizedBox(
             width: 120,
             height: 120,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [widget.themeColor, widget.themeColor.withOpacity(0.5)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+            // decoration: BoxDecoration(
+            //   shape: BoxShape.circle,
+            //   gradient: LinearGradient(
+            //     colors: [widget.themeColor, widget.themeColor.withOpacity(0.5)],
+            //     begin: Alignment.topLeft,
+            //     end: Alignment.bottomRight,
+            //   ),
+            //   boxShadow: [
+            //     BoxShadow(
+            //       color: widget.themeColor.withOpacity(0.4),
+            //       blurRadius: 30,
+            //       spreadRadius: 5,
+            //     ),
+            //   ],
+            // ),
+            child: Center(
+              child: SvgPicture.asset(
+                'assets/icons/satellite-icon.svg',
+                width: 180,
+                height: 180,
+                // colorFilter:
+                //     const ColorFilter.mode(Colors.white, BlendMode.srcIn),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: widget.themeColor.withOpacity(0.4),
-                  blurRadius: 30,
-                  spreadRadius: 5,
-                ),
-              ],
             ),
-            child: const Icon(Icons.satellite_alt_rounded,
-                size: 60, color: Colors.white),
           ),
         ),
         SizedBox(height: UIConsts.spacingXL),
@@ -193,7 +202,7 @@ class _SatelliteDetailScreenState extends State<SatelliteDetailScreen>
           child: Material(
             color: Colors.transparent,
             child: Text(
-              "PRN #${widget.satellite.prn}",
+              "Vệ tinh #${widget.satellite.prn}",
               style: TextStyle(
                 color: context.textColor,
                 fontSize: 32,
