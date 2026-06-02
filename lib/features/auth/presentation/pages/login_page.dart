@@ -61,7 +61,7 @@ class LoginPage extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  context.primaryColor.withOpacity(context.isDark ? 0.2 : 0.1),
+                  context.primaryColor.withOpacity(context.isDark ? 0.2 : 0.18),
                   context.backgroundColor,
                 ],
               ),
@@ -72,7 +72,7 @@ class LoginPage extends StatelessWidget {
         // Moving White Circular Nodes
         Positioned.fill(
           child: ParticleBackground(
-            particleColor: (context.isDark ? Colors.white : context.primaryColor).withOpacity(0.15),
+            particleColor: (context.isDark ? Colors.white : context.primaryColor).withOpacity(context.isDark ? 0.15 : 0.35),
             particleCount: 25,
           ),
         ),

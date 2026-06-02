@@ -24,6 +24,7 @@ class GnssVisionIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return CustomPaint(
       size: Size(size, size),
       painter: _GnssVisionIconPainter(
@@ -33,6 +34,7 @@ class GnssVisionIcon extends StatelessWidget {
         orbitAngleOffset: orbitAngleOffset,
         primaryColor: primaryColor ?? AppTheme.primaryColor,
         secondaryColor: secondaryColor ?? AppTheme.secondaryColor,
+        isDark: isDark,
       ),
     );
   }
@@ -45,6 +47,7 @@ class _GnssVisionIconPainter extends CustomPainter {
   final double orbitAngleOffset;
   final Color primaryColor;
   final Color secondaryColor;
+  final bool isDark;
 
   _GnssVisionIconPainter({
     required this.showOrbits,
@@ -53,6 +56,7 @@ class _GnssVisionIconPainter extends CustomPainter {
     required this.orbitAngleOffset,
     required this.primaryColor,
     required this.secondaryColor,
+    required this.isDark,
   });
 
   @override
@@ -84,8 +88,8 @@ class _GnssVisionIconPainter extends CustomPainter {
     final paint = Paint()
       ..shader = RadialGradient(
         colors: [
-          primaryColor.withOpacity(0.15),
-          secondaryColor.withOpacity(0.05),
+          primaryColor.withOpacity(isDark ? 0.15 : 0.25),
+          secondaryColor.withOpacity(isDark ? 0.05 : 0.1),
           Colors.transparent,
         ],
         stops: const [0.0, 0.6, 1.0],
@@ -104,7 +108,7 @@ class _GnssVisionIconPainter extends CustomPainter {
     if (!showOrbits) return;
 
     final ring3Paint = Paint()
-      ..color = const Color(0xFF67E8F9).withOpacity(0.6)
+      ..color = const Color(0xFF67E8F9).withOpacity(isDark ? 0.6 : 0.8)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5 * s;
 
@@ -116,7 +120,7 @@ class _GnssVisionIconPainter extends CustomPainter {
     canvas.restore();
 
     final ring2Paint = Paint()
-      ..color = const Color(0xFF9B8AFF).withOpacity(0.8)
+      ..color = const Color(0xFF9B8AFF).withOpacity(isDark ? 0.8 : 0.95)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.8 * s;
 
@@ -135,7 +139,7 @@ class _GnssVisionIconPainter extends CustomPainter {
     final path = _createPinPath(cx, centerY, radius, pointY, s);
 
     if (showGlow) {
-      canvas.drawShadow(path, primaryColor.withOpacity(0.4), 16 * s, true);
+      canvas.drawShadow(path, primaryColor.withOpacity(isDark ? 0.4 : 0.6), 16 * s, true);
     }
 
     final rect = Rect.fromCircle(center: Offset(cx, centerY), radius: radius);
@@ -266,16 +270,16 @@ class _GnssVisionIconPainter extends CustomPainter {
   ) {
     if (!showOrbits) return;
 
-    _drawDot(canvas, cx + rx, centerY, 7 * s, 12 * s, secondaryColor, 0.95, 0.2);
-    _drawDot(canvas, cx - rx, centerY, 7 * s, 12 * s, secondaryColor, 0.95, 0.2);
+    _drawDot(canvas, cx + rx, centerY, 7 * s, 12 * s, secondaryColor, 0.95, isDark ? 0.2 : 0.4);
+    _drawDot(canvas, cx - rx, centerY, 7 * s, 12 * s, secondaryColor, 0.95, isDark ? 0.2 : 0.4);
 
     final angle2 = (60 + orbitAngleOffset * 20) * pi / 180;
-    _drawDot(canvas, cx + rx * cos(angle2), centerY + ry * sin(angle2), 5.5 * s, 10 * s, const Color(0xFF9B8AFF), 0.9, 0.15);
-    _drawDot(canvas, cx + rx * cos(angle2 + pi), centerY + ry * sin(angle2 + pi), 5.5 * s, 10 * s, const Color(0xFF9B8AFF), 0.9, 0.15);
+    _drawDot(canvas, cx + rx * cos(angle2), centerY + ry * sin(angle2), 5.5 * s, 10 * s, const Color(0xFF9B8AFF), 0.9, isDark ? 0.15 : 0.3);
+    _drawDot(canvas, cx + rx * cos(angle2 + pi), centerY + ry * sin(angle2 + pi), 5.5 * s, 10 * s, const Color(0xFF9B8AFF), 0.9, isDark ? 0.15 : 0.3);
 
     final angle3 = (-60 + orbitAngleOffset * 30) * pi / 180;
-    _drawDot(canvas, cx + rx * cos(angle3), centerY + ry * sin(angle3), 5 * s, 9 * s, const Color(0xFF67E8F9), 0.75, 0.12);
-    _drawDot(canvas, cx + rx * cos(angle3 + pi), centerY + ry * sin(angle3 + pi), 5 * s, 9 * s, const Color(0xFF67E8F9), 0.75, 0.12);
+    _drawDot(canvas, cx + rx * cos(angle3), centerY + ry * sin(angle3), 5 * s, 9 * s, const Color(0xFF67E8F9), 0.75, isDark ? 0.12 : 0.25);
+    _drawDot(canvas, cx + rx * cos(angle3 + pi), centerY + ry * sin(angle3 + pi), 5 * s, 9 * s, const Color(0xFF67E8F9), 0.75, isDark ? 0.12 : 0.25);
   }
 
   void _drawDot(Canvas canvas, double x, double y, double innerR, double outerR, Color color, double innerOpacity, double outerOpacity) {
@@ -297,7 +301,8 @@ class _GnssVisionIconPainter extends CustomPainter {
         secondaryColor != old.secondaryColor ||
         showOrbits != old.showOrbits ||
         showSatellites != old.showSatellites ||
-        showGlow != old.showGlow;
+        showGlow != old.showGlow ||
+        isDark != old.isDark;
   }
 }
 
