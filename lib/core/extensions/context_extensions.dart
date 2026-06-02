@@ -62,6 +62,7 @@ extension BuildContextExtensions on BuildContext {
     Color? color,
     SnackBarAction? action,
     Duration duration = const Duration(seconds: 3),
+    bool isTop = false,
   }) {
     final snackBarColor = color ?? AppTheme.primaryColor;
     ScaffoldMessenger.of(this).showSnackBar(
@@ -89,12 +90,18 @@ extension BuildContextExtensions on BuildContext {
         duration: duration,
         action: action,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UIConsts.radiusMD)),
-        margin: EdgeInsets.fromLTRB(
-          horizontalPadding,
-          0,
-          horizontalPadding,
-          padding.bottom + UIConsts.spacingLG,
-        ),
+        margin: isTop
+            ? EdgeInsets.only(
+                left: horizontalPadding,
+                right: horizontalPadding,
+                bottom: screenHeight - padding.top - 100,
+              )
+            : EdgeInsets.fromLTRB(
+                horizontalPadding,
+                0,
+                horizontalPadding,
+                padding.bottom + UIConsts.spacingLG,
+              ),
       ),
     );
   }

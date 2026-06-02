@@ -96,12 +96,11 @@ class _TripDetailScreenState extends State<TripDetailScreen>
                       ],
                     ),
           floatingActionButton: !_showMediaViewer && _trip != null
-              ? FloatingActionButton.extended(
+              ? FloatingActionButton(
                   onPressed: () => _showAddMediaOptions(isDark),
-                  icon: const Icon(Icons.add_a_photo_rounded, color: Colors.white),
-                  label: const Text('Thêm kỷ niệm', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   backgroundColor: AppTheme.primaryColor,
                   elevation: 8,
+                  child: const Icon(Icons.add_a_photo_rounded, color: Colors.white),
                 )
               : null,
         );
@@ -196,16 +195,16 @@ class _TripDetailScreenState extends State<TripDetailScreen>
               children: [
                 _buildTripSummaryCard(isDark),
                 const SizedBox(height: 32),
-                _buildSectionHeader('Bản đồ lộ trình', Icons.map_outlined, isDark),
+                _buildSectionHeader('Bản đồ lộ trình', isDark),
                 const SizedBox(height: 16),
                 _buildMapCard(isDark),
                 const SizedBox(height: 32),
-                _buildSectionHeader('Chi tiết điểm đến', Icons.route_outlined, isDark),
+                _buildSectionHeader('Chi tiết điểm đến', isDark),
                 const SizedBox(height: 16),
                 _buildTimeline(isDark),
                 const SizedBox(height: 32),
                 if (_mediaFiles.isNotEmpty) ...[
-                  _buildSectionHeader('Ảnh & Video kỷ niệm', Icons.photo_library_outlined, isDark),
+                  _buildSectionHeader('Ảnh & Video kỷ niệm', isDark),
                   const SizedBox(height: 16),
                   _buildMediaGallery(isDark),
                 ],
@@ -339,11 +338,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
     );
   }
 
-  Widget _buildSectionHeader(String title, IconData icon, bool isDark) {
+  Widget _buildSectionHeader(String title, bool isDark) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: AppTheme.primaryColor),
-        const SizedBox(width: 10),
         Text(
           title,
           style: TextStyle(
@@ -363,7 +360,6 @@ class _TripDetailScreenState extends State<TripDetailScreen>
         children: [
           Expanded(
             child: _buildMetricItem(
-              icon: Icons.route_rounded,
               label: 'Quãng đường',
               value: _trip!.distance > 0 ? '${_trip!.distance.toStringAsFixed(1)}' : '--',
               unit: 'km',
@@ -374,7 +370,6 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           const SizedBox(width: 16),
           Expanded(
             child: _buildMetricItem(
-              icon: Icons.speed_rounded,
               label: 'Thời gian',
               value: _trip!.duration.isNotEmpty ? _trip!.duration.split(' ').first : '--',
               unit: _trip!.duration.isNotEmpty ? _trip!.duration.split(' ').last : 'phút',
@@ -388,7 +383,6 @@ class _TripDetailScreenState extends State<TripDetailScreen>
   }
 
   Widget _buildMetricItem({
-    required IconData icon,
     required String label,
     required String value,
     required String unit,
@@ -401,12 +395,6 @@ class _TripDetailScreenState extends State<TripDetailScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: AppTheme.iconContainerDecoration(isDark: isDark, color: color, radius: 12),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(height: 16),
           Text(
             label,
             style: TextStyle(color: AppTheme.adaptiveSubtext(isDark), fontSize: 13, fontWeight: FontWeight.w500),
@@ -448,8 +436,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
               onMapCreated: (mapboxMap) {
                 _mapboxMap = mapboxMap;
                 final mapTilesKey = dotenv.env['GOONG_MAPTILES_KEY'] ?? '';
+                final style = isDark ? 'navigation_night' : 'navigation_day';
                 _mapboxMap?.loadStyleURI(
-                  'https://tiles.goong.io/assets/navigation_night.json?api_key=$mapTilesKey',
+                  'https://tiles.goong.io/assets/$style.json?api_key=$mapTilesKey',
                 );
               },
               onStyleLoadedListener: (data) => _initializeMap(),

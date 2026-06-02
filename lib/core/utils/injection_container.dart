@@ -1,24 +1,30 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:get_it/get_it.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../features/auth/data/datasources/auth_remote_data_source.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
+import '../../features/auth/domain/usecases/authenticate_with_biometrics.dart';
 import '../../features/auth/domain/usecases/get_current_user.dart';
+import '../../features/auth/domain/usecases/is_biometric_enabled.dart';
 import '../../features/auth/domain/usecases/login_with_google.dart';
 import '../../features/auth/domain/usecases/logout.dart';
+import '../../features/auth/domain/usecases/set_biometric_enabled.dart';
+import '../../features/auth/domain/usecases/sign_in_silently.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 
 final sl = GetIt.instance;
 
 Future<void> init() async {
-  // Tránh đăng ký lại nếu đã được khởi tạo (hữu ích khi Activity restart)
+  // Tránh đăng ký lại nếu đã được khởi tạo
   if (sl.isRegistered<Box<Map>>(instanceName: 'tripsBox')) {
     return;
   }
   
-  // Đăng ký các dịch vụ ngoại vi một cách lười biếng (Lazy)
-  _initExternalDependencies();
+  // Đăng ký các dịch vụ ngoại vi
+  await _initExternalDependencies();
   
   initAuthFeature();
   initVisionFeature();
@@ -26,11 +32,18 @@ Future<void> init() async {
   initSharedServices();
 }
 
-void _initExternalDependencies() {
+Future<void> _initExternalDependencies() async {
   // Firebase Auth
   sl.registerLazySingleton(() => FirebaseAuth.instance);
 
-  // Sử dụng registerSingletonAsync nếu cần khởi tạo bất đồng bộ nhưng vẫn muốn đảm bảo duy nhất
+  // Local Auth
+  sl.registerLazySingleton(() => LocalAuthentication());
+
+  // SharedPreferences
+  final sharedPreferences = await SharedPreferences.getInstance();
+  sl.registerLazySingleton(() => sharedPreferences);
+
+  // Hive
   sl.registerSingletonAsync<Box<Map>>(
     () => Hive.openBox<Map>('trips'),
     instanceName: 'tripsBox',
@@ -44,7 +57,11 @@ void _initExternalDependencies() {
 void initAuthFeature() {
   // Data sources
   sl.registerLazySingleton<AuthRemoteDataSource>(
-    () => AuthRemoteDataSourceImpl(auth: sl()),
+    () => AuthRemoteDataSourceImpl(
+      auth: sl(),
+      localAuth: sl(),
+      sharedPreferences: sl(),
+    ),
   );
 
   // Repository
@@ -56,6 +73,10 @@ void initAuthFeature() {
   sl.registerLazySingleton(() => GetCurrentUserUseCase(sl()));
   sl.registerLazySingleton(() => LoginWithGoogleUseCase(sl()));
   sl.registerLazySingleton(() => LogoutUseCase(sl()));
+  sl.registerLazySingleton(() => AuthenticateWithBiometricsUseCase(sl()));
+  sl.registerLazySingleton(() => IsBiometricEnabledUseCase(sl()));
+  sl.registerLazySingleton(() => SetBiometricEnabledUseCase(sl()));
+  sl.registerLazySingleton(() => SignInSilentlyUseCase(sl()));
 
   // BLoC
   sl.registerFactory(
@@ -63,6 +84,10 @@ void initAuthFeature() {
       getCurrentUser: sl(),
       loginWithGoogle: sl(),
       logout: sl(),
+      authenticateWithBiometrics: sl(),
+      isBiometricEnabled: sl(),
+      setBiometricEnabled: sl(),
+      signInSilently: sl(),
     ),
   );
 }

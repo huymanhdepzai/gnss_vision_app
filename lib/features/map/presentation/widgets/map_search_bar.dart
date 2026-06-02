@@ -1,12 +1,14 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/app_theme.dart';
+import '../../../auth/domain/entities/user_entity.dart';
 import '../../data/datasources/goong_search_data_source.dart';
 import '../bloc/map_home_state.dart';
 
 class MapSearchBar extends StatelessWidget {
   final MapHomeState state;
   final bool isDark;
+  final UserEntity? user;
   final ValueChanged<String> onSearchChanged;
   final void Function(String placeId, String description) onSelectPlace;
   final VoidCallback onMenuTap;
@@ -20,6 +22,7 @@ class MapSearchBar extends StatelessWidget {
     Key? key,
     required this.state,
     required this.isDark,
+    this.user,
     required this.onSearchChanged,
     required this.onSelectPlace,
     required this.onMenuTap,
@@ -189,9 +192,9 @@ class MapSearchBar extends StatelessWidget {
                     icon: Icons.close_rounded,
                     isDark: isDark,
                     size: 16,
-                  ),
-                const SizedBox(width: 6),
-                _buildProfileAvatar(),
+                  )
+                else
+                  _buildProfileAvatar(),
               ],
             ),
           ),
@@ -208,30 +211,14 @@ class MapSearchBar extends StatelessWidget {
   }) {
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isDark
-              ? Colors.white.withOpacity(0.06)
-              : AppTheme.primaryColor.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-              color: isDark
-                  ? Colors.white.withOpacity(0.06)
-                  : AppTheme.primaryColor.withOpacity(0.08),
-              width: 1),
-          boxShadow: [
-            BoxShadow(
-                color: isDark
-                    ? Colors.white.withOpacity(0.02)
-                    : Colors.black.withOpacity(0.02),
-                blurRadius: 4,
-                offset: const Offset(0, 2))
-          ],
+        padding: const EdgeInsets.all(8),
+        child: Icon(
+          icon,
+          color: isDark ? Colors.white70 : AppTheme.primaryColor,
+          size: size,
         ),
-        child: Icon(icon,
-            color: isDark ? Colors.white70 : AppTheme.primaryColor,
-            size: size),
       ),
     );
   }
@@ -259,11 +246,17 @@ class MapSearchBar extends StatelessWidget {
                     offset: const Offset(-1, 1)),
               ],
             ),
-            child: const CircleAvatar(
-                radius: 17,
-                backgroundColor: Colors.transparent,
-                child: Icon(Icons.person_rounded,
-                    color: Colors.white, size: 19)),
+            child: CircleAvatar(
+              radius: 17,
+              backgroundColor: Colors.transparent,
+              backgroundImage: user?.photoUrl != null
+                  ? NetworkImage(user!.photoUrl!)
+                  : null,
+              child: user?.photoUrl == null
+                  ? const Icon(Icons.person_rounded,
+                      color: Colors.white, size: 19)
+                  : null,
+            ),
           ),
         );
       },
@@ -333,56 +326,80 @@ class MapSearchBar extends StatelessWidget {
                       highlightColor:
                           AppTheme.primaryColor.withOpacity(0.04),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: isDark
-                                      ? [
-                                          AppTheme.primaryColor
-                                              .withOpacity(0.15),
-                                          AppTheme.secondaryColor
-                                              .withOpacity(0.1)
-                                        ]
-                                      : [
-                                          AppTheme.primaryColor
-                                              .withOpacity(0.12),
-                                          AppTheme.secondaryColor
-                                              .withOpacity(0.06)
-                                        ],
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                      child: Row(
+                      children: [
+                        SizedBox(
+                          width: 55,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: isDark
+                                        ? [
+                                            AppTheme.primaryColor
+                                                .withOpacity(0.15),
+                                            AppTheme.secondaryColor
+                                                .withOpacity(0.1)
+                                          ]
+                                        : [
+                                            AppTheme.primaryColor
+                                                .withOpacity(0.12),
+                                            AppTheme.secondaryColor
+                                                .withOpacity(0.06)
+                                          ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                      color: isDark
+                                          ? AppTheme.primaryColor
+                                              .withOpacity(0.12)
+                                          : AppTheme.primaryColor
+                                              .withOpacity(0.1),
+                                      width: 1),
+                                  boxShadow: [
+                                    BoxShadow(
+                                        color: AppTheme.primaryColor
+                                            .withOpacity(
+                                                isDark ? 0.1 : 0.08),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 3))
+                                  ],
                                 ),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                    color: isDark
-                                        ? AppTheme.primaryColor
-                                            .withOpacity(0.12)
-                                        : AppTheme.primaryColor
-                                            .withOpacity(0.1),
-                                    width: 1),
-                                boxShadow: [
-                                  BoxShadow(
-                                      color: AppTheme.primaryColor.withOpacity(
-                                          isDark ? 0.1 : 0.08),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 3))
-                                ],
+                                child: ShaderMask(
+                                  shaderCallback: (bounds) => AppTheme
+                                      .primaryGradient
+                                      .createShader(bounds),
+                                  child: Icon(Icons.location_on_rounded,
+                                      color: Colors.white,
+                                      size: isDark ? 18 : 20),
+                                ),
                               ),
-                              child: ShaderMask(
-                                shaderCallback: (bounds) =>
-                                    AppTheme.primaryGradient
-                                        .createShader(bounds),
-                                child: Icon(Icons.location_on_rounded,
-                                    color: Colors.white,
-                                    size: isDark ? 18 : 20),
+                              const SizedBox(height: 4),
+                              Text(
+                                place.distance != null
+                                    ? _formatDistance(place.distance!)
+                                    : "dist",
+                                maxLines: 1,
+                                style: TextStyle(
+                                  color: isDark
+                                      ? AppTheme.secondaryColor
+                                      : AppTheme.primaryColor,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.5,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 14),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment:
@@ -415,23 +432,6 @@ class MapSearchBar extends StatelessWidget {
                                 ],
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.all(5),
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? Colors.white.withOpacity(0.04)
-                                    : AppTheme.primaryColor
-                                        .withOpacity(0.04),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                  Icons.chevron_right_rounded,
-                                  color: isDark
-                                      ? Colors.white.withOpacity(0.2)
-                                      : AppTheme.primaryColor
-                                          .withOpacity(0.4),
-                                  size: 18),
-                            ),
                           ],
                         ),
                       ),
@@ -445,4 +445,12 @@ class MapSearchBar extends StatelessWidget {
       ),
     );
   }
-}
+
+  String _formatDistance(double meters) {
+    if (meters < 1000) {
+      return '${meters.toInt()}m';
+    } else {
+      return '${(meters / 1000).toStringAsFixed(1)}km';
+    }
+  }
+  }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import '../app_theme.dart';
 
 class EntranceAnimation extends StatefulWidget {
@@ -564,4 +565,123 @@ class _SlideRevealState extends State<SlideReveal>
       ),
     );
   }
+}
+
+class ParticleBackground extends StatefulWidget {
+  final Color? particleColor;
+  final int particleCount;
+  final double baseSpeed;
+  final double maxRadius;
+
+  const ParticleBackground({
+    super.key,
+    this.particleColor,
+    this.particleCount = 30,
+    this.baseSpeed = 0.5,
+    this.maxRadius = 3.5,
+  });
+
+  @override
+  State<ParticleBackground> createState() => _ParticleBackgroundState();
+}
+
+class _ParticleBackgroundState extends State<ParticleBackground>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late List<Particle> _particles;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat();
+
+    _particles = List.generate(widget.particleCount, (_) => Particle());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return CustomPaint(
+          painter: ParticlePainter(
+            particles: _particles,
+            color: widget.particleColor ?? Colors.white.withOpacity(0.2),
+            maxRadius: widget.maxRadius,
+            speedFactor: widget.baseSpeed,
+          ),
+          child: const SizedBox.expand(),
+        );
+      },
+    );
+  }
+}
+
+class Particle {
+  double x = 0;
+  double y = 0;
+  double vx = 0;
+  double vy = 0;
+  double radius = 0;
+  final math.Random random = math.Random();
+
+  Particle() {
+    reset();
+  }
+
+  void reset() {
+    x = random.nextDouble();
+    y = random.nextDouble();
+    vx = (random.nextDouble() - 0.5) * 0.001;
+    vy = (random.nextDouble() - 0.5) * 0.001;
+    radius = random.nextDouble();
+  }
+
+  void update() {
+    x += vx;
+    y += vy;
+
+    if (x < 0 || x > 1) vx = -vx;
+    if (y < 0 || y > 1) vy = -vy;
+  }
+}
+
+class ParticlePainter extends CustomPainter {
+  final List<Particle> particles;
+  final Color color;
+  final double maxRadius;
+  final double speedFactor;
+
+  ParticlePainter({
+    required this.particles,
+    required this.color,
+    required this.maxRadius,
+    required this.speedFactor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+
+    for (var particle in particles) {
+      particle.update();
+      canvas.drawCircle(
+        Offset(particle.x * size.width, particle.y * size.height),
+        particle.radius * maxRadius,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

@@ -26,6 +26,7 @@ import '../widgets/map_place_sheet.dart';
 import '../widgets/map_navigation_top_bar.dart';
 import '../widgets/map_navigation_panel.dart';
 import '../widgets/map_floating_buttons.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 
 class MapHomeScreenV2 extends StatelessWidget {
   const MapHomeScreenV2({Key? key}) : super(key: key);
@@ -487,34 +488,42 @@ class _MapHomeViewState extends State<_MapHomeView>
                   ),
                   if (state.viewState == MapViewState.explore ||
                       state.viewState == MapViewState.placeDetail)
-                    MapSearchBar(
-                      state: state,
-                      isDark: isDark,
-                      onSearchChanged: (query) => context
-                          .read<MapHomeBloc>()
-                          .add(MapHomeSearchChanged(query)),
-                      onSelectPlace: _handleSelectPlace,
-                      onMenuTap: () => _scaffoldKey.currentState
-                          ?.openDrawer(),
-                      onBackTap: _handleResetToExplore,
-                      onClearSearch: () => context
-                          .read<MapHomeBloc>()
-                          .add(const MapHomeClearSearch()),
-                      onProfileTap: () {
-                        HapticFeedback.mediumImpact();
-                        Navigator.push(
-                            context,
-                            PageTransition(
-                                child: const TripManagerScreen(),
-                                type: PageTransitionType
-                                    .slideLeft));
+                    BlocBuilder<AuthBloc, AuthState>(
+                      builder: (context, authState) {
+                        final user = authState.maybeWhen(
+                          authenticated: (u, isBio) => u,
+                          orElse: () => null,
+                        );
+                        return MapSearchBar(
+                          state: state,
+                          isDark: isDark,
+                          user: user,
+                          onSearchChanged: (query) => context
+                              .read<MapHomeBloc>()
+                              .add(MapHomeSearchChanged(query)),
+                          onSelectPlace: _handleSelectPlace,
+                          onMenuTap: () =>
+                              _scaffoldKey.currentState?.openDrawer(),
+                          onBackTap: _handleResetToExplore,
+                          onClearSearch: () => context
+                              .read<MapHomeBloc>()
+                              .add(const MapHomeClearSearch()),
+                          onProfileTap: () {
+                            HapticFeedback.mediumImpact();
+                            Navigator.push(
+                                context,
+                                PageTransition(
+                                    child: const TripManagerScreen(),
+                                    type: PageTransitionType.slideLeft));
+                          },
+                          pulseAnimation: _pulseAnimation,
+                          padding: EdgeInsets.fromLTRB(
+                              16,
+                              MediaQuery.of(context).padding.top + 8,
+                              16,
+                              28),
+                        );
                       },
-                      pulseAnimation: _pulseAnimation,
-                      padding: EdgeInsets.fromLTRB(
-                          16,
-                          MediaQuery.of(context).padding.top + 8,
-                          16,
-                          28),
                     ),
                   if (state.viewState == MapViewState.navigating)
                     MapNavigationTopBar(

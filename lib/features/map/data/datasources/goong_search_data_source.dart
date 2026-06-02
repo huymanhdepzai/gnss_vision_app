@@ -8,12 +8,14 @@ class SearchResult {
   final String description;
   final String? mainText;
   final String? secondaryText;
+  final double? distance;
 
   const SearchResult({
     required this.placeId,
     required this.description,
     this.mainText,
     this.secondaryText,
+    this.distance,
   });
 }
 
@@ -58,23 +60,27 @@ class PlaceDetail extends Equatable {
 }
 
 abstract class GoongSearchDataSource {
-  Future<List<SearchResult>> autocomplete(String query, {double? lat, double? lng, double? radius});
+  Future<List<SearchResult>> autocomplete(String query,
+      {double? lat, double? lng, double? radius, String? origin});
   Future<PlaceDetail> getPlaceDetail(String placeId);
 }
 
 class GoongSearchDataSourceImpl implements GoongSearchDataSource {
   final http.Client _client;
 
-  GoongSearchDataSourceImpl({http.Client? client}) : _client = client ?? http.Client();
+  GoongSearchDataSourceImpl({http.Client? client})
+      : _client = client ?? http.Client();
 
   @override
-  Future<List<SearchResult>> autocomplete(String query, {double? lat, double? lng, double? radius}) async {
+  Future<List<SearchResult>> autocomplete(String query,
+      {double? lat, double? lng, double? radius, String? origin}) async {
     final apiKey = dotenv.env['GOONG_API_KEY'] ?? '';
     final queryParams = {
       'api_key': apiKey,
       'input': query,
       if (lat != null && lng != null) 'location': '$lat,$lng',
       if (radius != null) 'radius': radius.toString(),
+      if (origin != null) 'origin': origin,
     };
     final url = Uri.https('rsapi.goong.io', '/Place/AutoComplete', queryParams);
 
@@ -92,6 +98,11 @@ class GoongSearchDataSourceImpl implements GoongSearchDataSource {
         description: item['description']?.toString() ?? '',
         mainText: structured?['main_text']?.toString(),
         secondaryText: structured?['secondary_text']?.toString(),
+        distance: item['distance_meters'] != null
+            ? double.tryParse(item['distance_meters'].toString())
+            : (item['distance'] != null
+                ? double.tryParse(item['distance'].toString())
+                : null),
       );
     }).toList();
   }

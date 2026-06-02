@@ -13,54 +13,37 @@ import 'package:flutter_earth_globe/flutter_earth_globe_controller.dart';
 import 'package:flutter_earth_globe/point.dart';
 import 'package:flutter_earth_globe/globe_coordinates.dart';
 import 'package:flutter_earth_globe/point_connection.dart';
+import '../../domain/entities/satellite_data.dart';
 import '../../../../core/app_theme.dart';
 import '../../../../core/widgets/modern_ui.dart';
 import '../../../../core/widgets/modern_animations.dart';
 import '../../../../core/extensions/context_extensions.dart';
+import '../widgets/satellite_drawer.dart';
 import 'satellite_detail_page.dart';
 import 'satellite_export_list_page.dart';
-
-const Map<String, Color> kSatelliteSystemColors = {
-  'GPS': Color(0xFF00D4FF),
-  'GLONASS': Color(0xFFFF5252),
-  'GALILEO': Color(0xFFB388FF),
-  'BEIDOU': Color(0xFF69F0AE),
-  'QZSS': Color(0xFFFFAB40),
-};
-
-const Map<String, String> kSatelliteSystemLabels = {
-  'ALL': 'Tất cả',
-  'GPS': 'GPS',
-  'GLONASS': 'GLO',
-  'GALILEO': 'GAL',
-  'BEIDOU': 'BDS',
-  'QZSS': 'QZSS',
-};
-
-const List<String> kFilterSystems = ['ALL', 'GPS', 'GLONASS', 'GALILEO', 'BEIDOU'];
-
-class SatelliteData {
-  final int prn;
-  final double elevation;
-  final double azimuth;
-  final double snr;
-  final String system;
-  final bool usedInFix;
-
-  SatelliteData({
-    required this.prn,
-    required this.elevation,
-    required this.azimuth,
-    required this.snr,
-    required this.system,
-    required this.usedInFix,
-  });
-}
 
 class UserLocationData {
   final double latitude;
   final double longitude;
   UserLocationData({required this.latitude, required this.longitude});
+}
+
+class StarModel {
+  final double x;
+  final double y;
+  final double size;
+  final double twinkleSpeed;
+  final double twinkleOffset;
+  final bool isBright;
+
+  StarModel({
+    required this.x,
+    required this.y,
+    required this.size,
+    required this.twinkleSpeed,
+    required this.twinkleOffset,
+    this.isBright = false,
+  });
 }
 
 class SatelliteScreenV2 extends StatefulWidget {
@@ -75,6 +58,7 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   List<SatelliteData> _satellites = [];
   UserLocationData? _userLocation;
+  final List<StarModel> _stars = [];
 
   StreamSubscription? _gnssSubscription;
   Timer? _mockTimer;
@@ -101,9 +85,35 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
   @override
   void initState() {
     super.initState();
+    _initStars();
     _initAnimations();
     _initGlobeController();
     _initRealGnssData();
+  }
+
+  void _initStars() {
+    final random = Random();
+    // Background stars
+    for (int i = 0; i < 100; i++) {
+      _stars.add(StarModel(
+        x: random.nextDouble(),
+        y: random.nextDouble(),
+        size: random.nextDouble() * 1.5 + 0.5,
+        twinkleSpeed: random.nextDouble() * 2 + 1,
+        twinkleOffset: random.nextDouble() * pi * 2,
+      ));
+    }
+    // Bright stars
+    for (int i = 0; i < 15; i++) {
+      _stars.add(StarModel(
+        x: random.nextDouble(),
+        y: random.nextDouble(),
+        size: random.nextDouble() * 2 + 1.5,
+        twinkleSpeed: random.nextDouble() * 4 + 2,
+        twinkleOffset: random.nextDouble() * pi * 2,
+        isBright: true,
+      ));
+    }
   }
 
   void _initAnimations() {
@@ -469,185 +479,37 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
             _satellites.length
         : 0.0;
 
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: context.backgroundColor,
-      endDrawer: _buildSatelliteDrawer(context),
-      body: Stack(
-        children: [
-          _buildAnimatedBackground(),
-          SafeArea(
-            child: Column(
-              children: [
-                _buildAppBar(context),
-                SizedBox(height: UIConsts.spacingSM),
-                _buildStatsOverview(context, activeFixes, avgSnr),
-                Expanded(child: _buildMainView(context)),
-              ],
+    return Theme(
+      data: AppTheme.darkTheme,
+      child: Builder(
+        builder: (context) {
+          return Scaffold(
+            key: _scaffoldKey,
+            backgroundColor: context.backgroundColor,
+            endDrawer: SatelliteDrawer(
+              satellites: _satellites,
+              filteredSatellites: _filteredSatellites,
+              filterSystem: _filterSystem,
+              onFilterChanged: (sys) => setState(() => _filterSystem = sys),
+              onExportRawData: _exportRawData,
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDrawerDataActions(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: UIConsts.spacingXL),
-      child: Column(
-        children: [
-          ModernSectionHeader(
-            title: "DỮ LIỆU & LỊCH SỬ",
-            color: AppTheme.primaryColor,
-          ),
-          SizedBox(height: UIConsts.spacingMD),
-          Row(
-            children: [
-              Expanded(
-                child: _buildCompactDrawerAction(
-                  context,
-                  "XUẤT FILE",
-                  Icons.file_download_rounded,
-                  AppTheme.primaryColor,
-                  _exportRawData,
-                ),
-              ),
-              SizedBox(width: UIConsts.spacingMD),
-              Expanded(
-                child: _buildCompactDrawerAction(
-                  context,
-                  "LỊCH SỬ",
-                  Icons.folder_shared_rounded,
-                  AppTheme.secondaryColor,
-                  () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const SatelliteExportListPage()),
+            body: Stack(
+              children: [
+                _buildAnimatedBackground(),
+                SafeArea(
+                  child: Column(
+                    children: [
+                      _buildAppBar(context),
+                      SizedBox(height: UIConsts.spacingSM),
+                      _buildStatsOverview(context, activeFixes, avgSnr),
+                      Expanded(child: _buildMainView(context)),
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
-          SizedBox(height: UIConsts.spacingXL),
-          const ModernDivider(indent: 0, endIndent: 0),
-          SizedBox(height: UIConsts.spacingXL),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCompactDrawerAction(
-    BuildContext context,
-    String label,
-    IconData icon,
-    Color color,
-    VoidCallback onTap,
-  ) {
-    return PressScale(
-      onTap: () {
-        Navigator.pop(context);
-        onTap();
-      },
-      child: Container(
-        padding: EdgeInsets.symmetric(vertical: UIConsts.spacingMD),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(UIConsts.radiusLG),
-          border: Border.all(color: color.withOpacity(0.2)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 24),
-            SizedBox(height: UIConsts.spacingXS),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 10,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.5,
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSatelliteDrawer(BuildContext context) {
-    final filteredSats = _filteredSatellites;
-    return Drawer(
-      width: context.screenWidth * 0.85,
-      backgroundColor: Colors.transparent,
-      child: Container(
-        decoration: BoxDecoration(
-          color: context.cardColor.withOpacity(0.98),
-          borderRadius: const BorderRadius.horizontal(
-            left: Radius.circular(UIConsts.radius3XL),
-          ),
-          border: Border.all(
-            color: context.adaptiveOpacity(Colors.white, 0.1, 0.05),
-            width: 1,
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: EdgeInsets.all(UIConsts.spacingXL),
-                child: Row(
-                  children: [
-                    // ModernIconContainer(
-                    //   icon: Icons.satellite_alt_rounded,
-                    //   color: AppTheme.primaryColor,
-                    //   size: 40,
-                    //   iconSize: 20,
-                    // ),
-                    SizedBox(width: UIConsts.spacingMD),
-                    Text(
-                      "DANH SÁCH VỆ TINH",
-                      style: TextStyle(
-                        color: context.textColor,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1,
-                        height: 1.1,
-                      ),
-                    ),
-                    const Spacer(),
-                    PressScale(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        padding: EdgeInsets.all(UIConsts.spacingSM),
-                        decoration: BoxDecoration(
-                          color: context.adaptiveOpacity(Colors.white, 0.05, 0.03),
-                          borderRadius: BorderRadius.circular(UIConsts.radiusMD),
-                        ),
-                        child: Icon(Icons.close_rounded, color: context.iconSecondaryColor),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _buildDrawerDataActions(context),
-              _buildFilterChips(context),
-              SizedBox(height: UIConsts.spacingMD),
-              Expanded(
-                child: ListView.builder(
-                  padding: EdgeInsets.symmetric(horizontal: UIConsts.spacingXL),
-                  itemCount: filteredSats.length,
-                  itemBuilder: (context, index) {
-                    final sat = filteredSats[index];
-                    final color = sat.usedInFix
-                        ? _getSatelliteColor(sat.system)
-                        : Colors.grey;
-                    return _buildSatelliteListItem(context, sat, color, index);
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -657,7 +519,7 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
       animation: _shimmerController,
       builder: (context, child) {
         return CustomPaint(
-          painter: AnimatedStarFieldPainter(_shimmerController.value),
+          painter: AnimatedStarFieldPainter(_shimmerController.value, _stars),
           size: Size.infinite,
         );
       },
@@ -1458,133 +1320,14 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
                 itemCount: _satellites.length,
                 itemBuilder: (context, index) {
                   final sat = _satellites[index];
-                  final color = sat.usedInFix
-                      ? _getSatelliteColor(sat.system)
-                      : Colors.grey;
-                  return _buildSatelliteListItem(context, sat, color, index);
+                  return SatelliteListItem(
+                    sat: sat,
+                    index: index,
+                  );
                 },
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSatelliteListItem(
-      BuildContext context, SatelliteData sat, Color color, int index) {
-    return EntranceAnimation(
-      delay: Duration(milliseconds: index * 50),
-      duration: const Duration(milliseconds: 400),
-      type: EntranceType.fadeSlideLeft,
-      child: PressScale(
-        onTap: () {
-          HapticFeedback.mediumImpact();
-          Navigator.push(
-            context,
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) =>
-                  SatelliteDetailScreen(satellite: sat, themeColor: color),
-              transitionsBuilder:
-                  (context, animation, secondaryAnimation, child) {
-                return FadeTransition(opacity: animation, child: child);
-              },
-              transitionDuration: UIConsts.animSlow,
-            ),
-          );
-        },
-        child: Container(
-          margin: EdgeInsets.only(bottom: UIConsts.spacingSM),
-          padding: EdgeInsets.all(UIConsts.spacingLG - 2),
-          decoration: AppTheme.cardDecoration(
-            isDark: context.isDark,
-            accentColor: sat.usedInFix ? color : null,
-          ),
-          child: Row(
-            children: [
-              ModernAvatar(
-                initials: "#${sat.prn}",
-                color: color,
-                size: UIConsts.avatarSizeLG,
-              ),
-              SizedBox(width: UIConsts.spacingMD),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        ModernBadge(
-                          text: sat.system,
-                          color: color,
-                          fontSize: 9,
-                        ),
-                        SizedBox(width: UIConsts.spacingSM),
-                        if (sat.usedInFix)
-                          ModernBadge(
-                            text: "FIX",
-                            color: AppTheme.successColor,
-                            fontSize: 7,
-                          ),
-                      ],
-                    ),
-                    SizedBox(height: UIConsts.spacingXS),
-                    Row(
-                      children: [
-                        Icon(Icons.height_rounded,
-                            color: context.iconSecondaryColor,
-                            size: UIConsts.iconSizeXS),
-                        SizedBox(width: UIConsts.spacingXS),
-                        Text(
-                          "${sat.elevation.toStringAsFixed(1)}°",
-                          style: TextStyle(
-                              color: context.textSecondaryColor,
-                              fontSize: 11),
-                        ),
-                        SizedBox(width: UIConsts.spacingMD),
-                        Icon(Icons.explore_rounded,
-                            color: context.iconSecondaryColor,
-                            size: UIConsts.iconSizeXS),
-                        SizedBox(width: UIConsts.spacingXS),
-                        Text(
-                          "${sat.azimuth.toStringAsFixed(1)}°",
-                          style: TextStyle(
-                              color: context.textSecondaryColor,
-                              fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    "${sat.snr.toInt()}",
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                  Text(
-                    "dB-Hz",
-                    style: TextStyle(
-                      color: color.withOpacity(0.5),
-                      fontSize: 9,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(width: UIConsts.spacingXS),
-              Icon(Icons.chevron_right_rounded,
-                  color: context.iconSecondaryColor,
-                  size: UIConsts.iconSizeSM),
-            ],
-          ),
         ),
       ),
     );
@@ -1881,46 +1624,63 @@ class SignalQualityGaugePainter extends CustomPainter {
 
 class AnimatedStarFieldPainter extends CustomPainter {
   final double animationValue;
+  final List<StarModel> stars;
 
-  AnimatedStarFieldPainter(this.animationValue);
-
-  static final _random = Random(42);
+  AnimatedStarFieldPainter(this.animationValue, this.stars);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final random = _random;
-
-    for (int i = 0; i < 150; i++) {
-      double x = random.nextDouble() * size.width;
-      double y = random.nextDouble() * size.height;
-      double radius = random.nextDouble() * 1.5 + 0.5;
-
-      double twinkle = sin(animationValue * pi * 2 + i * 0.5) * 0.15 + 0.85;
-      double opacity = (random.nextDouble() * 0.25 + 0.15) * twinkle;
-
-      final paint = Paint()
-        ..color = Colors.white.withOpacity(opacity.clamp(0.0, 1.0))
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0.5);
-
-      canvas.drawCircle(Offset(x, y), radius, paint);
+    for (var star in stars) {
+      final x = star.x * size.width;
+      final y = star.y * size.height;
+      
+      // Advanced organic twinkle logic using individual star properties
+      // Mix of two sine waves for more irregular, natural feel
+      double twinkle = sin(animationValue * pi * star.twinkleSpeed + star.twinkleOffset) * 0.5 + 0.5;
+      
+      if (star.isBright) {
+        // Bright stars with subtle glow
+        final opacity = (0.3 + twinkle * 0.4).clamp(0.0, 1.0);
+        
+        // Outer glow
+        canvas.drawCircle(
+          Offset(x, y), 
+          star.size * 2.5, 
+          Paint()
+            ..color = Colors.white.withOpacity(opacity * 0.15)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3)
+        );
+        
+        // Core
+        canvas.drawCircle(
+          Offset(x, y), 
+          star.size, 
+          Paint()..color = Colors.white.withOpacity(opacity)
+        );
+      } else {
+        // Dim background stars
+        final opacity = (0.1 + twinkle * 0.2).clamp(0.0, 1.0);
+        canvas.drawCircle(
+          Offset(x, y), 
+          star.size, 
+          Paint()..color = Colors.white.withOpacity(opacity)
+        );
+      }
     }
 
-    for (int i = 0; i < 20; i++) {
-      double x = random.nextDouble() * size.width;
-      double y = random.nextDouble() * size.height;
-
-      double pulse = sin(animationValue * pi * 2 + i) * 0.3 + 0.5;
-
-      final paint = Paint()
-        ..color = AppTheme.primaryColor.withOpacity(0.08 * pulse)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
-
-      canvas.drawCircle(Offset(x, y), 2 + pulse * 1.5, paint);
-    }
+    // Occasional subtle nebula pulse (using global animation)
+    final nebulaOpacity = (sin(animationValue * pi) * 0.02 + 0.03).clamp(0.0, 1.0);
+    final paint = Paint()
+      ..color = AppTheme.primaryColor.withOpacity(nebulaOpacity)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 40);
+    
+    canvas.drawCircle(Offset(size.width * 0.3, size.height * 0.2), 150, paint);
+    canvas.drawCircle(Offset(size.width * 0.8, size.height * 0.7), 120, paint);
   }
 
   @override
-  bool shouldRepaint(covariant AnimatedStarFieldPainter oldDelegate) => true;
+  bool shouldRepaint(covariant AnimatedStarFieldPainter oldDelegate) => 
+    oldDelegate.animationValue != animationValue;
 }
 
 class OrbitalRingsPainter extends CustomPainter {

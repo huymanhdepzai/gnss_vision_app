@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ThemeProvider extends ChangeNotifier {
   static const String _themeKey = 'theme_mode';
 
-  bool _isDarkMode = true;
+  bool _isDarkMode = false;
   bool _isLoading = true;
 
   bool get isDarkMode => _isDarkMode;
@@ -23,11 +23,11 @@ class ThemeProvider extends ChangeNotifier {
       if (savedTheme != null) {
         _isDarkMode = savedTheme;
       } else {
-        _isDarkMode = true;
+        _isDarkMode = false;
       }
     } catch (e) {
       debugPrint('Error loading theme: $e');
-      _isDarkMode = true;
+      _isDarkMode = false;
     } finally {
       _isLoading = false;
       notifyListeners();

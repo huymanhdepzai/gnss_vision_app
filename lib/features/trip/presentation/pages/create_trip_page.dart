@@ -11,6 +11,9 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/app_theme.dart';
 import '../../../../core/providers/theme_provider.dart';
+import '../../../../core/widgets/modern_ui.dart';
+import '../../../../core/widgets/modern_animations.dart';
+import '../../../../core/extensions/context_extensions.dart';
 import '../controllers/trip_controller.dart';
 
 enum SelectionMode { start, end, none }
@@ -101,10 +104,16 @@ class _CreateTripScreenState extends State<CreateTripScreen>
 
   void _onMapCreated(MapboxMap mapboxMap) {
     _mapboxMap = mapboxMap;
+    _updateMapStyle();
+  }
+
+  void _updateMapStyle() {
     final mapTilesKey = dotenv.env['GOONG_MAPTILES_KEY'] ?? '';
+    final isDark = context.read<ThemeProvider>().isDarkMode;
+    final style = isDark ? 'navigation_night' : 'navigation_day';
 
     _mapboxMap?.loadStyleURI(
-      'https://tiles.goong.io/assets/navigation_night.json?api_key=$mapTilesKey',
+      'https://tiles.goong.io/assets/$style.json?api_key=$mapTilesKey',
     );
   }
 
@@ -114,6 +123,10 @@ class _CreateTripScreenState extends State<CreateTripScreen>
 
     if (_isLocationLoaded) {
       _updateCamera(_currentLocation, 14.0);
+    }
+    
+    if (_startLocation != null || _endLocation != null) {
+      _drawMarkers();
     }
   }
 
@@ -135,7 +148,6 @@ class _CreateTripScreenState extends State<CreateTripScreen>
     final coords = pointMap['coordinates'] as List<dynamic>;
     if (coords.length < 2) return;
     
-    // GeoJSON order is [longitude, latitude]
     final position = Position(coords[0] as num, coords[1] as num);
 
     setState(() {
@@ -398,42 +410,64 @@ class _CreateTripScreenState extends State<CreateTripScreen>
 
   Widget _buildSelectionIndicator(bool isDark) {
     return Positioned(
-      bottom: 400, // Above panel
-      left: 0,
-      right: 0,
-      child: Center(
+      bottom: 420, 
+      left: UIConsts.spacingXL,
+      right: UIConsts.spacingXL,
+      child: EntranceAnimation(
+        type: EntranceType.fadeSlideUp,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           decoration: AppTheme.glassDecoration(
             isDark: isDark,
             tintColor: AppTheme.primaryColor,
+          ).copyWith(
+            borderRadius: BorderRadius.circular(UIConsts.radiusFull),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primaryColor.withOpacity(0.4),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              PulseWidget(
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
                 ),
               ),
-              const SizedBox(width: 12),
-              Text(
-                _selectionMode == SelectionMode.start 
-                    ? 'Chọn điểm bắt đầu trên bản đồ' 
-                    : 'Chọn điểm kết thúc trên bản đồ',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  _selectionMode == SelectionMode.start 
+                      ? 'Chạm vào bản đồ để chọn điểm BẮT ĐẦU' 
+                      : 'Chạm vào bản đồ để chọn điểm KẾT THÚC',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    letterSpacing: 0.2,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               GestureDetector(
                 onTap: () => setState(() => _selectionMode = SelectionMode.none),
-                child: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close_rounded, color: Colors.white, size: 16),
+                ),
               ),
             ],
           ),
@@ -460,7 +494,7 @@ class _CreateTripScreenState extends State<CreateTripScreen>
             end: Alignment.bottomCenter,
             colors: [
               AppTheme.adaptiveBackground(isDark).withOpacity(0.9),
-              AppTheme.adaptiveBackground(isDark).withOpacity(0.7),
+              AppTheme.adaptiveBackground(isDark).withOpacity(0.4),
               Colors.transparent,
             ],
           ),
@@ -469,14 +503,12 @@ class _CreateTripScreenState extends State<CreateTripScreen>
           children: [
             Row(
               children: [
-                IconButton(
-                  icon: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: AppTheme.iconContainerDecoration(
-                      isDark: isDark,
-                      color: Colors.grey,
-                    ).copyWith(
-                      color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.02),
+                PressScale(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: AppTheme.glassDecoration(isDark: isDark).copyWith(
+                      borderRadius: BorderRadius.circular(UIConsts.radiusMD),
                     ),
                     child: Icon(
                       Icons.arrow_back_ios_new_rounded,
@@ -484,85 +516,92 @@ class _CreateTripScreenState extends State<CreateTripScreen>
                       size: 16,
                     ),
                   ),
-                  onPressed: () => Navigator.pop(context),
                 ),
-                const SizedBox(width: UIConsts.spacingSM),
+                const SizedBox(width: UIConsts.spacingLG),
                 Expanded(
                   child: Text(
                     'Lên Lịch Trình',
                     style: TextStyle(
                       color: AppTheme.adaptiveText(isDark),
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.8,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: UIConsts.spacingLG),
-            AnimatedContainer(
-              duration: UIConsts.animNormal,
-              decoration: AppTheme.glassDecoration(isDark: isDark).copyWith(
-                borderRadius: BorderRadius.circular(UIConsts.radiusLG),
-                border: Border.all(
-                  color: _selectionMode != SelectionMode.none
-                      ? AppTheme.primaryColor.withOpacity(0.5)
-                      : (isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
-                  width: _selectionMode != SelectionMode.none ? 2 : 1,
-                ),
-              ),
-              child: TextField(
-                controller: _searchController,
-                onChanged: _onSearchChanged,
-                style: TextStyle(
-                  color: AppTheme.adaptiveText(isDark),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-                decoration: InputDecoration(
-                  hintText: _selectionMode == SelectionMode.start
-                      ? 'Tìm điểm bắt đầu...'
-                      : _selectionMode == SelectionMode.end
-                      ? 'Tìm điểm kết thúc...'
-                      : 'Tìm kiếm địa điểm...',
-                  hintStyle: TextStyle(
-                    color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.5),
-                    fontSize: 15,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: UIConsts.spacingLG,
-                    vertical: UIConsts.spacingMD,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search_rounded,
-                    color: _selectionMode != SelectionMode.none 
-                        ? AppTheme.primaryColor 
-                        : AppTheme.adaptiveSubtext(isDark),
-                    size: 20,
-                  ),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(Icons.clear_rounded, color: AppTheme.adaptiveSubtext(isDark), size: 18),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _searchResults = []);
-                          },
-                        )
-                      : _isSearching
-                      ? Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-                          ),
-                        )
-                      : null,
-                ),
-              ),
-            ),
+            const SizedBox(height: UIConsts.spacingXL),
+            _buildSearchBar(isDark),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(bool isDark) {
+    return EntranceAnimation(
+      delay: const Duration(milliseconds: 200),
+      child: Container(
+        decoration: AppTheme.glassDecoration(isDark: isDark).copyWith(
+          borderRadius: BorderRadius.circular(UIConsts.radiusLG),
+          border: Border.all(
+            color: _selectionMode != SelectionMode.none
+                ? AppTheme.primaryColor.withOpacity(0.5)
+                : (isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
+            width: _selectionMode != SelectionMode.none ? 2 : 1,
+          ),
+        ),
+        child: TextField(
+          controller: _searchController,
+          onChanged: _onSearchChanged,
+          style: TextStyle(
+            color: AppTheme.adaptiveText(isDark),
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+          decoration: InputDecoration(
+            hintText: _selectionMode == SelectionMode.start
+                ? 'Tìm điểm bắt đầu...'
+                : _selectionMode == SelectionMode.end
+                ? 'Tìm điểm kết thúc...'
+                : 'Tìm kiếm địa điểm...',
+            hintStyle: TextStyle(
+              color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.4),
+              fontSize: 15,
+            ),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: UIConsts.spacingLG,
+              vertical: 14,
+            ),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              color: _selectionMode != SelectionMode.none 
+                  ? AppTheme.primaryColor 
+                  : AppTheme.adaptiveSubtext(isDark),
+              size: 22,
+            ),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? IconButton(
+                    icon: Icon(Icons.clear_rounded, color: AppTheme.adaptiveSubtext(isDark), size: 18),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _searchResults = []);
+                    },
+                  )
+                : _isSearching
+                ? Container(
+                    width: 20,
+                    height: 20,
+                    padding: const EdgeInsets.all(14),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                    ),
+                  )
+                : null,
+          ),
         ),
       ),
     );
@@ -573,127 +612,117 @@ class _CreateTripScreenState extends State<CreateTripScreen>
       top: MediaQuery.of(context).padding.top + 140,
       left: UIConsts.spacingLG,
       right: UIConsts.spacingLG,
-      child: Container(
-        constraints: const BoxConstraints(maxHeight: 380),
-        decoration: BoxDecoration(
-          color: AppTheme.adaptiveSurface(isDark),
-          borderRadius: BorderRadius.circular(UIConsts.radiusXL),
-          border: Border.all(
-            color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.adaptiveShadow(isDark).withOpacity(isDark ? 0.6 : 0.15),
-              blurRadius: 30,
-              spreadRadius: 2,
-              offset: const Offset(0, 12),
+      child: EntranceAnimation(
+        type: EntranceType.fadeSlideUp,
+        child: Container(
+          constraints: const BoxConstraints(maxHeight: 400),
+          decoration: BoxDecoration(
+            color: AppTheme.adaptiveSurface(isDark).withOpacity(0.98),
+            borderRadius: BorderRadius.circular(UIConsts.radius2XL),
+            border: Border.all(
+              color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05),
+              width: 1,
             ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(UIConsts.radiusXL),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_isSearching && _searchResults.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(UIConsts.spacing2XL),
-                  child: Column(
-                    children: [
-                      const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-                        ),
-                      ),
-                      const SizedBox(height: UIConsts.spacingLG),
-                      Text(
-                        'Đang tìm kiếm địa điểm...',
-                        style: TextStyle(
-                          color: AppTheme.adaptiveSubtext(isDark),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              else
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.symmetric(vertical: UIConsts.spacingSM),
-                    itemCount: _searchResults.length,
-                    separatorBuilder: (_, __) => Divider(
-                      height: 1,
-                      indent: 72,
-                      endIndent: UIConsts.spacingLG,
-                      color: AppTheme.adaptiveDivier(isDark),
-                    ),
-                    itemBuilder: (context, index) {
-                      var place = _searchResults[index];
-                      String mainText = place['structured_formatting']?['main_text'] ?? place['description'] ?? "";
-                      String secondaryText = place['structured_formatting']?['secondary_text'] ?? "";
-
-                      return Material(
-                        color: Colors.transparent,
-                        child: ListTile(
-                          onTap: () => _selectPlace(place['place_id'], place['description']),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: UIConsts.spacingLG,
-                            vertical: 4,
-                          ),
-                          leading: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: AppTheme.iconContainerDecoration(
-                              isDark: isDark,
-                              color: AppTheme.secondaryColor,
-                            ),
-                            child: const Icon(
-                              Icons.location_on_rounded,
-                              color: AppTheme.secondaryColor,
-                              size: 20,
-                            ),
-                          ),
-                          title: Text(
-                            mainText,
-                            style: TextStyle(
-                              color: AppTheme.adaptiveText(isDark),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.2,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: secondaryText.isNotEmpty
-                              ? Text(
-                                  secondaryText,
-                                  style: TextStyle(
-                                    color: AppTheme.adaptiveSubtext(isDark),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                )
-                              : null,
-                          trailing: Icon(
-                            Icons.chevron_right_rounded,
-                            color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.3),
-                            size: 20,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.adaptiveShadow(isDark).withOpacity(isDark ? 0.6 : 0.2),
+                blurRadius: 40,
+                spreadRadius: 2,
+                offset: const Offset(0, 20),
+              ),
             ],
           ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(UIConsts.radius2XL),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_isSearching && _searchResults.isEmpty)
+                    _buildSearchLoading(isDark)
+                  else
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.symmetric(vertical: UIConsts.spacingSM),
+                        itemCount: _searchResults.length,
+                        separatorBuilder: (_, __) => ModernDivider(isDark: isDark, indent: 72),
+                        itemBuilder: (context, index) {
+                          var place = _searchResults[index];
+                          String mainText = place['structured_formatting']?['main_text'] ?? place['description'] ?? "";
+                          String secondaryText = place['structured_formatting']?['secondary_text'] ?? "";
+
+                          return ListTile(
+                            onTap: () => _selectPlace(place['place_id'], place['description']),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                            leading: ModernIconContainer(
+                              icon: Icons.location_on_rounded,
+                              color: AppTheme.primaryColor,
+                              size: 40,
+                              iconSize: 18,
+                            ),
+                            title: Text(
+                              mainText,
+                              style: TextStyle(
+                                color: AppTheme.adaptiveText(isDark),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              secondaryText,
+                              style: TextStyle(
+                                color: AppTheme.adaptiveSubtext(isDark),
+                                fontSize: 12,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.2),
+                              size: 14,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSearchLoading(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.all(40),
+      child: Column(
+        children: [
+          const SizedBox(
+            width: 32,
+            height: 32,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Đang tìm kiếm...',
+            style: TextStyle(
+              color: AppTheme.adaptiveSubtext(isDark),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -707,59 +736,80 @@ class _CreateTripScreenState extends State<CreateTripScreen>
         animation: _panelSlideAnimation,
         builder: (context, child) {
           return Transform.translate(
-            offset: Offset(0, 400 * _panelSlideAnimation.value),
+            offset: Offset(0, 500 * _panelSlideAnimation.value),
             child: child,
           );
         },
         child: Container(
           decoration: BoxDecoration(
-            color: AppTheme.adaptiveSurface(isDark),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(UIConsts.radius3XL)),
+            color: AppTheme.adaptiveSurface(isDark).withOpacity(0.95),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
             boxShadow: [
               BoxShadow(
-                color: AppTheme.adaptiveShadow(isDark).withOpacity(0.2),
+                color: AppTheme.adaptiveShadow(isDark).withOpacity(0.3),
                 blurRadius: 40,
                 offset: const Offset(0, -10),
               ),
             ],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.symmetric(vertical: UIConsts.spacingMD),
-                decoration: BoxDecoration(
-                  color: AppTheme.adaptiveDivier(isDark),
-                  borderRadius: BorderRadius.circular(2),
-                ),
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildHandle(isDark),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(24, 0, 24, MediaQuery.of(context).padding.bottom + 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionLabel(isDark, "THÔNG TIN HÀNH TRÌNH"),
+                        const SizedBox(height: 12),
+                        _buildTitleInput(isDark),
+                        const SizedBox(height: 24),
+                        _buildSectionLabel(isDark, "ĐIỂM ĐI & ĐIỂM ĐẾN"),
+                        const SizedBox(height: 12),
+                        _buildLocationSelectors(isDark),
+                        if (_startLocation != null && _endLocation != null) ...[
+                          const SizedBox(height: 24),
+                          _buildTripSummary(isDark),
+                        ],
+                        const SizedBox(height: 32),
+                        _buildCreateButton(isDark),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  UIConsts.spacingXL,
-                  0,
-                  UIConsts.spacingXL,
-                  MediaQuery.of(context).padding.bottom + UIConsts.spacingXL,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildTitleInput(isDark),
-                    const SizedBox(height: UIConsts.spacingXL),
-                    _buildLocationSelectors(isDark),
-                    if (_startLocation != null && _endLocation != null) ...[
-                      const SizedBox(height: UIConsts.spacingXL),
-                      _buildTripSummary(isDark),
-                    ],
-                    const SizedBox(height: UIConsts.spacing2XL),
-                    _buildCreateButton(isDark),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildHandle(bool isDark) {
+    return Container(
+      width: 40,
+      height: 4,
+      margin: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: AppTheme.adaptiveDivier(isDark).withOpacity(0.2),
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
+
+  Widget _buildSectionLabel(bool isDark, String label) {
+    return Text(
+      label,
+      style: TextStyle(
+        color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.5),
+        fontSize: 10,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 1.5,
       ),
     );
   }
@@ -767,7 +817,7 @@ class _CreateTripScreenState extends State<CreateTripScreen>
   Widget _buildTitleInput(bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+        color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02),
         borderRadius: BorderRadius.circular(UIConsts.radiusLG),
         border: Border.all(color: AppTheme.adaptiveDivier(isDark)),
       ),
@@ -775,30 +825,27 @@ class _CreateTripScreenState extends State<CreateTripScreen>
         controller: _titleController,
         style: TextStyle(
           color: AppTheme.adaptiveText(isDark),
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
+          fontSize: 17,
+          fontWeight: FontWeight.w700,
         ),
         onChanged: (_) => setState(() {}),
         decoration: InputDecoration(
-          hintText: 'Tên hành trình (ví dụ: Chuyến đi Đà Lạt)',
+          hintText: 'Tên chuyến đi của bạn...',
           hintStyle: TextStyle(
-            color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.5),
-            fontSize: 15,
-            fontWeight: FontWeight.w400,
+            color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.3),
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
           ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: UIConsts.spacingLG,
-            vertical: UIConsts.spacingMD,
-          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           prefixIcon: Container(
-            margin: const EdgeInsets.all(8),
+            margin: const EdgeInsets.all(10),
             padding: const EdgeInsets.all(8),
             decoration: AppTheme.iconContainerDecoration(
               isDark: isDark,
               color: AppTheme.primaryColor,
             ),
-            child: const Icon(Icons.edit_rounded, color: Colors.white, size: 16),
+            child: const Icon(Icons.edit_note_rounded, color: Colors.white, size: 18),
           ),
         ),
       ),
@@ -806,41 +853,49 @@ class _CreateTripScreenState extends State<CreateTripScreen>
   }
 
   Widget _buildLocationSelectors(bool isDark) {
-    return IntrinsicHeight(
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildLocationBox(
-              icon: Icons.circle,
-              color: AppTheme.primaryColor,
-              label: 'Bắt đầu',
-              address: _startAddress.isNotEmpty ? _startAddress : 'Chưa chọn',
-              isSelected: _selectionMode == SelectionMode.start,
-              hasValue: _startLocation != null,
-              onTap: () => setState(() => _selectionMode = SelectionMode.start),
-              onLongPress: _isLocationLoaded ? _useCurrentLocationAsStart : null,
-              isDark: isDark,
+    return Column(
+      children: [
+        _buildLocationRow(
+          isStart: true,
+          icon: Icons.my_location_rounded,
+          color: AppTheme.primaryColor,
+          label: 'Điểm bắt đầu',
+          address: _startAddress.isNotEmpty ? _startAddress : 'Chọn điểm khởi hành...',
+          isSelected: _selectionMode == SelectionMode.start,
+          hasValue: _startLocation != null,
+          onTap: () => setState(() => _selectionMode = SelectionMode.start),
+          onLongPress: _isLocationLoaded ? _useCurrentLocationAsStart : null,
+          isDark: isDark,
+        ),
+        Container(
+          margin: const EdgeInsets.only(left: 38),
+          height: 20,
+          width: 2,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [AppTheme.primaryColor.withOpacity(0.5), AppTheme.accentColor.withOpacity(0.5)],
             ),
           ),
-          const SizedBox(width: UIConsts.spacingMD),
-          Expanded(
-            child: _buildLocationBox(
-              icon: Icons.location_on_rounded,
-              color: AppTheme.accentColor,
-              label: 'Kết thúc',
-              address: _endAddress.isNotEmpty ? _endAddress : 'Chưa chọn',
-              isSelected: _selectionMode == SelectionMode.end,
-              hasValue: _endLocation != null,
-              onTap: () => setState(() => _selectionMode = SelectionMode.end),
-              isDark: isDark,
-            ),
-          ),
-        ],
-      ),
+        ),
+        _buildLocationRow(
+          isStart: false,
+          icon: Icons.location_on_rounded,
+          color: AppTheme.accentColor,
+          label: 'Điểm kết thúc',
+          address: _endAddress.isNotEmpty ? _endAddress : 'Chọn điểm đến...',
+          isSelected: _selectionMode == SelectionMode.end,
+          hasValue: _endLocation != null,
+          onTap: () => setState(() => _selectionMode = SelectionMode.end),
+          isDark: isDark,
+        ),
+      ],
     );
   }
 
-  Widget _buildLocationBox({
+  Widget _buildLocationRow({
+    required bool isStart,
     required IconData icon,
     required Color color,
     required String label,
@@ -856,60 +911,59 @@ class _CreateTripScreenState extends State<CreateTripScreen>
       onLongPress: onLongPress,
       child: AnimatedContainer(
         duration: UIConsts.animNormal,
-        padding: const EdgeInsets.all(UIConsts.spacingMD),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: isSelected 
-              ? color.withOpacity(0.12) 
-              : (isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02)),
+              ? color.withOpacity(0.08) 
+              : (isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.01)),
           borderRadius: BorderRadius.circular(UIConsts.radiusLG),
           border: Border.all(
             color: isSelected ? color : AppTheme.adaptiveDivier(isDark),
-            width: isSelected ? 2 : 1,
+            width: isSelected ? 1.5 : 1,
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Row(
-              children: [
-                Icon(icon, color: color, size: 14),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: AppTheme.adaptiveSubtext(isDark),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const Spacer(),
-                if (hasValue)
-                  const Icon(Icons.check_circle_rounded, color: AppTheme.successColor, size: 16),
-              ],
-            ),
-            const SizedBox(height: UIConsts.spacingSM),
-            Text(
-              address,
-              style: TextStyle(
-                color: AppTheme.adaptiveText(isDark),
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+              child: Icon(icon, color: color, size: 18),
             ),
-            if (onLongPress != null && !hasValue)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  'Giữ để dùng vị trí hiện tại',
-                  style: TextStyle(
-                    color: color.withOpacity(0.7),
-                    fontSize: 9,
-                    fontWeight: FontWeight.w500,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label.toUpperCase(),
+                    style: TextStyle(
+                      color: color.withOpacity(0.8),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 4),
+                  Text(
+                    address,
+                    style: TextStyle(
+                      color: hasValue ? AppTheme.adaptiveText(isDark) : AppTheme.adaptiveSubtext(isDark).withOpacity(0.5),
+                      fontSize: 14,
+                      fontWeight: hasValue ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
+            ),
+            if (hasValue)
+              const Icon(Icons.check_circle_rounded, color: AppTheme.successColor, size: 20)
+            else
+              Icon(Icons.add_location_alt_outlined, color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.3), size: 18),
           ],
         ),
       ),
@@ -918,27 +972,35 @@ class _CreateTripScreenState extends State<CreateTripScreen>
 
   Widget _buildTripSummary(bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(UIConsts.spacingLG),
-      decoration: AppTheme.iconContainerDecoration(
-        isDark: isDark,
-        color: AppTheme.secondaryColor,
-      ).copyWith(
-        borderRadius: BorderRadius.circular(UIConsts.radiusLG),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.secondaryColor.withOpacity(0.15),
+            AppTheme.secondaryColor.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(UIConsts.radiusXL),
+        border: Border.all(color: AppTheme.secondaryColor.withOpacity(0.2)),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildSummaryItem(
-            icon: Icons.straighten_rounded,
+            icon: Icons.route_rounded,
             value: _distance.isNotEmpty ? _distance : '-- km',
-            label: 'Khoảng cách',
+            label: 'QUÃNG ĐƯỜNG',
             isDark: isDark,
           ),
-          Container(width: 1, height: 30, color: AppTheme.secondaryColor.withOpacity(0.2)),
+          Container(
+            width: 1,
+            height: 30,
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            color: AppTheme.secondaryColor.withOpacity(0.1),
+          ),
           _buildSummaryItem(
-            icon: Icons.timer_outlined,
+            icon: Icons.schedule_rounded,
             value: _duration.isNotEmpty ? _duration : '-- phút',
-            label: 'Thời gian',
+            label: 'THỜI GIAN',
             isDark: isDark,
           ),
         ],
@@ -952,74 +1014,49 @@ class _CreateTripScreenState extends State<CreateTripScreen>
     required String label,
     required bool isDark,
   }) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Icon(icon, color: AppTheme.secondaryColor, size: 16),
-            const SizedBox(width: 8),
-            Text(
-              value,
-              style: TextStyle(
-                color: AppTheme.adaptiveText(isDark),
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: AppTheme.secondaryColor, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                value,
+                style: TextStyle(
+                  color: AppTheme.adaptiveText(isDark),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'monospace',
+                ),
               ),
-            ),
-          ],
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            color: AppTheme.adaptiveSubtext(isDark),
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
+            ],
           ),
-        ),
-      ],
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              color: AppTheme.secondaryColor.withOpacity(0.7),
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildCreateButton(bool isDark) {
     final canCreate = _canCreateTrip;
 
-    return Container(
-      width: double.infinity,
-      decoration: canCreate 
-          ? AppTheme.gradientButtonDecoration(
-              gradient: AppTheme.primaryGradient,
-              isDark: isDark,
-            )
-          : BoxDecoration(
-              color: AppTheme.adaptiveDivier(isDark),
-              borderRadius: BorderRadius.circular(UIConsts.radiusLG),
-            ),
-      child: ElevatedButton(
-        onPressed: canCreate ? _createTrip : null,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UIConsts.radiusLG)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (canCreate)
-              const Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 20),
-            const SizedBox(width: 12),
-            Text(
-              'Xác Nhận Lên Lịch',
-              style: TextStyle(
-                color: canCreate ? Colors.white : AppTheme.adaptiveSubtext(isDark),
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return ModernButton(
+      text: 'XÁC NHẬN LÊN LỊCH',
+      onPressed: canCreate ? _createTrip : null,
+      icon: Icons.check_circle_outline_rounded,
+      color: AppTheme.primaryColor,
+      borderRadius: UIConsts.radiusXL,
     );
   }
 }
