@@ -211,20 +211,13 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppTheme.backgroundDark,
+      backgroundColor: isDark ? AppTheme.backgroundDark : AppTheme.backgroundLight,
       body: Stack(
         children: [
-          AnimatedBuilder(
-            animation: _particleController,
-            builder: (context, child) {
-              return CustomPaint(
-                painter: ParticleBackgroundPainter(_particleController.value),
-                size: Size.infinite,
-              );
-            },
-          ),
-          ..._buildAmbientGlows(),
+          ..._buildAmbientGlows(isDark),
           Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -234,25 +227,22 @@ class _SplashScreenState extends State<SplashScreen>
                   builder: (context, child) {
                     return Transform.scale(
                       scale: _logoScaleAnimation.value,
-                      child: Transform.rotate(
-                        angle: _logoRotationAnimation.value,
-                        child: _buildLogo(),
-                      ),
+                      child: _buildLogo(isDark),
                     );
                   },
                 ),
-                const SizedBox(height: 40),
-                SlideTransition(
-                  position: _textSlideAnimation,
-                  child: FadeTransition(
-                    opacity: _textFadeAnimation,
-                    child: _buildTitle(),
-                  ),
-                ),
-                const SizedBox(height: 60),
+                // const SizedBox(height: 48),
+                // SlideTransition(
+                //   position: _textSlideAnimation,
+                //   child: FadeTransition(
+                //     opacity: _textFadeAnimation,
+                //     child: _buildTitle(isDark),
+                //   ),
+                // ),
+                const SizedBox(height: 80),
                 FadeTransition(
                   opacity: _textFadeAnimation,
-                  child: _buildLoadingIndicator(),
+                  child: _buildLoadingIndicator(isDark),
                 ),
               ],
             ),
@@ -262,53 +252,36 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  Widget _buildLogo() {
+  Widget _buildLogo(bool isDark) {
     return AnimatedBuilder(
       animation: _pulseController,
       builder: (context, child) {
         return Container(
-          width: 120,
-          height: 120,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const RadialGradient(
-              colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primaryColor.withOpacity(
-                  0.5 * _pulseController.value,
-                ),
-                blurRadius: 30 * _pulseController.value,
-                spreadRadius: 10,
-              ),
-            ],
-          ),
+          width: 140,
+          height: 140,
+          alignment: Alignment.center,
           child: Stack(
             alignment: Alignment.center,
             children: [
-              AnimatedGnssVisionIcon(
-                size: 100,
+              // Subtle background glow behind the icon
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primaryColor.withOpacity(0.2 * _pulseController.value),
+                      blurRadius: 40,
+                      spreadRadius: 10,
+                    ),
+                  ],
+                ),
+              ),
+              const AnimatedGnssVisionIcon(
+                size: 110,
                 showGlow: false,
               ),
-              ...List.generate(3, (index) {
-                return Transform.rotate(
-                  angle:
-                      (index * (2 * pi / 3)) +
-                      (_particleController.value * 2 * pi),
-                  child: Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.3 - (index * 0.1)),
-                        width: 1,
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                );
-              }),
             ],
           ),
         );
@@ -316,87 +289,60 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  Widget _buildTitle() {
-    return Column(
-      children: [
-        ShaderMask(
-          shaderCallback: (bounds) =>
-              AppTheme.primaryGradient.createShader(bounds),
-          child: const Text(
-            "GNSS VISION",
-            style: TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 8,
-              color: Colors.white,
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          "Hệ Thống Di Động Thế Hệ Mới",
-          style: TextStyle(
-            fontSize: 14,
-            letterSpacing: 4,
-            color: Colors.white.withOpacity(0.5),
-            fontWeight: FontWeight.w300,
-          ),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildLoadingIndicator() {
+  Widget _buildLoadingIndicator(bool isDark) {
     return SizedBox(
-      width: 120,
-      child: Column(
-        children: [
-          AnimatedBuilder(
-            animation: _logoController,
-            builder: (context, child) {
-              return LinearProgressIndicator(
-                value: _logoController.value,
-                backgroundColor: Colors.white.withOpacity(0.1),
-                valueColor: const AlwaysStoppedAnimation<Color>(
-                  AppTheme.secondaryColor,
+      width: 160,
+      child: AnimatedBuilder(
+        animation: _logoController,
+        builder: (context, child) {
+          return Column(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(1),
+                child: LinearProgressIndicator(
+                  value: _logoController.value,
+                  backgroundColor: (isDark ? Colors.white : AppTheme.primaryColor).withOpacity(0.08),
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    AppTheme.secondaryColor,
+                  ),
+                  minHeight: 2,
                 ),
-                minHeight: 2,
-                borderRadius: BorderRadius.circular(2),
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          Text(
-            "Đang tải...",
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.white.withOpacity(0.4),
-              letterSpacing: 2,
-            ),
-          ),
-        ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "Đang tải",
+                style: TextStyle(
+                  fontSize: 9,
+                  letterSpacing: 2,
+                  color: (isDark ? Colors.white : AppTheme.textDark).withOpacity(0.3),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  List<Widget> _buildAmbientGlows() {
+  List<Widget> _buildAmbientGlows(bool isDark) {
     return [
+      // Top Left Soft Glow
       AnimatedBuilder(
         animation: _pulseController,
         builder: (context, child) {
           return Positioned(
-            top: -100,
+            top: -150,
             left: -100,
             child: Container(
-              width: 300,
-              height: 300,
+              width: 400,
+              height: 400,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppTheme.primaryColor.withOpacity(
-                      0.2 * _pulseController.value,
-                    ),
+                    AppTheme.primaryColor.withOpacity(isDark ? 0.08 : 0.05),
                     Colors.transparent,
                   ],
                 ),
@@ -405,22 +351,21 @@ class _SplashScreenState extends State<SplashScreen>
           );
         },
       ),
+      // Bottom Right Soft Glow
       AnimatedBuilder(
         animation: _pulseController,
         builder: (context, child) {
           return Positioned(
-            bottom: -50,
-            right: -50,
+            bottom: -100,
+            right: -100,
             child: Container(
-              width: 250,
-              height: 250,
+              width: 350,
+              height: 350,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppTheme.secondaryColor.withOpacity(
-                      0.15 * (1 - _pulseController.value),
-                    ),
+                    AppTheme.secondaryColor.withOpacity(isDark ? 0.06 : 0.03),
                     Colors.transparent,
                   ],
                 ),
@@ -431,44 +376,6 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     ];
   }
-}
-
-class ParticleBackgroundPainter extends CustomPainter {
-  final double animationValue;
-  final Random random = Random(42);
-
-  ParticleBackgroundPainter(this.animationValue);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (int i = 0; i < 80; i++) {
-      double x = random.nextDouble() * size.width;
-      double y = random.nextDouble() * size.height;
-      double radius = random.nextDouble() * 1.5 + 0.5;
-
-      double twinkle = sin(animationValue * 2 * pi + i * 0.3) * 0.4 + 0.6;
-      double opacity = (random.nextDouble() * 0.3 + 0.1) * twinkle;
-
-      canvas.drawCircle(
-        Offset(x, y),
-        radius,
-        Paint()..color = Colors.white.withOpacity(opacity.clamp(0.0, 1.0)),
-      );
-    }
-
-    for (int i = 0; i < 15; i++) {
-      double x = random.nextDouble() * size.width;
-      double y = random.nextDouble() * size.height;
-      double pulse = sin(animationValue * 2 * pi + i) * 0.5 + 0.5;
-
-      canvas.drawCircle(
-        Offset(x, y),
-        2 + pulse * 2,
-        Paint()..color = AppTheme.secondaryColor.withOpacity(0.1 * pulse),
-      );
-    }
   }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
+  // ParticleBackgroundPainter removed for a cleaner look.
