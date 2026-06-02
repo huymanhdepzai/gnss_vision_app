@@ -167,8 +167,8 @@ class _SettingsPageState extends State<SettingsPage> {
     return _listContainer(isDark, [
       _settingRow(
         isDark,
-        Icons.dark_mode_rounded,
-        'Chế độ tối',
+        Icons.color_lens_outlined,
+        'Giao diện',
         isDark,
         onChanged: (v) => themeProvider.setThemeMode(v),
         activeToggleIcon: Icons.nightlight_round,

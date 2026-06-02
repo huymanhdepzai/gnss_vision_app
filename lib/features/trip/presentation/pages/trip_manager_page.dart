@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/app_theme.dart';
@@ -314,10 +315,14 @@ class _TripManagerScreenState extends State<TripManagerScreen>
                             isDark: isDark,
                             color: trip.isActive ? AppTheme.successColor : AppTheme.primaryColor,
                           ),
-                          child: Icon(
-                            trip.isActive ? Icons.directions_run_rounded : Icons.route_rounded,
-                            color: trip.isActive ? AppTheme.successColor : AppTheme.primaryColor,
-                            size: 24,
+                          child: SvgPicture.asset(
+                            'assets/icons/route.svg',
+                            colorFilter: ColorFilter.mode(
+                              trip.isActive ? AppTheme.successColor : AppTheme.primaryColor,
+                              BlendMode.srcIn,
+                            ),
+                            width: 24,
+                            height: 24,
                           ),
                         ),
                         const SizedBox(width: UIConsts.spacingLG),

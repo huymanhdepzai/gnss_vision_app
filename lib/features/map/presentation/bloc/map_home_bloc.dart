@@ -165,6 +165,8 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
     MapHomePerformSearch event,
     Emitter<MapHomeState> emit,
   ) async {
+    if (event.query.isEmpty) return;
+    
     emit(state.copyWith(isSearching: true));
 
     try {
@@ -172,8 +174,23 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
         event.query,
         lat: state.currentLat,
         lng: state.currentLng,
-        radius: 50,
+        radius: 10000,
+        origin: '${state.currentLat},${state.currentLng}',
       );
+
+      // Kiểm tra nếu query đã thay đổi hoặc đã bị xóa trong lúc đợi API
+      if (state.searchQuery != event.query || state.searchQuery.isEmpty) {
+        return;
+      }
+
+      // Sắp xếp kết quả theo khoảng cách từ gần đến xa
+      results.sort((a, b) {
+        if (a.distance == null && b.distance == null) return 0;
+        if (a.distance == null) return 1; // Đưa null xuống cuối
+        if (b.distance == null) return -1;
+        return a.distance!.compareTo(b.distance!);
+      });
+
       emit(state.copyWith(searchResults: results, isSearching: false));
     } catch (e) {
       debugPrint('Search error: $e');
