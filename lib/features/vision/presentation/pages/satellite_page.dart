@@ -63,6 +63,24 @@ class UserLocationData {
   UserLocationData({required this.latitude, required this.longitude});
 }
 
+class StarModel {
+  final double x;
+  final double y;
+  final double size;
+  final double twinkleSpeed;
+  final double twinkleOffset;
+  final bool isBright;
+
+  StarModel({
+    required this.x,
+    required this.y,
+    required this.size,
+    required this.twinkleSpeed,
+    required this.twinkleOffset,
+    this.isBright = false,
+  });
+}
+
 class SatelliteScreenV2 extends StatefulWidget {
   const SatelliteScreenV2({super.key});
 
@@ -75,6 +93,7 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   List<SatelliteData> _satellites = [];
   UserLocationData? _userLocation;
+  final List<StarModel> _stars = [];
 
   StreamSubscription? _gnssSubscription;
   Timer? _mockTimer;
@@ -101,9 +120,35 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
   @override
   void initState() {
     super.initState();
+    _initStars();
     _initAnimations();
     _initGlobeController();
     _initRealGnssData();
+  }
+
+  void _initStars() {
+    final random = Random();
+    // Background stars
+    for (int i = 0; i < 100; i++) {
+      _stars.add(StarModel(
+        x: random.nextDouble(),
+        y: random.nextDouble(),
+        size: random.nextDouble() * 1.5 + 0.5,
+        twinkleSpeed: random.nextDouble() * 2 + 1,
+        twinkleOffset: random.nextDouble() * pi * 2,
+      ));
+    }
+    // Bright stars
+    for (int i = 0; i < 15; i++) {
+      _stars.add(StarModel(
+        x: random.nextDouble(),
+        y: random.nextDouble(),
+        size: random.nextDouble() * 2 + 1.5,
+        twinkleSpeed: random.nextDouble() * 4 + 2,
+        twinkleOffset: random.nextDouble() * pi * 2,
+        isBright: true,
+      ));
+    }
   }
 
   void _initAnimations() {
@@ -469,24 +514,31 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
             _satellites.length
         : 0.0;
 
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: context.backgroundColor,
-      endDrawer: _buildSatelliteDrawer(context),
-      body: Stack(
-        children: [
-          _buildAnimatedBackground(),
-          SafeArea(
-            child: Column(
+    return Theme(
+      data: AppTheme.darkTheme,
+      child: Builder(
+        builder: (context) {
+          return Scaffold(
+            key: _scaffoldKey,
+            backgroundColor: context.backgroundColor,
+            endDrawer: _buildSatelliteDrawer(context),
+            body: Stack(
               children: [
-                _buildAppBar(context),
-                SizedBox(height: UIConsts.spacingSM),
-                _buildStatsOverview(context, activeFixes, avgSnr),
-                Expanded(child: _buildMainView(context)),
+                _buildAnimatedBackground(),
+                SafeArea(
+                  child: Column(
+                    children: [
+                      _buildAppBar(context),
+                      SizedBox(height: UIConsts.spacingSM),
+                      _buildStatsOverview(context, activeFixes, avgSnr),
+                      Expanded(child: _buildMainView(context)),
+                    ],
+                  ),
+                ),
               ],
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -657,7 +709,7 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
       animation: _shimmerController,
       builder: (context, child) {
         return CustomPaint(
-          painter: AnimatedStarFieldPainter(_shimmerController.value),
+          painter: AnimatedStarFieldPainter(_shimmerController.value, _stars),
           size: Size.infinite,
         );
       },
@@ -1881,46 +1933,63 @@ class SignalQualityGaugePainter extends CustomPainter {
 
 class AnimatedStarFieldPainter extends CustomPainter {
   final double animationValue;
+  final List<StarModel> stars;
 
-  AnimatedStarFieldPainter(this.animationValue);
-
-  static final _random = Random(42);
+  AnimatedStarFieldPainter(this.animationValue, this.stars);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final random = _random;
-
-    for (int i = 0; i < 150; i++) {
-      double x = random.nextDouble() * size.width;
-      double y = random.nextDouble() * size.height;
-      double radius = random.nextDouble() * 1.5 + 0.5;
-
-      double twinkle = sin(animationValue * pi * 2 + i * 0.5) * 0.15 + 0.85;
-      double opacity = (random.nextDouble() * 0.25 + 0.15) * twinkle;
-
-      final paint = Paint()
-        ..color = Colors.white.withOpacity(opacity.clamp(0.0, 1.0))
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0.5);
-
-      canvas.drawCircle(Offset(x, y), radius, paint);
+    for (var star in stars) {
+      final x = star.x * size.width;
+      final y = star.y * size.height;
+      
+      // Advanced organic twinkle logic using individual star properties
+      // Mix of two sine waves for more irregular, natural feel
+      double twinkle = sin(animationValue * pi * star.twinkleSpeed + star.twinkleOffset) * 0.5 + 0.5;
+      
+      if (star.isBright) {
+        // Bright stars with subtle glow
+        final opacity = (0.3 + twinkle * 0.4).clamp(0.0, 1.0);
+        
+        // Outer glow
+        canvas.drawCircle(
+          Offset(x, y), 
+          star.size * 2.5, 
+          Paint()
+            ..color = Colors.white.withOpacity(opacity * 0.15)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3)
+        );
+        
+        // Core
+        canvas.drawCircle(
+          Offset(x, y), 
+          star.size, 
+          Paint()..color = Colors.white.withOpacity(opacity)
+        );
+      } else {
+        // Dim background stars
+        final opacity = (0.1 + twinkle * 0.2).clamp(0.0, 1.0);
+        canvas.drawCircle(
+          Offset(x, y), 
+          star.size, 
+          Paint()..color = Colors.white.withOpacity(opacity)
+        );
+      }
     }
 
-    for (int i = 0; i < 20; i++) {
-      double x = random.nextDouble() * size.width;
-      double y = random.nextDouble() * size.height;
-
-      double pulse = sin(animationValue * pi * 2 + i) * 0.3 + 0.5;
-
-      final paint = Paint()
-        ..color = AppTheme.primaryColor.withOpacity(0.08 * pulse)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
-
-      canvas.drawCircle(Offset(x, y), 2 + pulse * 1.5, paint);
-    }
+    // Occasional subtle nebula pulse (using global animation)
+    final nebulaOpacity = (sin(animationValue * pi) * 0.02 + 0.03).clamp(0.0, 1.0);
+    final paint = Paint()
+      ..color = AppTheme.primaryColor.withOpacity(nebulaOpacity)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 40);
+    
+    canvas.drawCircle(Offset(size.width * 0.3, size.height * 0.2), 150, paint);
+    canvas.drawCircle(Offset(size.width * 0.8, size.height * 0.7), 120, paint);
   }
 
   @override
-  bool shouldRepaint(covariant AnimatedStarFieldPainter oldDelegate) => true;
+  bool shouldRepaint(covariant AnimatedStarFieldPainter oldDelegate) => 
+    oldDelegate.animationValue != animationValue;
 }
 
 class OrbitalRingsPainter extends CustomPainter {

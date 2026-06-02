@@ -43,21 +43,17 @@ class _DayNightInteractiveSceneState extends State<DayNightInteractiveScene> wit
       setState(() {
         _dragValue = _controller.value;
       });
-      
-      // Update theme when threshold crossed
-      if (_controller.value >= 0.5 && !widget.isDark) {
-        widget.onThemeChanged(true);
-      } else if (_controller.value < 0.5 && widget.isDark) {
-        widget.onThemeChanged(false);
-      }
     });
   }
 
   @override
   void didUpdateWidget(DayNightInteractiveScene oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.isDark != widget.isDark && !_isDragging) {
-      _controller.animateTo(widget.isDark ? 1.0 : 0.0, curve: Curves.easeInOutCubic);
+    if (oldWidget.isDark != widget.isDark) {
+      if (!_isDragging) {
+        _controller.stop();
+        _controller.animateTo(widget.isDark ? 1.0 : 0.0, curve: Curves.easeInOutCubic);
+      }
     }
   }
 
@@ -82,6 +78,13 @@ class _DayNightInteractiveSceneState extends State<DayNightInteractiveScene> wit
       _dragValue = (_dragValue + delta).clamp(0.0, 1.0);
     });
     _controller.value = _dragValue;
+    
+    // Check threshold during drag
+    if (_dragValue >= 0.5 && !widget.isDark) {
+      widget.onThemeChanged(true);
+    } else if (_dragValue < 0.5 && widget.isDark) {
+      widget.onThemeChanged(false);
+    }
   }
 
   void _onHorizontalDragEnd(DragEndDetails details) {
@@ -100,8 +103,10 @@ class _DayNightInteractiveSceneState extends State<DayNightInteractiveScene> wit
 
   void _snapToEdge() {
     if (_controller.value > 0.5) {
+      if (!widget.isDark) widget.onThemeChanged(true);
       _controller.animateTo(1.0, curve: Curves.easeOutBack);
     } else {
+      if (widget.isDark) widget.onThemeChanged(false);
       _controller.animateTo(0.0, curve: Curves.easeOutBack);
     }
   }
@@ -109,11 +114,7 @@ class _DayNightInteractiveSceneState extends State<DayNightInteractiveScene> wit
   void _toggleTheme() {
     if (_controller.isAnimating) return;
     HapticFeedback.lightImpact();
-    if (widget.isDark) {
-      _controller.animateTo(0.0, curve: Curves.easeInOutCubic);
-    } else {
-      _controller.animateTo(1.0, curve: Curves.easeInOutCubic);
-    }
+    widget.onThemeChanged(!widget.isDark);
   }
 
   @override
@@ -194,7 +195,9 @@ class _DayNightInteractiveSceneState extends State<DayNightInteractiveScene> wit
                 icon: Icons.wb_sunny_rounded,
                 isActive: progress < 0.5,
                 color: Colors.orangeAccent,
-                onTap: () => _controller.animateTo(0.0, curve: Curves.easeInOutCubic),
+                onTap: () {
+                  if (widget.isDark) widget.onThemeChanged(false);
+                },
               ),
               Expanded(
                 child: Padding(
@@ -278,7 +281,9 @@ class _DayNightInteractiveSceneState extends State<DayNightInteractiveScene> wit
                 icon: Icons.nightlight_round,
                 isActive: progress >= 0.5,
                 color: const Color(0xFF90CAF9),
-                onTap: () => _controller.animateTo(1.0, curve: Curves.easeInOutCubic),
+                onTap: () {
+                  if (!widget.isDark) widget.onThemeChanged(true);
+                },
               ),
             ],
           ),

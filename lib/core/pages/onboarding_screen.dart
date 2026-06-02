@@ -1,11 +1,14 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../app_theme.dart';
 import '../utils/injection_container.dart';
 import '../widgets/gnss_vision_icon.dart';
 import '../../features/map/presentation/pages/map_home_page.dart';
+import '../../features/auth/presentation/bloc/auth_bloc.dart';
+import '../../features/auth/presentation/pages/login_page.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -239,9 +242,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     _saveOnboardingComplete();
     _takeoverCtrl.forward().then((_) {
       if (mounted) {
+        final authState = context.read<AuthBloc>().state;
+        final nextScreen = authState.maybeWhen(
+          authenticated: (_) => const MapHomeScreenV2(),
+          orElse: () => const LoginPage(),
+        );
+
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
-            pageBuilder: (_, _a, _b) => const MapHomeScreenV2(),
+            pageBuilder: (_, _a, _b) => nextScreen,
             transitionDuration: const Duration(milliseconds: 600),
             transitionsBuilder: (_, a, _c, child) =>
                 FadeTransition(opacity: a, child: child),

@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/app_theme.dart';
 import '../../../../core/providers/theme_provider.dart';
@@ -121,13 +122,13 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _navItem(context, isDark, Icons.navigation_outlined, 'GNSS-Vision', widget.onNavigateToVision),
+                          _navItem(context, isDark, 'assets/icons/position.svg', 'GNSS-Vision', widget.onNavigateToVision),
                           _divider(isDark),
-                          _navItem(context, isDark, Icons.explore_rounded, 'Vệ Tinh 3D', widget.onNavigateToSatellite),
+                          _navItem(context, isDark, 'assets/icons/satellite.svg', 'Vệ Tinh 3D', widget.onNavigateToSatellite),
                           _navItem(
                             context, 
                             isDark, 
-                            Icons.tune_rounded, 
+                            'assets/icons/setting.svg', 
                             'Cài đặt', 
                             () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()))
                           ),
@@ -135,7 +136,7 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
                           _navItem(
                             context, 
                             isDark, 
-                            Icons.power_settings_new_rounded, 
+                            'assets/icons/logout.svg', 
                             'Đăng xuất', 
                             () => _showLogoutDialog(context, isDark),
                             isLogout: true,
@@ -242,46 +243,51 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
     );
   }
 
-  Widget _navItem(BuildContext context, bool isDark, IconData icon, String title, VoidCallback onTap, {bool isLogout = false}) {
-    final iconColor = isLogout 
-        ? Colors.redAccent 
+  Widget _navItem(BuildContext context, bool isDark, String svgPath, String title, VoidCallback onTap, {bool isLogout = false}) {
+    final iconColor = isLogout
+        ? Colors.white
         : (isDark ? Colors.white.withOpacity(0.7) : AppTheme.primaryColor);
-    
-    final bgColor = isLogout 
-        ? (isDark ? Colors.redAccent.withOpacity(0.12) : Colors.redAccent.withOpacity(0.06))
+
+    final bgColor = isLogout
+        ? AppTheme.primaryColor
         : Colors.transparent;
 
     return Container(
-      margin: isLogout ? const EdgeInsets.symmetric(horizontal: 16, vertical: 8) : EdgeInsets.zero,
+      margin: isLogout ? const EdgeInsets.symmetric(vertical: 8) : EdgeInsets.zero,
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: isLogout ? BorderRadius.circular(0) : BorderRadius.circular(16),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () { 
-            HapticFeedback.lightImpact(); 
-            if (title != 'Cài đặt') Navigator.pop(context); 
-            onTap(); 
+          onTap: () {
+            HapticFeedback.lightImpact();
+            if (title != 'Cài đặt') Navigator.pop(context);
+            onTap();
           },
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: isLogout ? BorderRadius.circular(0) : BorderRadius.circular(16),
           child: Padding(
             padding: EdgeInsets.symmetric(
-              horizontal: isLogout ? 16 : 28, 
-              vertical: isLogout ? 16 : 18
+                horizontal: 28,
+                vertical: isLogout ? 16 : 18
             ),
             child: Row(
               children: [
-                Icon(icon, size: 24, color: iconColor),
+                SvgPicture.asset(
+                  svgPath,
+                  width: 24,
+                  height: 24,
+                  colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
+                ),
                 const SizedBox(width: 20),
                 Text(
                   title,
                   style: TextStyle(
                     fontSize: 17,
                     fontWeight: isLogout ? FontWeight.w700 : FontWeight.w600,
-                    color: isLogout 
-                        ? Colors.redAccent 
+                    color: isLogout
+                        ? Colors.white
                         : (isDark ? Colors.white.withOpacity(0.9) : AppTheme.textDark),
                   ),
                 ),
@@ -316,7 +322,12 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Row(
           children: [
-            const Icon(Icons.power_settings_new_rounded, color: Colors.redAccent),
+            SvgPicture.asset(
+              'assets/icons/logout.svg',
+              width: 24,
+              height: 24,
+              colorFilter: const ColorFilter.mode(Colors.redAccent, BlendMode.srcIn),
+            ),
             const SizedBox(width: 12),
             Text('Đăng xuất', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: isDark ? Colors.white : AppTheme.textDark)),
           ],

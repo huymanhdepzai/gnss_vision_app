@@ -9,6 +9,7 @@ class ModernButton extends StatefulWidget {
   final String text;
   final VoidCallback? onPressed;
   final IconData? icon;
+  final Widget? iconWidget;
   final bool isLoading;
   final bool isOutlined;
   final Color? color;
@@ -24,6 +25,7 @@ class ModernButton extends StatefulWidget {
     required this.text,
     this.onPressed,
     this.icon,
+    this.iconWidget,
     this.isLoading = false,
     this.isOutlined = false,
     this.color,
@@ -136,7 +138,10 @@ class _ModernButtonState extends State<ModernButton>
                       : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            if (widget.icon != null) ...[
+                            if (widget.iconWidget != null) ...[
+                              widget.iconWidget!,
+                              SizedBox(width: UIConsts.spacingSM),
+                            ] else if (widget.icon != null) ...[
                               Icon(
                                 widget.icon,
                                 color: widget.isOutlined

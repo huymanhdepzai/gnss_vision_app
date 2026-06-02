@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../../../core/app_theme.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../../shared/widgets/voice_toggle_switch.dart';
+import '../../../../shared/widgets/modern_toggle_switch.dart';
 import '../../../voice/presentation/controllers/voice_controller.dart';
 import '../../../feedback/presentation/telegram_service.dart';
 import '../widgets/day_night_scene.dart';
@@ -161,7 +162,19 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildSettingsList(BuildContext context, bool isDark) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    
     return _listContainer(isDark, [
+      _settingRow(
+        isDark,
+        Icons.dark_mode_rounded,
+        'Chế độ tối',
+        isDark,
+        onChanged: (v) => themeProvider.setThemeMode(v),
+        activeToggleIcon: Icons.nightlight_round,
+        inactiveToggleIcon: Icons.wb_sunny_rounded,
+        activeColor: const Color(0xFF90CAF9),
+      ),
       Consumer<VoiceController>(
         builder: (context, voiceController, _) => _settingRow(
           isDark,
@@ -169,6 +182,9 @@ class _SettingsPageState extends State<SettingsPage> {
           'Trợ lý giọng nói',
           voiceController.isEnabled,
           onChanged: (v) => voiceController.toggleEnabled(),
+          activeToggleIcon: Icons.mic,
+          inactiveToggleIcon: Icons.mic_off,
+          activeColor: AppTheme.successColor,
         ),
       ),
       _navRow(isDark, Icons.shield_moon_rounded, 'Chính sách bảo mật', () => _showPrivacyPolicy(context, isDark)),
@@ -220,7 +236,16 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _settingRow(bool isDark, IconData icon, String title, bool value, {required ValueChanged<bool> onChanged}) {
+  Widget _settingRow(
+    bool isDark, 
+    IconData icon, 
+    String title, 
+    bool value, {
+    required ValueChanged<bool> onChanged,
+    IconData activeToggleIcon = Icons.check,
+    IconData inactiveToggleIcon = Icons.close,
+    Color? activeColor,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
@@ -237,10 +262,12 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
-          Switch.adaptive(
+          ModernToggleSwitch(
             value: value,
             onChanged: onChanged,
-            activeColor: AppTheme.primaryColor,
+            activeIcon: activeToggleIcon,
+            inactiveIcon: inactiveToggleIcon,
+            activeColor: activeColor,
           ),
         ],
       ),

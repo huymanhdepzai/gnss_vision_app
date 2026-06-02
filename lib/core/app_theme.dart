@@ -4,9 +4,9 @@ class AppTheme {
   AppTheme._();
 
   // ─── Primary Palette ────────────────────────────────────────────
-  static const Color primaryColor = Color(0xFF7C6AFF);
-  static const Color primaryLight = Color(0xFF9B8AFF);
-  static const Color primaryDark = Color(0xFF5F52E0);
+  static const Color primaryColor = Color(0xFF1054A5);
+  static const Color primaryLight = Color(0xFF4B81C3);
+  static const Color primaryDark = Color(0xFF002C6A);
 
   static const Color secondaryColor = Color(0xFF22D3EE);
   static const Color secondaryLight = Color(0xFF67E8F9);
@@ -24,7 +24,7 @@ class AppTheme {
   static const Color elevatedDark = Color(0xFF30363D);
 
   // ─── Light Surfaces ──────────────────────────────────────────────
-  static const Color backgroundLight = Color(0xFFF8FAFC);
+  static const Color backgroundLight = Color(0xFFF4F7FF);
   static const Color surfaceLight = Color(0xFFFFFFFF);
   static const Color cardLight = Color(0xFFF1F5F9);
   static const Color elevatedLight = Color(0xFFFFFFFF);
@@ -97,7 +97,7 @@ class AppTheme {
   static const LinearGradient surfaceGradientLight = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
+    colors: [Color(0xFFFFFFFF), Color(0xFFF4F7FF)],
   );
 
   // ─── Decorations ─────────────────────────────────────────────────

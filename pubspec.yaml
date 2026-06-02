@@ -129,6 +129,7 @@ flutter:
     - assets/yolov8n.tflite
     - assets/labels.txt
     - assets/branding/icons/
+    - assets/icons/
     - .env
   uses-material-design: true
 
