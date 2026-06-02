@@ -244,7 +244,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       if (mounted) {
         final authState = context.read<AuthBloc>().state;
         final nextScreen = authState.maybeWhen(
-          authenticated: (_) => const MapHomeScreenV2(),
+          authenticated: (user, isBio) => const MapHomeScreenV2(),
           orElse: () => const LoginPage(),
         );
 

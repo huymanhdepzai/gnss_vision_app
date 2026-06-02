@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/app_theme.dart';
 import '../../../../core/providers/theme_provider.dart';
+import '../../../../shared/widgets/modern_toggle_switch.dart';
 import '../pages/settings_page.dart';
 
 
@@ -110,7 +111,7 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
                   BlocBuilder<AuthBloc, AuthState>(
                     builder: (context, state) {
                       return state.maybeWhen(
-                        authenticated: (user) => _buildHeader(isDark, user.displayName, user.photoUrl),
+                        authenticated: (user, isBio) => _buildHeader(isDark, user.displayName, user.photoUrl),
                         orElse: () => _buildHeader(isDark, 'Người dùng', null),
                       );
                     },
@@ -125,6 +126,7 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
                           _navItem(context, isDark, 'assets/icons/position.svg', 'GNSS-Vision', widget.onNavigateToVision),
                           _divider(isDark),
                           _navItem(context, isDark, 'assets/icons/satellite.svg', 'Vệ Tinh 3D', widget.onNavigateToSatellite),
+                          _biometricToggle(context, isDark),
                           _navItem(
                             context, 
                             isDark, 
@@ -152,6 +154,48 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _biometricToggle(BuildContext context, bool isDark) {
+    return BlocBuilder<AuthBloc, AuthState>(
+      builder: (context, state) {
+        final isBiometricEnabled = state.maybeWhen(
+          authenticated: (_, enabled) => enabled,
+          unauthenticated: (enabled) => enabled,
+          orElse: () => false,
+        );
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
+          child: Row(
+            children: [
+              Icon(
+                Icons.fingerprint_rounded,
+                size: 24,
+                color: isDark ? Colors.white.withOpacity(0.7) : AppTheme.primaryColor,
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Text(
+                  'Sinh trắc học',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white.withOpacity(0.9) : AppTheme.textDark,
+                  ),
+                ),
+              ),
+              ModernToggleSwitch(
+                value: isBiometricEnabled,
+                onChanged: (enabled) {
+                  context.read<AuthBloc>().add(AuthEvent.toggleBiometricRequested(enabled));
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

@@ -491,7 +491,7 @@ class _MapHomeViewState extends State<_MapHomeView>
                     BlocBuilder<AuthBloc, AuthState>(
                       builder: (context, authState) {
                         final user = authState.maybeWhen(
-                          authenticated: (u) => u,
+                          authenticated: (u, isBio) => u,
                           orElse: () => null,
                         );
                         return MapSearchBar(

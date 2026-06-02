@@ -10,4 +10,10 @@ abstract class AuthRepository {
   Future<Either<Failure, UserEntity>> signInWithGoogle();
   Future<Either<Failure, void>> signOut();
   Future<Either<Failure, UserEntity?>> getCurrentUser();
+  
+  // Biometric methods
+  Future<Either<Failure, bool>> authenticateWithBiometrics();
+  Future<Either<Failure, UserEntity>> signInSilently();
+  Future<Either<Failure, void>> setBiometricEnabled(bool enabled);
+  Future<Either<Failure, bool>> isBiometricEnabled();
 }

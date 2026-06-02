@@ -7,11 +7,11 @@ import android.location.LocationManager
 import android.os.Build
 import androidx.annotation.NonNull
 import androidx.core.content.ContextCompat
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 
-class MainActivity: FlutterActivity() {
+class MainActivity: FlutterFragmentActivity() {
     private val CHANNEL = "gnss_status_channel"
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/app_theme.dart';
@@ -19,16 +20,14 @@ class LoginPage extends StatelessWidget {
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
           state.maybeWhen(
-            authenticated: (user) {
+            authenticated: (user, isBiometricEnabled) {
               context.showModernSnackBar(
                 message: 'Xin chào, ${user.displayName}',
                 icon: Icons.check_circle_rounded,
                 color: AppTheme.successColor,
               );
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const MapHomeScreenV2()),
-              );
+              
+              _navigateToHome(context);
             },
             error: (message) {
               context.showModernSnackBar(
@@ -44,14 +43,14 @@ class LoginPage extends StatelessWidget {
           return ModernLoadingOverlay(
             isLoading: state.maybeWhen(loading: () => true, orElse: () => false),
             message: 'Đang kết nối...',
-            child: _buildBody(context),
+            child: _buildBody(context, state),
           );
         },
       ),
     );
   }
 
-  Widget _buildBody(BuildContext context) {
+  Widget _buildBody(BuildContext context, AuthState state) {
     return Stack(
       children: [
         // Background with Particle Animation
@@ -147,16 +146,57 @@ class LoginPage extends StatelessWidget {
                         borderRadius: UIConsts.radius3XL,
                         hasGlow: true,
                         accentColor: context.primaryColor,
-                        child: ModernButton(
-                          text: 'Tiếp tục với Google',
-                          iconWidget: SvgPicture.asset(
-                            'assets/icons/google-icon-logo-svgrepo-com.svg',
-                            width: 20,
-                            height: 20,
-                          ),
-                          onPressed: () {
-                            context.read<AuthBloc>().add(const AuthEvent.loginWithGoogleRequested());
-                          },
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: ModernButton(
+                                text: 'Tiếp tục với Google',
+                                iconWidget: SvgPicture.asset(
+                                  'assets/icons/google-icon-logo-svgrepo-com.svg',
+                                  width: 20,
+                                  height: 20,
+                                ),
+                                onPressed: () {
+                                  context.read<AuthBloc>().add(const AuthEvent.loginWithGoogleRequested());
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: UIConsts.spacingMD),
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  HapticFeedback.mediumImpact();
+                                  final isBiometricEnabled = state.maybeWhen(
+                                    unauthenticated: (enabled) => enabled,
+                                    authenticated: (_, enabled) => enabled,
+                                    orElse: () => false,
+                                  );
+
+                                  if (isBiometricEnabled) {
+                                    context.read<AuthBloc>().add(const AuthEvent.biometricLoginRequested());
+                                  } else {
+                                    context.showModernSnackBar(
+                                      message: 'Vui lòng đăng nhập bằng Google trước để kích hoạt sinh trắc học.',
+                                      icon: Icons.info_outline_rounded,
+                                      color: context.primaryColor,
+                                      isTop: true,
+                                    );
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(UIConsts.radiusLG),
+                                child: SizedBox(
+                                  width: UIConsts.buttonHeightLG,
+                                  height: UIConsts.buttonHeightLG,
+                                  child: Icon(
+                                    Icons.fingerprint_rounded,
+                                    color: context.primaryColor,
+                                    size: 48,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -206,7 +246,6 @@ class LoginPage extends StatelessWidget {
     context.showModernDialog(
       child: ModernDialog(
         title: 'Điều khoản sử dụng',
-        // icon: Icons.gavel_rounded,
         primaryActionText: 'ĐÃ HIỂU',
         onPrimaryAction: () => Navigator.pop(context),
         content: ConstrainedBox(
@@ -276,6 +315,36 @@ class LoginPage extends StatelessWidget {
           fontWeight: FontWeight.w500,
           decoration: TextDecoration.underline,
         ),
+      ),
+    );
+  }
+
+  void _navigateToHome(BuildContext context) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const MapHomeScreenV2()),
+    );
+  }
+
+  void _showEnableBiometricDialog(BuildContext context) {
+    context.showModernDialog(
+      child: ModernDialog(
+        title: 'Kích hoạt Sinh trắc học',
+        content: const Text(
+          'Bạn có muốn sử dụng Vân tay/Khuôn mặt để đăng nhập nhanh hơn vào lần sau không?',
+          textAlign: TextAlign.center,
+        ),
+        primaryActionText: 'KÍCH HOẠT',
+        secondaryActionText: 'BỎ QUA',
+        onPrimaryAction: () {
+          context.read<AuthBloc>().add(const AuthEvent.toggleBiometricRequested(true));
+          Navigator.pop(context);
+          _navigateToHome(context);
+        },
+        onSecondaryAction: () {
+          Navigator.pop(context);
+          _navigateToHome(context);
+        },
       ),
     );
   }

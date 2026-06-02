@@ -125,8 +125,8 @@ class _SplashScreenState extends State<SplashScreen>
     final authBloc = context.read<AuthBloc>();
     
     bool isDetermined(AuthState state) => state.maybeWhen(
-      authenticated: (_) => true,
-      unauthenticated: () => true,
+      authenticated: (user, isBio) => true,
+      unauthenticated: (isBio) => true,
       error: (_) => true,
       orElse: () => false,
     );
@@ -172,8 +172,8 @@ class _SplashScreenState extends State<SplashScreen>
     // 2. Kiểm tra trạng thái đăng nhập
     final authState = context.read<AuthBloc>().state;
     authState.maybeWhen(
-      authenticated: (_) => _pushScreen(const MapHomeScreenV2()),
-      unauthenticated: () => _pushScreen(const LoginPage()),
+      authenticated: (user, isBio) => _pushScreen(const MapHomeScreenV2()),
+      unauthenticated: (isBio) => _pushScreen(const LoginPage()),
       error: (_) => _pushScreen(const LoginPage()),
       orElse: () => _pushScreen(const LoginPage()),
     );

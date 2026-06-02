@@ -88,6 +88,7 @@ dependencies:
   firebase_auth: ^6.5.1
   google_sign_in: ^7.2.0
   freezed_annotation: ^2.4.1
+  local_auth: ^3.0.1
 
 
 dev_dependencies:
