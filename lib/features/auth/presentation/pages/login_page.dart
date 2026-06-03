@@ -10,6 +10,8 @@ import '../../../../core/widgets/modern_ui.dart';
 import '../../../map/presentation/pages/map_home_page.dart';
 import '../bloc/auth_bloc.dart';
 
+import '../../../trip/presentation/controllers/trip_controller.dart';
+
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
 

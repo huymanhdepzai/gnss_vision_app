@@ -16,6 +16,7 @@ class TripModel extends Equatable {
   final double distance;
   final String duration;
   final bool isActive;
+  final bool isSynced;
 
   const TripModel({
     required this.id,
@@ -33,6 +34,7 @@ class TripModel extends Equatable {
     this.distance = 0,
     this.duration = '',
     this.isActive = false,
+    this.isSynced = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -52,6 +54,7 @@ class TripModel extends Equatable {
       'distance': distance,
       'duration': duration,
       'isActive': isActive,
+      'isSynced': isSynced,
     };
   }
 
@@ -76,6 +79,7 @@ class TripModel extends Equatable {
       distance: (json['distance'] as num?)?.toDouble() ?? 0,
       duration: json['duration'] as String? ?? '',
       isActive: json['isActive'] as bool? ?? false,
+      isSynced: json['isSynced'] as bool? ?? false,
     );
   }
 
@@ -95,6 +99,7 @@ class TripModel extends Equatable {
     double? distance,
     String? duration,
     bool? isActive,
+    bool? isSynced,
   }) {
     return TripModel(
       id: id ?? this.id,
@@ -112,6 +117,7 @@ class TripModel extends Equatable {
       distance: distance ?? this.distance,
       duration: duration ?? this.duration,
       isActive: isActive ?? this.isActive,
+      isSynced: isSynced ?? this.isSynced,
     );
   }
 
@@ -132,5 +138,6 @@ class TripModel extends Equatable {
     distance,
     duration,
     isActive,
+    isSynced,
   ];
 }

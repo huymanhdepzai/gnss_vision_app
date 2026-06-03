@@ -15,6 +15,21 @@ class TripBloc extends Bloc<TripEvent, TripState> {
     on<LoadMediaFiles>(_onLoadMediaFiles);
     on<AddMedia>(_onAddMedia);
     on<DeleteMedia>(_onDeleteMedia);
+    on<SyncAllFromCloud>(_onSyncAllFromCloud);
+  }
+
+  Future<void> _onSyncAllFromCloud(
+    SyncAllFromCloud event,
+    Emitter<TripState> emit,
+  ) async {
+    emit(const TripLoading());
+    final result = await tripRepository.syncAllFromCloud();
+    await result.fold(
+      (failure) async => emit(TripError(failure.message)),
+      (_) async {
+        add(const LoadTrips());
+      },
+    );
   }
 
   Future<void> _onLoadTrips(LoadTrips event, Emitter<TripState> emit) async {

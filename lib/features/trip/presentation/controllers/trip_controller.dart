@@ -1,14 +1,18 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+import '../../data/datasources/trip_local_data_source.dart';
 import '../../data/models/trip.dart';
 import '../../data/models/media_file.dart';
 import '../../data/datasources/trip_service.dart';
+import '../../domain/repositories/trip_repository.dart';
 import '../../../../shared/data/services/media_service.dart';
+import '../../../../core/utils/injection_container.dart';
 
 class TripController extends ChangeNotifier {
   final TripService _tripService = TripService();
   final MediaService _mediaService = MediaService();
+  final TripRepository _tripRepository = sl<TripRepository>();
 
   List<Trip> _trips = [];
   Map<String, List<MediaFile>> _tripMedia = {};
@@ -106,21 +110,38 @@ class TripController extends ChangeNotifier {
   }
 
   Future<void> deleteTrip(String tripId) async {
+    _isLoading = true;
+    notifyListeners();
+
     try {
       final mediaFiles = _tripMedia[tripId] ?? [];
-      for (var media in mediaFiles) {
-        if (media.filePath.isNotEmpty) {
-          await _mediaService.deleteFile(media.filePath);
+      
+      // Sử dụng repository để đảm bảo xóa trên cả Google Drive, Firestore và Local Hive
+      final result = await _tripRepository.deleteTrip(tripId);
+      
+      result.fold(
+        (failure) {
+          _error = failure.message;
+          debugPrint('TripController: Lỗi khi xóa hành trình - ${failure.message}');
+        },
+        (_) async {
+          // Xóa file vật lý lưu trên bộ nhớ cục bộ của điện thoại
+          for (var media in mediaFiles) {
+            if (media.filePath.isNotEmpty) {
+              await _mediaService.deleteFile(media.filePath);
+            }
+          }
+          
+          _trips.removeWhere((trip) => trip.id == tripId);
+          _tripMedia.remove(tripId);
+          debugPrint('TripController: Đã xóa thành công hành trình $tripId');
         }
-        await _tripService.deleteMediaFile(media.id);
-      }
-
-      await _tripService.deleteTrip(tripId);
-      _trips.removeWhere((trip) => trip.id == tripId);
-      _tripMedia.remove(tripId);
-      notifyListeners();
+      );
     } catch (e) {
       _error = e.toString();
+      debugPrint('TripController: Ngoại lệ khi xóa hành trình - $e');
+    } finally {
+      _isLoading = false;
       notifyListeners();
     }
   }
@@ -264,8 +285,98 @@ class TripController extends ChangeNotifier {
     }
   }
 
+  Map<String, double> _syncingProgress = {};
+  Map<String, double> get syncingProgress => _syncingProgress;
+
+  bool isSyncing(String tripId) => _syncingProgress.containsKey(tripId);
+  double getSyncProgress(String tripId) => _syncingProgress[tripId] ?? 0;
+
+  Future<bool> syncTripToCloud(String tripId) async {
+    debugPrint('TripController: Starting sync for trip $tripId');
+    _syncingProgress[tripId] = 0.0;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final result = await _tripRepository.syncTripToCloud(
+        tripId,
+        onProgress: (progress) {
+          _syncingProgress[tripId] = progress;
+          notifyListeners();
+        },
+      );
+      
+      return result.fold(
+        (failure) {
+          debugPrint('TripController: Sync failed - ${failure.message}');
+          _syncingProgress.remove(tripId);
+          _error = failure.message;
+          notifyListeners();
+          return false;
+        },
+        (_) {
+          debugPrint('TripController: Sync successful');
+          _syncingProgress.remove(tripId);
+          // Reload trips to update isSynced status in UI if needed
+          loadTrips();
+          return true;
+        },
+      );
+    } catch (e) {
+      debugPrint('TripController: Unexpected error during sync - $e');
+      _syncingProgress.remove(tripId);
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> syncAllFromCloud() async {
+    debugPrint('TripController: Starting sync all from cloud');
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final result = await _tripRepository.syncAllFromCloud();
+      
+      return await result.fold(
+        (failure) {
+          debugPrint('TripController: Sync all failed - ${failure.message}');
+          _isLoading = false;
+          _error = failure.message;
+          notifyListeners();
+          return false;
+        },
+        (_) async {
+          debugPrint('TripController: Sync all successful');
+          await loadTrips();
+          return true;
+        },
+      );
+    } catch (e) {
+      debugPrint('TripController: Unexpected error during sync all - $e');
+      _isLoading = false;
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  Future<void> clearLocalData() async {
+    try {
+      final localDataSource = sl<TripLocalDataSource>();
+      await localDataSource.deleteAllData();
+      _trips.clear();
+      _tripMedia.clear();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('TripController: Error clearing local data - $e');
+    }
   }
 }

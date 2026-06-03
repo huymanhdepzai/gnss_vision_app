@@ -16,6 +16,7 @@ class Trip {
   double distance;
   String duration;
   bool isActive;
+  bool isSynced;
 
   Trip({
     required this.id,
@@ -33,6 +34,7 @@ class Trip {
     this.distance = 0,
     this.duration = '',
     this.isActive = false,
+    this.isSynced = false,
   }) : mediaFileIds = mediaFileIds ?? [];
 
   Map<String, dynamic> toJson() {
@@ -52,6 +54,7 @@ class Trip {
       'distance': distance,
       'duration': duration,
       'isActive': isActive,
+      'isSynced': isSynced,
     };
   }
 
@@ -76,6 +79,7 @@ class Trip {
       distance: (json['distance'] as num?)?.toDouble() ?? 0,
       duration: json['duration'] ?? '',
       isActive: json['isActive'] ?? false,
+      isSynced: json['isSynced'] ?? false,
     );
   }
 }

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../../../core/app_theme.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../../shared/widgets/modern_toggle_switch.dart';
+import '../../../trip/presentation/controllers/trip_controller.dart';
 import '../pages/settings_page.dart';
 
 
@@ -388,7 +389,8 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
               borderRadius: BorderRadius.circular(12),
             ),
             child: ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
+                await ctx.read<TripController>().clearLocalData();
                 ctx.read<AuthBloc>().add(const AuthEvent.logoutRequested());
                 Navigator.of(ctx).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (_) => const LoginPage()),

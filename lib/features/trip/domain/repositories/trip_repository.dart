@@ -19,4 +19,11 @@ abstract class TripRepository {
   Future<Either<Failure, MediaFile>> addMedia(String tripId, String filePath);
 
   Future<Either<Failure, void>> deleteMedia(String mediaId);
+
+  Future<Either<Failure, void>> syncTripToCloud(
+    String tripId, {
+    void Function(double progress)? onProgress,
+  });
+
+  Future<Either<Failure, void>> syncAllFromCloud();
 }

@@ -26,4 +26,6 @@ abstract class TripLocalDataSource {
     String tripId,
     String mediaId,
   );
+
+  Future<Either<Failure, void>> deleteAllData();
 }
