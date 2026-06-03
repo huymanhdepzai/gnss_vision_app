@@ -69,3 +69,7 @@ class DeleteMedia extends TripEvent {
   @override
   List<Object?> get props => [mediaId];
 }
+
+class SyncAllFromCloud extends TripEvent {
+  const SyncAllFromCloud();
+}

@@ -6,6 +6,7 @@ class MediaFileModel extends Equatable {
   final String id;
   final String tripId;
   final String filePath;
+  final String? remoteId;
   final MediaType type;
   final double? latitude;
   final double? longitude;
@@ -18,6 +19,7 @@ class MediaFileModel extends Equatable {
     required this.id,
     required this.tripId,
     required this.filePath,
+    this.remoteId,
     required this.type,
     this.latitude,
     this.longitude,
@@ -32,6 +34,7 @@ class MediaFileModel extends Equatable {
       'id': id,
       'tripId': tripId,
       'filePath': filePath,
+      'remoteId': remoteId,
       'type': type.index,
       'latitude': latitude,
       'longitude': longitude,
@@ -47,6 +50,7 @@ class MediaFileModel extends Equatable {
       id: json['id'] as String,
       tripId: json['tripId'] as String,
       filePath: json['filePath'] as String,
+      remoteId: json['remoteId'] as String?,
       type: MediaType.values[json['type'] as int? ?? 0],
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
@@ -61,6 +65,7 @@ class MediaFileModel extends Equatable {
     String? id,
     String? tripId,
     String? filePath,
+    String? remoteId,
     MediaType? type,
     double? latitude,
     double? longitude,
@@ -73,6 +78,7 @@ class MediaFileModel extends Equatable {
       id: id ?? this.id,
       tripId: tripId ?? this.tripId,
       filePath: filePath ?? this.filePath,
+      remoteId: remoteId ?? this.remoteId,
       type: type ?? this.type,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
@@ -88,6 +94,7 @@ class MediaFileModel extends Equatable {
     id,
     tripId,
     filePath,
+    remoteId,
     type,
     latitude,
     longitude,

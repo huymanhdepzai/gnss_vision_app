@@ -154,6 +154,38 @@ class _TripManagerScreenState extends State<TripManagerScreen>
             padding: const EdgeInsets.all(8),
             decoration: AppTheme.iconContainerDecoration(
               isDark: isDark,
+              color: AppTheme.successColor,
+            ),
+            child: const Icon(
+              Icons.cloud_download_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+          onPressed: () async {
+            HapticFeedback.mediumImpact();
+            final tripController = context.read<TripController>();
+            final success = await tripController.syncAllFromCloud();
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    success 
+                      ? 'Đã tải dữ liệu từ đám mây thành công' 
+                      : 'Đồng bộ thất bại: ${tripController.error}',
+                  ),
+                  backgroundColor: success ? AppTheme.successColor : AppTheme.errorDark,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+          },
+        ),
+        IconButton(
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: AppTheme.iconContainerDecoration(
+              isDark: isDark,
               color: AppTheme.primaryColor,
             ),
             child: const Icon(
@@ -265,7 +297,7 @@ class _TripManagerScreenState extends State<TripManagerScreen>
                   child: Opacity(opacity: value, child: child),
                 );
               },
-              child: _buildTripCard(trip, media, isDark),
+              child: _buildTripCard(trip, media, isDark, tripController),
             );
           },
           childCount: tripController.trips.length,
@@ -274,21 +306,24 @@ class _TripManagerScreenState extends State<TripManagerScreen>
     );
   }
 
-  Widget _buildTripCard(Trip trip, List<MediaFile> media, bool isDark) {
+  Widget _buildTripCard(Trip trip, List<MediaFile> media, bool isDark, TripController tripController) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
     final imageCount = media.where((m) => m.type == MediaType.image).length;
     final videoCount = media.where((m) => m.type == MediaType.video).length;
 
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         HapticFeedback.mediumImpact();
-        Navigator.push(
+        final shouldReload = await Navigator.push(
           context,
           PageTransition(
             child: TripDetailScreen(tripId: trip.id),
             type: PageTransitionType.slideLeft,
           ),
         );
+        if (shouldReload == true && mounted) {
+           context.read<TripController>().loadTrips();
+        }
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: UIConsts.spacingLG),
@@ -362,42 +397,100 @@ class _TripManagerScreenState extends State<TripManagerScreen>
                         ),
                         if (trip.isActive)
                           _buildActiveBadge()
-                        else
+                        else ...[
+                          if (trip.isSynced)
+                            Icon(
+                              Icons.cloud_done_rounded,
+                              color: AppTheme.successColor.withOpacity(0.8),
+                              size: 22,
+                            )
+                          else if (tripController.isSyncing(trip.id))
+                            const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                              ),
+                            )
+                          else
+                            IconButton(
+                              icon: Icon(
+                                Icons.cloud_upload_outlined,
+                                color: AppTheme.primaryColor.withOpacity(0.7),
+                                size: 22,
+                              ),
+                              onPressed: () => _handleSync(context, tripController, trip),
+                            ),
+                          const SizedBox(width: 8),
                           Icon(
                             Icons.chevron_right_rounded,
                             color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.5),
                           ),
+                        ],
                       ],
                     ),
+                    if (tripController.isSyncing(trip.id)) ...[
+                      const SizedBox(height: UIConsts.spacingMD),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: LinearProgressIndicator(
+                          value: tripController.getSyncProgress(trip.id),
+                          backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                          valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                          minHeight: 4,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Đang tải lên: ${(tripController.getSyncProgress(trip.id) * 100).toInt()}%',
+                            style: TextStyle(
+                              color: AppTheme.primaryColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: UIConsts.spacingXL),
-                    Row(
-                      children: [
-                        _buildInfoChip(
-                          icon: Icons.straighten_rounded,
-                          label: trip.distance > 0
-                              ? '${trip.distance.toStringAsFixed(1)} km'
-                              : '-- km',
-                          color: AppTheme.accentColor,
-                          isDark: isDark,
-                        ),
-                        const SizedBox(width: UIConsts.spacingSM),
-                        _buildInfoChip(
-                          icon: Icons.timer_outlined,
-                          label: trip.duration.isNotEmpty
-                              ? trip.duration
-                              : '-- phút',
-                          color: AppTheme.successColor,
-                          isDark: isDark,
-                        ),
-                        const SizedBox(width: UIConsts.spacingSM),
-                        if (imageCount > 0 || videoCount > 0)
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildSyncStatusBadge(trip.isSynced, isDark),
+                          const SizedBox(width: UIConsts.spacingSM),
                           _buildInfoChip(
-                            icon: Icons.photo_library_rounded,
-                            label: '${imageCount + videoCount}',
-                            color: AppTheme.warningColor,
+                            icon: Icons.straighten_rounded,
+                            label: trip.distance > 0
+                                ? '${trip.distance.toStringAsFixed(1)} km'
+                                : '-- km',
+                            color: AppTheme.accentColor,
                             isDark: isDark,
                           ),
-                      ],
+                          const SizedBox(width: UIConsts.spacingSM),
+                          _buildInfoChip(
+                            icon: Icons.timer_outlined,
+                            label: trip.duration.isNotEmpty
+                                ? trip.duration
+                                : '-- phút',
+                            color: AppTheme.successColor,
+                            isDark: isDark,
+                          ),
+                          if (imageCount > 0 || videoCount > 0) ...[
+                            const SizedBox(width: UIConsts.spacingSM),
+                            _buildInfoChip(
+                              icon: Icons.photo_library_rounded,
+                              label: '${imageCount + videoCount}',
+                              color: AppTheme.warningColor,
+                              isDark: isDark,
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                     const SizedBox(height: UIConsts.spacingXL),
                     _buildLocationTimeline(trip, isDark),
@@ -411,6 +504,83 @@ class _TripManagerScreenState extends State<TripManagerScreen>
         ),
       ),
     );
+  }
+
+  Widget _buildSyncStatusBadge(bool isSynced, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isSynced
+            ? AppTheme.successColor.withOpacity(0.1)
+            : AppTheme.adaptiveDivier(isDark).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(UIConsts.radiusMD),
+        border: Border.all(
+          color: isSynced
+              ? AppTheme.successColor.withOpacity(0.2)
+              : AppTheme.adaptiveDivier(isDark).withOpacity(0.2),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isSynced ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
+            color: isSynced ? AppTheme.successColor : AppTheme.adaptiveSubtext(isDark),
+            size: 14,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            isSynced ? 'Đã đồng bộ' : 'Chưa đồng bộ',
+            style: TextStyle(
+              color: isSynced ? AppTheme.successColor : AppTheme.adaptiveSubtext(isDark),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleSync(BuildContext context, TripController tripController, Trip trip) async {
+    debugPrint('Sync button pressed for trip: ${trip.id}');
+    HapticFeedback.mediumImpact();
+    try {
+      final success = await tripController.syncTripToCloud(trip.id);
+      debugPrint('Sync result: $success');
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Đã tải lên drive thành công cho: ${trip.title}')),
+              ],
+            ),
+            backgroundColor: AppTheme.successColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      } else if (!success && mounted) {
+        final error = tripController.error;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đồng bộ thất bại: $error'),
+            backgroundColor: AppTheme.accentColor,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error during sync call: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi hệ thống: $e'), backgroundColor: AppTheme.accentColor),
+        );
+      }
+    }
   }
 
   Widget _buildActiveBadge() {

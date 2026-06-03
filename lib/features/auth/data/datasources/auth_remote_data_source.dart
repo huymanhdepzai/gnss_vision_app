@@ -1,7 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:googleapis/drive/v3.dart' as drive;
+import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
+import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
 
 abstract class AuthRemoteDataSource {
@@ -14,6 +18,9 @@ abstract class AuthRemoteDataSource {
   Future<UserModel> signInSilently();
   Future<void> setBiometricEnabled(bool enabled);
   Future<bool> isBiometricEnabled();
+
+  // Google API Client
+  Future<http.Client?> getAuthenticatedClient();
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -22,6 +29,13 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   final SharedPreferences sharedPreferences;
 
   static const String _biometricKey = 'is_biometric_enabled';
+  
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: [
+      drive.DriveApi.driveFileScope,
+      'email',
+    ],
+  );
 
   AuthRemoteDataSourceImpl({
     required this.auth,
@@ -32,11 +46,16 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   @override
   Future<UserModel> signInWithGoogle() async {
     try {
-      final GoogleSignInAccount googleUser = await GoogleSignIn.instance.authenticate();
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      
+      if (googleUser == null) {
+        throw Exception('Đăng nhập bị hủy bởi người dùng');
+      }
 
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final AuthCredential credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
+        accessToken: googleAuth.accessToken,
       );
 
       final UserCredential userCredential = await auth.signInWithCredential(credential);
@@ -54,13 +73,17 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   @override
   Future<UserModel> signInSilently() async {
     try {
-      // Vì bản GoogleSignIn này không có signInSilently, ta dùng authenticate()
-      // Nếu version này hỗ trợ silent thông qua instance, hãy điều chỉnh sau.
-      final GoogleSignInAccount googleUser = await GoogleSignIn.instance.authenticate();
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signInSilently();
+
+      if (googleUser == null) {
+        // Nếu silent sign in thất bại, thử lại với signIn thông thường
+        return await signInWithGoogle();
+      }
 
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final AuthCredential credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
+        accessToken: googleAuth.accessToken,
       );
 
       final UserCredential userCredential = await auth.signInWithCredential(credential);
@@ -72,6 +95,26 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       return UserModel.fromFirebaseUser(userCredential.user!);
     } catch (e) {
       throw Exception('Lỗi đăng nhập nhanh: $e');
+    }
+  }
+
+  @override
+  Future<http.Client?> getAuthenticatedClient() async {
+    try {
+      // Nếu chưa có user trong session hiện tại, thử silent sign in
+      if (_googleSignIn.currentUser == null) {
+        debugPrint('AuthRemoteDataSource: currentUser is null, attempting silent sign in...');
+        await _googleSignIn.signInSilently();
+      }
+
+      final client = await _googleSignIn.authenticatedClient();
+      if (client == null) {
+        debugPrint('AuthRemoteDataSource: Failed to get authenticated client from google_sign_in');
+      }
+      return client;
+    } catch (e) {
+      debugPrint('AuthRemoteDataSource: Error getting authenticated client: $e');
+      return null;
     }
   }
 
@@ -103,7 +146,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   @override
   Future<void> signOut() async {
-    await GoogleSignIn.instance.signOut();
+    await _googleSignIn.signOut();
     await auth.signOut();
   }
 

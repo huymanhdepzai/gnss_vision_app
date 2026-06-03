@@ -746,7 +746,9 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           fit: StackFit.expand,
           children: [
             media.type == MediaType.image
-                ? Image.file(File(media.filePath), fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildMediaPlaceholder(isDark))
+                ? (File(media.filePath).existsSync() 
+                    ? Image.file(File(media.filePath), fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildMediaPlaceholder(isDark))
+                    : _buildMediaPlaceholder(isDark))
                 : _buildVideoThumbnail(media, isDark),
             if (media.type == MediaType.video)
               const Center(child: Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 40)),
@@ -879,10 +881,14 @@ class _TripDetailScreenState extends State<TripDetailScreen>
         children: [
           Center(
             child: media.type == MediaType.image
-                ? Image.file(File(media.filePath), fit: BoxFit.contain)
+                ? (File(media.filePath).existsSync()
+                    ? Image.file(File(media.filePath), fit: BoxFit.contain)
+                    : _buildMediaPlaceholder(isDark))
                 : _videoController != null && _videoController!.value.isInitialized
                     ? AspectRatio(aspectRatio: _videoController!.value.aspectRatio, child: VideoPlayer(_videoController!))
-                    : const CircularProgressIndicator(color: Colors.white),
+                    : (File(media.filePath).existsSync() 
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : _buildMediaPlaceholder(isDark)),
           ),
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
@@ -939,18 +945,28 @@ class _TripDetailScreenState extends State<TripDetailScreen>
   }
 
   void _initializeVideoPlayer(String path) async {
+    if (!File(path).existsSync()) {
+      debugPrint('Video file not found: $path');
+      return;
+    }
     _videoController?.dispose();
     _videoController = VideoPlayerController.file(File(path));
-    await _videoController!.initialize();
-    setState(() {});
-    _videoController!.play();
-    _videoController!.setLooping(true);
+    try {
+      await _videoController!.initialize();
+      setState(() {});
+      _videoController!.play();
+      _videoController!.setLooping(true);
+    } catch (e) {
+      debugPrint('Error initializing video player: $e');
+    }
   }
 
   void _showDeleteConfirmation(bool isDark) {
+    final parentContext = context;
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppTheme.adaptiveSurface(isDark),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text('Xóa hành trình?', style: TextStyle(color: AppTheme.adaptiveText(isDark), fontWeight: FontWeight.bold)),
@@ -959,12 +975,31 @@ class _TripDetailScreenState extends State<TripDetailScreen>
           style: TextStyle(color: AppTheme.adaptiveSubtext(isDark)),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('Hủy', style: TextStyle(color: AppTheme.adaptiveSubtext(isDark)))),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text('Hủy', style: TextStyle(color: AppTheme.adaptiveSubtext(isDark)))),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(context);
-              await context.read<TripController>().deleteTrip(widget.tripId);
-              if (mounted) Navigator.pop(context);
+              // Đóng dialog xác nhận
+              Navigator.pop(dialogContext);
+              
+              // Hiện loading overlay
+              showDialog(
+                context: parentContext,
+                barrierDismissible: false,
+                builder: (loadingContext) => const Center(
+                  child: CircularProgressIndicator(color: AppTheme.primaryColor),
+                ),
+              );
+
+              // Thực hiện xóa
+              final controller = parentContext.read<TripController>();
+              await controller.deleteTrip(widget.tripId);
+              
+              if (mounted) {
+                // Đóng loading overlay
+                Navigator.pop(parentContext);
+                // Thoát khỏi màn hình chi tiết và báo hiệu cần load lại (tùy chọn)
+                Navigator.pop(parentContext, true);
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accentColor, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
             child: const Text('Xóa ngay'),

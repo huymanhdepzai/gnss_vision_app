@@ -4,6 +4,7 @@ class MediaFile extends Equatable {
   final String id;
   final String tripId;
   final String path;
+  final String? remoteId;
   final String type; // 'image', 'video', 'audio'
   final DateTime createdAt;
   final double? latitude;
@@ -16,6 +17,7 @@ class MediaFile extends Equatable {
     required this.id,
     required this.tripId,
     required this.path,
+    this.remoteId,
     required this.type,
     required this.createdAt,
     this.latitude,
@@ -29,6 +31,7 @@ class MediaFile extends Equatable {
     String? id,
     String? tripId,
     String? path,
+    String? remoteId,
     String? type,
     DateTime? createdAt,
     double? latitude,
@@ -41,6 +44,7 @@ class MediaFile extends Equatable {
       id: id ?? this.id,
       tripId: tripId ?? this.tripId,
       path: path ?? this.path,
+      remoteId: remoteId ?? this.remoteId,
       type: type ?? this.type,
       createdAt: createdAt ?? this.createdAt,
       latitude: latitude ?? this.latitude,
@@ -56,6 +60,7 @@ class MediaFile extends Equatable {
     id,
     tripId,
     path,
+    remoteId,
     type,
     createdAt,
     latitude,

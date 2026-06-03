@@ -14,6 +14,11 @@ import '../../features/auth/domain/usecases/logout.dart';
 import '../../features/auth/domain/usecases/set_biometric_enabled.dart';
 import '../../features/auth/domain/usecases/sign_in_silently.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
+import '../../features/trip/data/datasources/firestore_data_source.dart';
+import '../../features/trip/data/datasources/trip_local_data_source.dart';
+import '../../features/trip/data/datasources/trip_local_data_source_impl.dart';
+import '../../features/trip/data/repositories/trip_repository_impl.dart';
+import '../../features/trip/domain/repositories/trip_repository.dart';
 
 final sl = GetIt.instance;
 
@@ -98,8 +103,23 @@ void initVisionFeature() {
 }
 
 void initTripFeature() {
-  // Trip feature will be initialized here when fully migrated to BLoC
-  // For now, legacy TripController is used via Provider in main.dart
+  // Data sources
+  sl.registerLazySingleton<TripLocalDataSource>(
+    () => TripLocalDataSourceImpl(
+      tripsBox: sl(instanceName: 'tripsBox'),
+      mediaBox: sl(instanceName: 'mediaBox'),
+    ),
+  );
+  sl.registerLazySingleton<FirestoreDataSource>(() => FirestoreDataSource());
+
+  // Repository
+  sl.registerLazySingleton<TripRepository>(
+    () => TripRepositoryImpl(
+      localDataSource: sl(),
+      authRemoteDataSource: sl(),
+      firestoreDataSource: sl(),
+    ),
+  );
 }
 
 void initSharedServices() {

@@ -173,4 +173,15 @@ class TripLocalDataSourceImpl implements TripLocalDataSource {
       );
     }
   }
+
+  @override
+  Future<Either<Failure, void>> deleteAllData() async {
+    try {
+      await _tripsBox.clear();
+      await _mediaBox.clear();
+      return const Right(null);
+    } catch (e) {
+      return Left(CacheFailure(message: 'Failed to clear local data: $e'));
+    }
+  }
 }
