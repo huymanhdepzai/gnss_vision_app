@@ -284,14 +284,18 @@ class FlowController extends ChangeNotifier {
   }
 
   // ================= ĐIỀU KHIỂN =================
+  Future<void> playVideo(String path) async {
+    isPlaying = true;
+    isPaused = false;
+    _toWorkerPort?.send(IsolateCommand('START', path: path));
+    notifyListeners();
+  }
+
   Future<void> pickAndPlayVideo() async {
     final picker = ImagePicker();
     final XFile? video = await picker.pickVideo(source: ImageSource.gallery);
     if (video != null) {
-      isPlaying = true;
-      isPaused = false;
-      _toWorkerPort?.send(IsolateCommand('START', path: video.path));
-      notifyListeners();
+      await playVideo(video.path);
     }
   }
 

@@ -1,11 +1,16 @@
 import 'dart:ui';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/app_theme.dart';
 import '../controllers/flow_controller.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../widgets/flow_painter.dart';
+import '../../../trip/presentation/controllers/trip_controller.dart';
+import '../../../trip/data/models/trip.dart';
+import '../../../trip/data/models/media_file.dart';
 
 class FlowScreenV2 extends StatefulWidget {
   const FlowScreenV2({Key? key}) : super(key: key);
@@ -96,7 +101,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
   Widget _buildDetectionOverlay(bool isDark) {
     return Positioned.fill(
       child: IgnorePointer(
-        child: ValueListenableBuilder(
+        child: ValueListenableBuilder<double>(
           valueListenable: _controller.headingNotifier,
           builder: (context, heading, _) {
             return ValueListenableBuilder<List<DetectedObject>>(
@@ -165,7 +170,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
   }
 
   Widget _buildVideoBackground(bool isDark) {
-    return ValueListenableBuilder(
+    return ValueListenableBuilder<Uint8List?>(
       valueListenable: _controller.frameNotifier,
       builder: (context, bytes, child) {
         if (bytes != null && _controller.imageSize != Size.zero) {
@@ -193,29 +198,6 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                           fit: BoxFit.contain,
                           gaplessPlayback: true,
                           filterQuality: FilterQuality.medium,
-                        ),
-                          ValueListenableBuilder(
-                          valueListenable: _controller.headingNotifier,
-                          builder: (context, heading, _) {
-                            return ValueListenableBuilder<List<DetectedObject>>(
-                              valueListenable: _controller.aiObstaclesNotifier,
-                              builder: (context, obstacles, _) {
-                                return Positioned.fill(
-                                  child: CustomPaint(
-                                    painter: FlowPainter(
-                                      points: _controller.pointsToDraw,
-                                      imageSize: _controller.imageSize,
-                                      staticRois: _controller.staticRois,
-                                      aiObstacles: obstacles,
-                                      isDebugMode: _isDebugMode,
-                                      confidence: null,
-                                      moveVector: null,
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
                         ),
                       ],
                     ),
@@ -313,7 +295,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
 
   Widget _buildStartButton(bool isDark) {
     return GestureDetector(
-      onTap: _controller.pickAndPlayVideo,
+      onTap: () => _showPickMediaSourceSheet(isDark),
       child: AnimatedBuilder(
         animation: _shimmerController,
         builder: (context, child) {
@@ -323,9 +305,9 @@ class _FlowScreenV2State extends State<FlowScreenV2>
               gradient: AppTheme.primaryGradient,
               isDark: isDark,
             ),
-            child: Row(
+            child: const Row(
               mainAxisSize: MainAxisSize.min,
-              children: const [
+              children: [
                 Icon(Icons.play_circle_fill_rounded, color: Colors.white),
                 SizedBox(width: 12),
                 Text(
@@ -341,6 +323,277 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _showPickMediaSourceSheet(bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+        decoration: BoxDecoration(
+          color: AppTheme.adaptiveSurface(isDark),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.adaptiveDivier(isDark),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Chọn nguồn video',
+              style: TextStyle(
+                color: AppTheme.adaptiveText(isDark),
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ListTile(
+              onTap: () {
+                Navigator.pop(context);
+                _controller.pickAndPlayVideo();
+              },
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.video_library_rounded, color: AppTheme.primaryColor),
+              ),
+              title: Text(
+                'Thư viện máy',
+                style: TextStyle(
+                  color: AppTheme.adaptiveText(isDark),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: Text(
+                'Chọn video có sẵn trong điện thoại',
+                style: TextStyle(color: AppTheme.adaptiveSubtext(isDark)),
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              onTap: () {
+                Navigator.pop(context);
+                _showTripSelectionSheet(isDark);
+              },
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.secondaryColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.route_rounded, color: AppTheme.secondaryColor),
+              ),
+              title: Text(
+                'Hành trình đã lưu',
+                style: TextStyle(
+                  color: AppTheme.adaptiveText(isDark),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: Text(
+                'Sử dụng video từ các chuyến đi của bạn',
+                style: TextStyle(color: AppTheme.adaptiveSubtext(isDark)),
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showTripSelectionSheet(bool isDark) {
+    final tripController = context.read<TripController>();
+    tripController.loadTrips();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        minChildSize: 0.4,
+        expand: false,
+        builder: (context, scrollController) => Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          decoration: BoxDecoration(
+            color: AppTheme.adaptiveSurface(isDark),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.adaptiveDivier(isDark),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Chọn hành trình',
+                style: TextStyle(
+                  color: AppTheme.adaptiveText(isDark),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: Consumer<TripController>(
+                  builder: (context, controller, child) {
+                    if (controller.isLoading) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (controller.trips.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'Chưa có hành trình nào',
+                          style: TextStyle(color: AppTheme.adaptiveSubtext(isDark)),
+                        ),
+                      );
+                    }
+                    return ListView.builder(
+                      controller: scrollController,
+                      itemCount: controller.trips.length,
+                      itemBuilder: (context, index) {
+                        final trip = controller.trips[index];
+                        final videos = controller.getMediaForTrip(trip.id).where((m) => m.type == MediaType.video).toList();
+                        
+                        return ListTile(
+                          onTap: videos.isEmpty ? null : () {
+                            Navigator.pop(context);
+                            _showVideoSelectionSheet(isDark, trip, videos);
+                          },
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.map_rounded, color: AppTheme.primaryColor, size: 20),
+                          ),
+                          title: Text(
+                            trip.title,
+                            style: TextStyle(
+                              color: AppTheme.adaptiveText(isDark),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${videos.length} video • ${DateFormat('dd/MM/yyyy').format(trip.createdAt)}',
+                            style: TextStyle(color: AppTheme.adaptiveSubtext(isDark), fontSize: 12),
+                          ),
+                          trailing: Icon(
+                            Icons.chevron_right_rounded,
+                            color: videos.isEmpty ? Colors.grey.withOpacity(0.3) : null,
+                          ),
+                          enabled: videos.isNotEmpty,
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showVideoSelectionSheet(bool isDark, Trip trip, List<MediaFile> videos) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+        decoration: BoxDecoration(
+          color: AppTheme.adaptiveSurface(isDark),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.adaptiveDivier(isDark),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Chọn video trong hành trình',
+              style: TextStyle(
+                color: AppTheme.adaptiveText(isDark),
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              trip.title,
+              style: TextStyle(color: AppTheme.adaptiveSubtext(isDark), fontSize: 13),
+            ),
+            const SizedBox(height: 24),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: videos.length,
+                itemBuilder: (context, index) {
+                  final video = videos[index];
+                  return ListTile(
+                    onTap: () {
+                      Navigator.pop(context);
+                      _controller.playVideo(video.filePath);
+                    },
+                    leading: Container(
+                      width: 50,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.black12,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.play_circle_outline, size: 20),
+                    ),
+                    title: Text(
+                      'Video ${index + 1}',
+                      style: TextStyle(
+                        color: AppTheme.adaptiveText(isDark),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      DateFormat('HH:mm - dd/MM').format(video.capturedAt),
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    trailing: const Icon(Icons.play_arrow_rounded, size: 18),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -381,8 +634,6 @@ class _FlowScreenV2State extends State<FlowScreenV2>
   }
 
   Widget _buildOptionsMenu(bool isDark) {
-    final textColor = isDark ? Colors.white : AppTheme.textDark;
-    
     return PopupMenuButton<String>(
       icon: Container(
         padding: const EdgeInsets.all(8),
@@ -398,7 +649,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
       onSelected: (value) {
         HapticFeedback.lightImpact();
         switch (value) {
-          case 'pick': _controller.pickAndPlayVideo(); break;
+          case 'pick': _showPickMediaSourceSheet(isDark); break;
           case 'voice': _controller.toggleVoice(); break;
           case 'debug': setState(() => _isDebugMode = !_isDebugMode); break;
           case 'reset': _controller.resetTracking(); break;
@@ -519,7 +770,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
   }
 
   Widget _buildCompactProgressBar(bool isDark) {
-    return ValueListenableBuilder(
+    return ValueListenableBuilder<double>(
       valueListenable: _controller.progressNotifier,
       builder: (context, progress, child) {
         final total = _controller.totalFrames > 0 ? _controller.totalFrames : 1.0;
