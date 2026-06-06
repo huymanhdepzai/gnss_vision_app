@@ -84,11 +84,40 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             children: [
               _buildVideoBackground(isDark),
               _buildHeadingIndicator(isDark),
+              _buildDetectionOverlay(isDark),
               _buildBottomDashboard(topPadding, bottomPadding, isDark),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildDetectionOverlay(bool isDark) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: ValueListenableBuilder(
+          valueListenable: _controller.headingNotifier,
+          builder: (context, heading, _) {
+            return ValueListenableBuilder<List<DetectedObject>>(
+              valueListenable: _controller.aiObstaclesNotifier,
+              builder: (context, obstacles, _) {
+                return CustomPaint(
+                  painter: FlowPainter(
+                    points: _controller.pointsToDraw,
+                    imageSize: _controller.imageSize,
+                    staticRois: _controller.staticRois,
+                    aiObstacles: obstacles,
+                    isDebugMode: _isDebugMode,
+                    confidence: null,
+                    moveVector: null,
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -168,7 +197,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                           ValueListenableBuilder(
                           valueListenable: _controller.headingNotifier,
                           builder: (context, heading, _) {
-                            return ValueListenableBuilder<List<Rect>>(
+                            return ValueListenableBuilder<List<DetectedObject>>(
                               valueListenable: _controller.aiObstaclesNotifier,
                               builder: (context, obstacles, _) {
                                 return Positioned.fill(

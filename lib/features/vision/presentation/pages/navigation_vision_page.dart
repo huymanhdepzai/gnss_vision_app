@@ -321,7 +321,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                           points: _flowController.pointsToDraw,
                           imageSize: _flowController.imageSize,
                           staticRois: _flowController.staticRois,
-                          aiObstacles: _flowController.aiObstacles,
+                          aiObstacles: _flowController.aiObstaclesNotifier.value,
                           isDebugMode: _isDebugMode,
                           confidence: null,
                           moveVector: null,

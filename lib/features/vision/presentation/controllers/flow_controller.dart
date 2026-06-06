@@ -25,6 +25,7 @@ class IsolateResult {
   final int inlierCount;
   final double quality;
   final int trackCount;
+  final List<String> detectedLabels;
 
   IsolateResult({
     required this.imageBytes,
@@ -37,6 +38,7 @@ class IsolateResult {
     this.inlierCount = 0,
     this.quality = 0.5,
     this.trackCount = 0,
+    this.detectedLabels = const [],
   });
 }
 
@@ -48,6 +50,12 @@ class IsolateCommand {
   final List<Rect>? aiObstacles;
 
   IsolateCommand(this.type, {this.path, this.value, this.aiObstacles});
+}
+
+class DetectedObject {
+  final Rect rect;
+  final String label;
+  DetectedObject({required this.rect, required this.label});
 }
 
 class FlowController extends ChangeNotifier {
@@ -83,8 +91,8 @@ class FlowController extends ChangeNotifier {
   double playbackSpeed = 1.0;
   Size imageSize = Size.zero;
   List<Offset> pointsToDraw = [];
-  final ValueNotifier<List<Rect>> aiObstaclesNotifier = ValueNotifier<List<Rect>>([]);
-  List<Rect> get aiObstacles => aiObstaclesNotifier.value;
+  final ValueNotifier<List<DetectedObject>> aiObstaclesNotifier = ValueNotifier<List<DetectedObject>>([]);
+  List<Rect> get aiObstacles => aiObstaclesNotifier.value.map((e) => e.rect).toList();
   List<Rect>? staticRois;
   List<Rect> forbiddenZones = [];
 
@@ -101,6 +109,12 @@ class FlowController extends ChangeNotifier {
     'truck',
     'person',
     'bicycle',
+    'traffic light',
+    'stop sign',
+    'fire hydrant',
+    'bench',
+    'dog',
+    'cat',
   ];
   StreamSubscription<Position>? gpsSubscription;
   StreamSubscription<UserAccelerometerEvent>? imuSubscription;
@@ -180,13 +194,16 @@ class FlowController extends ChangeNotifier {
 
   // ================= XỬ LÝ KẾT QUẢ TỪ ISOLATE =================
   int _frameCounter = 0;
+  bool _isAiBusy = false;
+  int _consecutiveEmptyAiRuns = 0;
 
   void _handleFrameResult(IsolateResult res) async {
     _frameCounter++;
     pointsToDraw = res.points;
     imageSize = res.imageSize;
 
-    if (_frameCounter % 10 == 0 && res.imageBytes != null) {
+    // AI chạy cực nhanh: Mỗi 2 frame để bám sát video nhất có thể
+    if (_frameCounter % 2 == 0 && res.imageBytes != null && !_isAiBusy) {
       _runAI(res.imageBytes!, res.imageSize);
     }
 
@@ -208,53 +225,61 @@ class FlowController extends ChangeNotifier {
   }
 
   Future<void> _runAI(Uint8List bytes, Size size) async {
-    final result = await vision.yoloOnImage(
-      bytesList: bytes,
-      imageHeight: size.height.toInt(),
-      imageWidth: size.width.toInt(),
-      iouThreshold: 0.4,
-      confThreshold: 0.2,
-    );
+    _isAiBusy = true;
+    try {
+      final result = await vision.yoloOnImage(
+        bytesList: bytes,
+        imageHeight: size.height.toInt(),
+        imageWidth: size.width.toInt(),
+        iouThreshold: 0.4,
+        confThreshold: 0.25,
+      );
 
-    List<Rect> detected = [];
-    List<String> detectedLabels = [];
+      List<DetectedObject> detected = [];
+      List<String> detectedLabels = [];
 
-    for (var obj in result) {
-      List<dynamic> box = obj['box'];
-      String tag = obj['tag'].toString().trim().toLowerCase();
-      if (targetVehicles.contains(tag)) {
-        detected.add(
-          Rect.fromLTRB(
-            box[0].toDouble(),
-            box[1].toDouble(),
-            box[2].toDouble(),
-            box[3].toDouble(),
-          ),
-        );
-        detectedLabels.add(tag);
+      for (var obj in result) {
+        List<dynamic> box = obj['box'];
+        String tag = obj['tag'].toString().trim().toLowerCase();
+        if (targetVehicles.contains(tag)) {
+          detected.add(
+            DetectedObject(
+              rect: Rect.fromLTRB(
+                box[0].toDouble(),
+                box[1].toDouble(),
+                box[2].toDouble(),
+                box[3].toDouble(),
+              ),
+              label: tag,
+            ),
+          );
+          detectedLabels.add(tag);
+        }
       }
-    }
 
-    bool wasEmpty = aiObstaclesNotifier.value.isEmpty;
-    aiObstaclesNotifier.value = detected;
-    _toWorkerPort?.send(IsolateCommand('AI_UPDATE', aiObstacles: aiObstaclesNotifier.value));
+      bool wasEmpty = aiObstaclesNotifier.value.isEmpty;
+      
+      if (detected.isNotEmpty) {
+        _consecutiveEmptyAiRuns = 0;
+        aiObstaclesNotifier.value = detected;
+        _toWorkerPort?.send(IsolateCommand('AI_UPDATE', aiObstacles: aiObstacles));
+      } else {
+        _consecutiveEmptyAiRuns++;
+        // Xóa ngay lập tức (ngưỡng = 1) để tránh hiện tượng lưu khung cũ
+        if (_consecutiveEmptyAiRuns >= 1 && aiObstaclesNotifier.value.isNotEmpty) {
+          aiObstaclesNotifier.value = [];
+          _toWorkerPort?.send(IsolateCommand('AI_UPDATE', aiObstacles: []));
+        }
+      }
 
-    // Voice feedback for obstacles
-    debugPrint('=== Voice Feedback Check ===');
-    debugPrint('  voiceEnabled: $voiceEnabled');
-    debugPrint('  detected count: ${detected.length}');
-    debugPrint('  wasEmpty: $wasEmpty');
-
-    if (voiceEnabled && detected.isNotEmpty && wasEmpty) {
-      debugPrint('  Calling alertObstacle...');
-      voiceFeedback.alertObstacle(
-        count: detected.length,
-        labels: detectedLabels,
-      );
-    } else {
-      debugPrint(
-        '  Skipped: wasEmpty=$wasEmpty, detected.isNotEmpty=${detected.isNotEmpty}',
-      );
+      if (voiceEnabled && detected.isNotEmpty && wasEmpty) {
+        voiceFeedback.alertObstacle(
+          count: detected.length,
+          labels: detectedLabels,
+        );
+      }
+    } finally {
+      _isAiBusy = false;
     }
   }
 
@@ -281,14 +306,15 @@ class FlowController extends ChangeNotifier {
   }
 
   void cycleSpeed() {
-    if (playbackSpeed == 1.0)
+    if (playbackSpeed == 1.0) {
       playbackSpeed = 1.5;
-    else if (playbackSpeed == 1.5)
+    } else if (playbackSpeed == 1.5) {
       playbackSpeed = 2.0;
-    else if (playbackSpeed == 2.0)
+    } else if (playbackSpeed == 2.0) {
       playbackSpeed = 0.5;
-    else
+    } else {
       playbackSpeed = 1.0;
+    }
     _toWorkerPort?.send(IsolateCommand('SPEED', value: playbackSpeed));
     notifyListeners();
   }

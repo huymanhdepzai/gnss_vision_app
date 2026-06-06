@@ -1,11 +1,13 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
+import '../controllers/flow_controller.dart';
+
 class FlowPainter extends CustomPainter {
   final List<Offset> points;
   final Size imageSize;
   final List<Rect>? staticRois;
-  final List<Rect>? aiObstacles;
+  final List<DetectedObject>? aiObstacles;
   final bool isDebugMode;
   final double? confidence;
   final Offset? moveVector;
@@ -24,17 +26,35 @@ class FlowPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (imageSize.width == 0 || imageSize.height == 0) return;
 
-    final double scaleX = size.width / imageSize.width;
-    final double scaleY = size.height / imageSize.height;
+    // --- Calculate Fit and Offset (BoxFit.contain logic) ---
+    final double imageAspect = imageSize.width / imageSize.height;
+    final double screenAspect = size.width / size.height;
 
-    _drawDebugGrid(canvas, size, scaleX, scaleY);
-    _drawObstacles(canvas, size, scaleX, scaleY);
-    _drawTrackingPoints(canvas, size, scaleX, scaleY);
-    _drawMotionVector(canvas, size, scaleX, scaleY);
+    double drawWidth, drawHeight;
+    double offsetX = 0, offsetY = 0;
+
+    if (screenAspect > imageAspect) {
+      drawHeight = size.height;
+      drawWidth = drawHeight * imageAspect;
+      offsetX = (size.width - drawWidth) / 2;
+    } else {
+      drawWidth = size.width;
+      drawHeight = drawWidth / imageAspect;
+      offsetY = (size.height - drawHeight) / 2;
+    }
+
+    final double scaleX = drawWidth / imageSize.width;
+    final double scaleY = drawHeight / imageSize.height;
+
+    // Save the global context to draw background elements later
+    _drawDebugGrid(canvas, size, scaleX, scaleY, offsetX, offsetY);
+    _drawObstacles(canvas, size, scaleX, scaleY, offsetX, offsetY);
+    _drawTrackingPoints(canvas, size, scaleX, scaleY, offsetX, offsetY);
+    _drawMotionVector(canvas, size, scaleX, scaleY, offsetX, offsetY);
     _drawConfidenceIndicator(canvas, size);
   }
 
-  void _drawDebugGrid(Canvas canvas, Size size, double scaleX, double scaleY) {
+  void _drawDebugGrid(Canvas canvas, Size size, double scaleX, double scaleY, double dx, double dy) {
     if (!isDebugMode || staticRois == null) return;
 
     final hudPaint = Paint()
@@ -44,28 +64,16 @@ class FlowPainter extends CustomPainter {
 
     for (var roi in staticRois!) {
       Rect scaledRoi = Rect.fromLTRB(
-        roi.left * scaleX,
-        roi.top * scaleY,
-        roi.right * scaleX,
-        roi.bottom * scaleY,
+        roi.left * scaleX + dx,
+        roi.top * scaleY + dy,
+        roi.right * scaleX + dx,
+        roi.bottom * scaleY + dy,
       );
       canvas.drawRect(scaledRoi, hudPaint);
-
-      final centerHud = scaledRoi.center;
-      canvas.drawLine(
-        Offset(centerHud.dx - 10, centerHud.dy),
-        Offset(centerHud.dx + 10, centerHud.dy),
-        hudPaint,
-      );
-      canvas.drawLine(
-        Offset(centerHud.dx, centerHud.dy - 10),
-        Offset(centerHud.dx, centerHud.dy + 10),
-        hudPaint,
-      );
     }
   }
 
-  void _drawObstacles(Canvas canvas, Size size, double scaleX, double scaleY) {
+  void _drawObstacles(Canvas canvas, Size size, double scaleX, double scaleY, double dx, double dy) {
     if (aiObstacles == null || aiObstacles!.isEmpty) return;
 
     final borderPaint = Paint()
@@ -77,15 +85,14 @@ class FlowPainter extends CustomPainter {
       ..color = Colors.red.withOpacity(0.15)
       ..style = PaintingStyle.fill;
 
-    for (var box in aiObstacles!) {
-      // Check if coordinates are normalized (0-1) or pixel-based
+    for (var obj in aiObstacles!) {
+      final box = obj.rect;
       double left = box.left;
       double top = box.top;
       double right = box.right;
       double bottom = box.bottom;
 
       if (left < 1.1 && right < 1.1 && top < 1.1 && bottom < 1.1) {
-        // Assume normalized, scale to image size
         left *= imageSize.width;
         top *= imageSize.height;
         right *= imageSize.width;
@@ -93,13 +100,13 @@ class FlowPainter extends CustomPainter {
       }
 
       Rect scaledBox = Rect.fromLTRB(
-        left * scaleX,
-        top * scaleY,
-        right * scaleX,
-        bottom * scaleY,
+        left * scaleX + dx,
+        top * scaleY + dy,
+        right * scaleX + dx,
+        bottom * scaleY + dy,
       );
 
-      // Draw shadow/glow
+      // Draw box with shadow and glow
       canvas.drawRRect(
         RRect.fromRectAndRadius(scaledBox, const Radius.circular(8)),
         Paint()
@@ -109,19 +116,77 @@ class FlowPainter extends CustomPainter {
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
       );
 
-      // Draw main box
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(scaledBox, const Radius.circular(8)),
-        fillPaint,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(scaledBox, const Radius.circular(8)),
-        borderPaint,
-      );
+      canvas.drawRRect(RRect.fromRectAndRadius(scaledBox, const Radius.circular(8)), fillPaint);
+      canvas.drawRRect(RRect.fromRectAndRadius(scaledBox, const Radius.circular(8)), borderPaint);
 
-      // Draw bold corners
       _drawBoldCorners(canvas, scaledBox);
+      _drawLabelToBackground(canvas, size, scaledBox, obj.label, dx, dy);
     }
+  }
+
+  void _drawLabelToBackground(Canvas canvas, Size screenSize, Rect box, String label, double dx, double dy) {
+    final leaderPaint = Paint()
+      ..color = Colors.red.withOpacity(0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    Offset start, end;
+    bool isLeft = box.center.dx < screenSize.width / 2;
+    bool isTop = box.center.dy < screenSize.height / 2;
+
+    // --- Optimized Exit Direction (Exclude Bottom) ---
+    if (isTop && dy > 30) {
+      // Priority 1: Top Area for objects in the upper half
+      start = Offset(box.center.dx, box.top);
+      double targetY = dy / 2;
+      double targetX = (box.center.dx).clamp(40.0, screenSize.width - 40.0);
+      end = Offset(targetX, targetY);
+    } else if (dx > 25) {
+      // Priority 2: Left/Right Sides for everything else (or if Top is small)
+      start = isLeft ? Offset(box.left, box.top) : Offset(box.right, box.top);
+      double targetX = isLeft ? dx / 2 : screenSize.width - (dx / 2);
+      double targetY = (box.top - 20).clamp(50.0, screenSize.height - 180.0); // Stay away from bottom controls
+      end = Offset(targetX, targetY);
+    } else {
+      // Fallback: Default to Top-Sides, avoiding downward lines
+      start = isLeft ? Offset(box.left, box.top) : Offset(box.right, box.top);
+      end = isLeft ? Offset(box.left - 40, box.top - 30) : Offset(box.right + 40, box.top - 30);
+    }
+
+    // Draw a subtle "elbow" path for a tech look
+    final path = Path()
+      ..moveTo(start.dx, start.dy)
+      ..lineTo(end.dx, end.dy);
+
+    canvas.drawPath(path, leaderPaint);
+    
+    // Tiny node at the start
+    canvas.drawCircle(start, 2.5, Paint()..color = Colors.red.withOpacity(0.8));
+
+    // --- Draw Label ---
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: ' ${label.toUpperCase()} ',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 9,
+          fontWeight: FontWeight.w900,
+          backgroundColor: Colors.red,
+          letterSpacing: 1.2,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+
+    textPainter.layout();
+    
+    // Center label on the end point
+    double drawX = isLeft ? end.dx : end.dx - textPainter.width;
+    if (dx <= 30 && dy <= 30) { // Fallback for small background
+       drawX = isLeft ? end.dx - textPainter.width : end.dx;
+    }
+    
+    textPainter.paint(canvas, Offset(drawX, end.dy - textPainter.height / 2));
   }
 
   void _drawBoldCorners(Canvas canvas, Rect rect) {
@@ -155,6 +220,8 @@ class FlowPainter extends CustomPainter {
     Size size,
     double scaleX,
     double scaleY,
+    double dx,
+    double dy,
   ) {
     if (!isDebugMode || points.isEmpty) return;
 
@@ -163,8 +230,8 @@ class FlowPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     for (var point in points) {
-      double mappedX = point.dx * scaleX;
-      double mappedY = point.dy * scaleY;
+      double mappedX = point.dx * scaleX + dx;
+      double mappedY = point.dy * scaleY + dy;
 
       final glowPaint = Paint()
         ..color = Colors.greenAccent.withOpacity(0.3)
@@ -180,6 +247,8 @@ class FlowPainter extends CustomPainter {
     Size size,
     double scaleX,
     double scaleY,
+    double dx,
+    double dy,
   ) {
     if (moveVector == null || !isDebugMode) return;
 
