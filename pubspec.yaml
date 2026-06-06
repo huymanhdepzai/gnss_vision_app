@@ -48,7 +48,6 @@ dependencies:
   permission_handler: ^11.0.1
   opencv_dart: ^1.0.0
   image_picker: ^1.1.2
-  google_mlkit_object_detection: ^0.13.0
   flutter_vision: ^1.1.4
   
   # Location & Sensors
@@ -130,7 +129,7 @@ flutter:
   assets:
     - assets/images/earth-night.jpg
     - assets/images/navigation.png
-    - assets/yolov8n.tflite
+    - assets/yolov8n_float16.tflite
     - assets/labels.txt
     - assets/branding/icons/
     - assets/icons/

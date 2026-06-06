@@ -57,6 +57,7 @@ class FlowController extends ChangeNotifier {
   );
   final ValueNotifier<double> speedNotifier = ValueNotifier<double>(0.0);
   final ValueNotifier<double> headingNotifier = ValueNotifier<double>(0.0);
+  final ValueNotifier<double> turnIntensityNotifier = ValueNotifier<double>(0.0);
   final ValueNotifier<double> progressNotifier = ValueNotifier<double>(0.0);
 
   // ================= MODULES =================
@@ -82,8 +83,9 @@ class FlowController extends ChangeNotifier {
   double playbackSpeed = 1.0;
   Size imageSize = Size.zero;
   List<Offset> pointsToDraw = [];
+  final ValueNotifier<List<Rect>> aiObstaclesNotifier = ValueNotifier<List<Rect>>([]);
+  List<Rect> get aiObstacles => aiObstaclesNotifier.value;
   List<Rect>? staticRois;
-  List<Rect> aiObstacles = [];
   List<Rect> forbiddenZones = [];
 
   double currentGpsHeading = 0.0;
@@ -134,7 +136,7 @@ class FlowController extends ChangeNotifier {
   Future<void> _loadYoloModel() async {
     await vision.loadYoloModel(
       labels: 'assets/labels.txt',
-      modelPath: 'assets/yolov8n.tflite',
+      modelPath: 'assets/yolov8n_float16.tflite',
       modelVersion: "yolov8",
       numThreads: 4,
       useGpu: true,
@@ -201,6 +203,7 @@ class FlowController extends ChangeNotifier {
 
     frameNotifier.value = res.imageBytes;
     headingNotifier.value = finalFusedHeading;
+    turnIntensityNotifier.value = (res.moveVector.dx / 20).clamp(-1.0, 1.0);
     progressNotifier.value = res.currentFrame;
   }
 
@@ -232,9 +235,9 @@ class FlowController extends ChangeNotifier {
       }
     }
 
-    bool wasEmpty = aiObstacles.isEmpty;
-    aiObstacles = detected;
-    _toWorkerPort?.send(IsolateCommand('AI_UPDATE', aiObstacles: aiObstacles));
+    bool wasEmpty = aiObstaclesNotifier.value.isEmpty;
+    aiObstaclesNotifier.value = detected;
+    _toWorkerPort?.send(IsolateCommand('AI_UPDATE', aiObstacles: aiObstaclesNotifier.value));
 
     // Voice feedback for obstacles
     debugPrint('=== Voice Feedback Check ===');
