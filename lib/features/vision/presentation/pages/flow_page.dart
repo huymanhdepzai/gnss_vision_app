@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/app_theme.dart';
@@ -90,11 +91,45 @@ class _FlowScreenV2State extends State<FlowScreenV2>
               _buildVideoBackground(isDark),
               _buildHeadingIndicator(isDark),
               _buildDetectionOverlay(isDark),
-              _buildBottomDashboard(topPadding, bottomPadding, isDark),
+              _buildBackButton(topPadding, isDark),
+              ListenableBuilder(
+                listenable: _controller,
+                builder: (context, _) {
+                  if (!_controller.isPlaying) return const SizedBox.shrink();
+                  return _buildBottomDashboard(topPadding, bottomPadding, isDark);
+                },
+              ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildBackButton(double topPadding, bool isDark) {
+    return Positioned(
+      top: topPadding + 12,
+      left: 16,
+      child: FadeTransition(
+        opacity: _fadeAnimation,
+        child: GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            Navigator.pop(context);
+          },
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: AppTheme.glassDecoration(isDark: isDark).copyWith(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: isDark ? Colors.white : AppTheme.textDark,
+              size: 20,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -281,10 +316,11 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                 AppTheme.secondaryColor,
                 radius: 40,
               ),
-              child: const Icon(
-                Icons.auto_awesome_motion_rounded,
-                color: Colors.white,
-                size: 32,
+              child: SvgPicture.asset(
+                'assets/icons/eye.svg',
+                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                width: 32,
+                height: 32,
               ),
             ),
           ),
@@ -378,11 +414,6 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              subtitle: Text(
-                'Chọn video có sẵn trong điện thoại',
-                style: TextStyle(color: AppTheme.adaptiveSubtext(isDark)),
-              ),
-              trailing: const Icon(Icons.chevron_right_rounded),
             ),
             const SizedBox(height: 8),
             ListTile(
@@ -399,17 +430,12 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                 child: const Icon(Icons.route_rounded, color: AppTheme.secondaryColor),
               ),
               title: Text(
-                'Hành trình đã lưu',
+                'Hành trình của bạn',
                 style: TextStyle(
                   color: AppTheme.adaptiveText(isDark),
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              subtitle: Text(
-                'Sử dụng video từ các chuyến đi của bạn',
-                style: TextStyle(color: AppTheme.adaptiveSubtext(isDark)),
-              ),
-              trailing: const Icon(Icons.chevron_right_rounded),
             ),
           ],
         ),

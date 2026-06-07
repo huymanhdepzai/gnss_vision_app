@@ -18,10 +18,12 @@ class TripController extends ChangeNotifier {
   Map<String, List<MediaFile>> _tripMedia = {};
 
   bool _isLoading = false;
+  bool _isSyncingFromCloud = false;
   String? _error;
 
   List<Trip> get trips => _trips;
   bool get isLoading => _isLoading;
+  bool get isSyncingFromCloud => _isSyncingFromCloud;
   String? get error => _error;
 
   List<MediaFile> getMediaForTrip(String tripId) {
@@ -334,18 +336,17 @@ class TripController extends ChangeNotifier {
   Future<bool> syncAllFromCloud() async {
     debugPrint('TripController: Starting sync all from cloud');
     _isLoading = true;
+    _isSyncingFromCloud = true;
     _error = null;
     notifyListeners();
 
     try {
       final result = await _tripRepository.syncAllFromCloud();
       
-      return await result.fold(
-        (failure) {
+      final success = await result.fold(
+        (failure) async {
           debugPrint('TripController: Sync all failed - ${failure.message}');
-          _isLoading = false;
           _error = failure.message;
-          notifyListeners();
           return false;
         },
         (_) async {
@@ -354,9 +355,14 @@ class TripController extends ChangeNotifier {
           return true;
         },
       );
+      _isLoading = false;
+      _isSyncingFromCloud = false;
+      notifyListeners();
+      return success;
     } catch (e) {
       debugPrint('TripController: Unexpected error during sync all - $e');
       _isLoading = false;
+      _isSyncingFromCloud = false;
       _error = e.toString();
       notifyListeners();
       return false;
