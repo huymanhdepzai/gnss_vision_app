@@ -38,6 +38,12 @@ class TripController extends ChangeNotifier {
     }
   }
 
+  bool isTripTitleAvailable(String title) {
+    return !_trips.any((trip) => 
+      trip.title.trim().toLowerCase() == title.trim().toLowerCase()
+    );
+  }
+
   Future<void> loadTrips() async {
     _isLoading = true;
     _error = null;
@@ -188,6 +194,13 @@ class TripController extends ChangeNotifier {
 
       await _tripService.saveMediaFile(mediaFile);
       await _tripService.addMediaToTrip(tripId, mediaFile.id);
+
+      // Reset sync status of the trip when new media is added
+      final trip = getTripById(tripId);
+      if (trip != null && trip.isSynced) {
+        trip.isSynced = false;
+        await updateTrip(trip);
+      }
 
       if (_tripMedia[tripId] == null) {
         _tripMedia[tripId] = [];

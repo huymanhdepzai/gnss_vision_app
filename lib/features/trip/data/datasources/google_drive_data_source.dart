@@ -75,8 +75,16 @@ class GoogleDriveDataSource {
     await sink.close();
   }
 
-  /// Tạo thư mục cho chuyến đi cụ thể
-  Future<String> createTripFolder(String tripName, String rootFolderId) async {
+  /// Lấy hoặc tạo thư mục cho chuyến đi cụ thể
+  Future<String> getOrCreateTripFolder(String tripName, String rootFolderId) async {
+    final String query = "name = '$tripName' and mimeType = 'application/vnd.google-apps.folder' and '$rootFolderId' in parents and trashed = false";
+    final drive.FileList folderList = await _driveApi.files.list(q: query);
+
+    if (folderList.files != null && folderList.files!.isNotEmpty) {
+      return folderList.files!.first.id!;
+    }
+
+    // Tạo mới nếu chưa có
     final drive.File folderMetadata = drive.File();
     folderMetadata.name = tripName;
     folderMetadata.mimeType = 'application/vnd.google-apps.folder';
