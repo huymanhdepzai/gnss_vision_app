@@ -15,6 +15,7 @@ abstract class AuthRemoteDataSource {
   
   // Biometric methods
   Future<bool> authenticateWithBiometrics();
+  Future<bool> isDeviceBiometricAvailable();
   Future<UserModel> signInSilently();
   Future<void> setBiometricEnabled(bool enabled);
   Future<bool> isBiometricEnabled();
@@ -129,6 +130,19 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       return await localAuth.authenticate(
         localizedReason: 'Vui lòng xác thực để đăng nhập vào GNSS Vision',
       );
+    } catch (e) {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> isDeviceBiometricAvailable() async {
+    try {
+      final bool canCheckBiometrics = await localAuth.canCheckBiometrics;
+      final bool isDeviceSupported = await localAuth.isDeviceSupported();
+      final List<BiometricType> availableBiometrics = await localAuth.getAvailableBiometrics();
+      
+      return (canCheckBiometrics || isDeviceSupported) && availableBiometrics.isNotEmpty;
     } catch (e) {
       return false;
     }

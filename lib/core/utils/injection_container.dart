@@ -9,6 +9,7 @@ import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../../features/auth/domain/usecases/authenticate_with_biometrics.dart';
 import '../../features/auth/domain/usecases/get_current_user.dart';
 import '../../features/auth/domain/usecases/is_biometric_enabled.dart';
+import '../../features/auth/domain/usecases/is_device_biometric_available.dart';
 import '../../features/auth/domain/usecases/login_with_google.dart';
 import '../../features/auth/domain/usecases/logout.dart';
 import '../../features/auth/domain/usecases/set_biometric_enabled.dart';
@@ -80,6 +81,7 @@ void initAuthFeature() {
   sl.registerLazySingleton(() => LogoutUseCase(sl()));
   sl.registerLazySingleton(() => AuthenticateWithBiometricsUseCase(sl()));
   sl.registerLazySingleton(() => IsBiometricEnabledUseCase(sl()));
+  sl.registerLazySingleton(() => IsDeviceBiometricAvailableUseCase(sl()));
   sl.registerLazySingleton(() => SetBiometricEnabledUseCase(sl()));
   sl.registerLazySingleton(() => SignInSilentlyUseCase(sl()));
 
@@ -91,6 +93,7 @@ void initAuthFeature() {
       logout: sl(),
       authenticateWithBiometrics: sl(),
       isBiometricEnabled: sl(),
+      isDeviceBiometricAvailable: sl(),
       setBiometricEnabled: sl(),
       signInSilently: sl(),
     ),

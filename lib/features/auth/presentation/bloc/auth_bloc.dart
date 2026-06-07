@@ -4,6 +4,7 @@ import '../../domain/entities/user_entity.dart';
 import '../../domain/usecases/authenticate_with_biometrics.dart';
 import '../../domain/usecases/get_current_user.dart';
 import '../../domain/usecases/is_biometric_enabled.dart';
+import '../../domain/usecases/is_device_biometric_available.dart';
 import '../../domain/usecases/login_with_google.dart';
 import '../../domain/usecases/logout.dart';
 import '../../domain/usecases/set_biometric_enabled.dart';
@@ -43,6 +44,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   // New Use Cases
   final AuthenticateWithBiometricsUseCase authenticateWithBiometrics;
   final IsBiometricEnabledUseCase isBiometricEnabled;
+  final IsDeviceBiometricAvailableUseCase isDeviceBiometricAvailable;
   final SetBiometricEnabledUseCase setBiometricEnabled;
   final SignInSilentlyUseCase signInSilently;
 
@@ -52,6 +54,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     required this.logout,
     required this.authenticateWithBiometrics,
     required this.isBiometricEnabled,
+    required this.isDeviceBiometricAvailable,
     required this.setBiometricEnabled,
     required this.signInSilently,
   }) : super(const AuthState.initial()) {
@@ -101,19 +104,50 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     // Biometric Logic
     on<_CheckBiometricStatusRequested>((event, emit) async {
       final result = await isBiometricEnabled();
-      result.fold(
-        (_) => null,
-        (enabled) {
-          state.maybeWhen(
-            unauthenticated: (_) => emit(AuthState.unauthenticated(isBiometricEnabled: enabled)),
-            authenticated: (user, _) => emit(AuthState.authenticated(user, isBiometricEnabled: enabled)),
-            orElse: () {},
+      final enabled = result.getOrElse(() => false);
+      
+      await state.maybeMap(
+        authenticated: (s) async {
+          emit(AuthState.authenticated(s.user, isBiometricEnabled: enabled));
+        },
+        unauthenticated: (s) async {
+          emit(AuthState.unauthenticated(isBiometricEnabled: enabled));
+        },
+        error: (_) async {
+          final userResult = await getCurrentUser();
+          userResult.fold(
+            (_) => emit(AuthState.unauthenticated(isBiometricEnabled: enabled)),
+            (user) => user != null 
+                ? emit(AuthState.authenticated(user, isBiometricEnabled: enabled))
+                : emit(AuthState.unauthenticated(isBiometricEnabled: enabled)),
+          );
+        },
+        orElse: () async {
+          final userResult = await getCurrentUser();
+          userResult.fold(
+            (_) => emit(AuthState.unauthenticated(isBiometricEnabled: enabled)),
+            (user) => user != null 
+                ? emit(AuthState.authenticated(user, isBiometricEnabled: enabled))
+                : emit(AuthState.unauthenticated(isBiometricEnabled: enabled)),
           );
         },
       );
     });
 
     on<_ToggleBiometricRequested>((event, emit) async {
+      if (event.enabled) {
+        final availableResult = await isDeviceBiometricAvailable();
+        final isAvailable = availableResult.getOrElse(() => false);
+        
+        if (!isAvailable) {
+          emit(const AuthState.error('Vui lòng bật sinh trắc học trên điện thoại trước khi kích hoạt tính năng này.'));
+          // Re-emit current state to reset error or just keep error? 
+          // Usually we should re-emit the previous state with the toggle off.
+          add(const AuthEvent.checkBiometricStatusRequested());
+          return;
+        }
+      }
+      
       await setBiometricEnabled(event.enabled);
       add(const AuthEvent.checkBiometricStatusRequested());
     });

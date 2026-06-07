@@ -13,6 +13,7 @@ abstract class AuthRepository {
   
   // Biometric methods
   Future<Either<Failure, bool>> authenticateWithBiometrics();
+  Future<Either<Failure, bool>> isDeviceBiometricAvailable();
   Future<Either<Failure, UserEntity>> signInSilently();
   Future<Either<Failure, void>> setBiometricEnabled(bool enabled);
   Future<Either<Failure, bool>> isBiometricEnabled();

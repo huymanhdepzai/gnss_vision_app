@@ -190,6 +190,8 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
               ModernToggleSwitch(
                 value: isBiometricEnabled,
                 onChanged: (enabled) {
+                  HapticFeedback.mediumImpact();
+                  Navigator.pop(context); // Tự động đóng drawer
                   context.read<AuthBloc>().add(AuthEvent.toggleBiometricRequested(enabled));
                 },
               ),
