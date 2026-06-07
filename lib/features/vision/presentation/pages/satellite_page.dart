@@ -568,7 +568,7 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildStatusIndicator(context),
+                // _buildStatusIndicator(context),
                 SizedBox(width: UIConsts.spacingSM),
                 PressScale(
                   onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
