@@ -1,0 +1,100 @@
+================================================================================
+KẾ HOẠCH KIỂM THỬ VÀ DEMO HỆ THỐNG GNSS-VISION NAVIGATION
+================================================================================
+
+PHẦN 1: KẾ HOẠCH VÀ KỊCH BẢN KIỂM THỬ HỆ THỐNG (TESTING PLAN & SCRIPT)
+--------------------------------------------------------------------------------
+1.1. Mục tiêu kiểm thử:
+- Đảm bảo các luồng chức năng chính (tìm đường, nhận diện AI, sensor fusion, voice command) hoạt động đúng thiết kế.
+- Đo lường hiệu năng và mức độ tiêu thụ pin khi chạy các model nặng (YOLO, OpenCV) trên thiết bị di động.
+- Đánh giá khả năng bù trừ sai số (fallback) khi đi vào môi trường mất sóng GPS.
+
+1.2. Môi trường kiểm thử:
+- Thiết bị (Hardware): Ít nhất 2 thiết bị (1 máy cấu hình cao đời mới và 1 máy tầm trung để đánh giá hiệu năng).
+- Môi trường vật lý (Môi trường test): 
+  + Khu vực trống (GPS tốt).
+  + Khu vực nhiều nhà cao tầng, đường hầm hoặc dưới hầm gửi xe (GPS yếu/mất hoàn toàn).
+- Môi trường phần mềm: Build ở chế độ Release Mode để có hiệu năng thực tế.
+
+1.3. Kịch bản kiểm thử chi tiết (Test Cases):
+
+[TC01] - Kiểm tra Bản đồ, Tìm kiếm & Routing (Goong API / Mapbox)
+- Bước 1: Mở app, cấp quyền vị trí. Kiểm tra vị trí hiện tại trên bản đồ có chính xác không.
+- Bước 2: Nhập từ khóa tìm kiếm một địa điểm (VD: "Đại học Bách Khoa"). Kiểm tra gợi ý Autocomplete.
+- Bước 3: Chọn địa điểm và nhấn "Dẫn đường". 
+- Kết quả mong đợi: Hệ thống vẽ Polyline đường đi chính xác, hiển thị khoảng cách, thời gian dự kiến và mũi tên điều hướng.
+
+[TC02] - Kiểm tra Voice Command (Điều khiển giọng nói Tiếng Việt)
+- Bước 1: Nhấn nút Voice (hoặc kích hoạt bằng giọng nói nếu có trigger word).
+- Bước 2: Đọc lệnh: "Chỉ đường đến Hồ Gươm".
+- Bước 3: Đọc lệnh: "Mở chế độ tầm nhìn" hoặc "Mở bản đồ vệ tinh".
+- Kết quả mong đợi: Ứng dụng tự động parse text, tìm kiếm địa điểm tương ứng và vẽ đường đi; hoặc chuyển đúng qua các màn hình Vision/Satellite.
+
+[TC03] - Kiểm tra AI Nhận diện Vật cản (YOLOv8 & Dynamic Forbidden Zones)
+- Bước 1: Mở chế độ Vision (FlowScreen). Hướng camera về phía đường phố có xe cộ qua lại.
+- Bước 2: Di chuyển xe máy/ô tô hoặc nhờ người đi bộ đi ngang qua khung hình.
+- Kết quả mong đợi: 
+  + Vẽ đúng Bounding Box (khung vuông) bao quanh vật thể.
+  + Nhận diện đúng nhãn (Car, Motorbike, Pedestrian,...).
+  + Khung hình mượt, không bị khựng (giữ mức fps ổn định > 15-20 fps).
+  + Vẽ các "vùng đen" (Mask/Forbidden Zones) để che các vật thể đang di chuyển nhằm loại trừ khỏi thuật toán Optical Flow.
+
+[TC04] - Kiểm tra Sensor Fusion & Optical Flow (RẤT QUAN TRỌNG)
+- Bước 1: Mở chế độ dẫn đường kết hợp Vision.
+- Bước 2: Đi vào khu vực có GPS tốt. Quan sát góc quay (Heading) của mũi tên trên bản đồ.
+- Bước 3: Đi vào hầm chui, hầm gửi xe hoặc dùng tính năng Mock Location để tắt/làm nhiễu GPS. Tiếp tục di chuyển xe tịnh tiến.
+- Kết quả mong đợi: 
+  + Ứng dụng phát hiện độ chính xác GPS giảm (Accuracy > 15m).
+  + Chuyển trọng số sang Vision. Mũi tên điều hướng vẫn cập nhật hướng đi mượt mà theo hướng di chuyển của camera (nhờ OpenCV Lucas-Kanade) kết hợp gia tốc của IMU, mà không bị xoay loạn xạ.
+
+[TC05] - Kiểm thử Hiệu năng, Nhiệt độ và Pin (Stress Test)
+- Bước 1: Sạc đầy pin (100%). Bật chế độ Vision Navigation liên tục (mở cả Camera, GPS, 3D Map).
+- Bước 2: Chạy xe liên tục trong 30 phút.
+- Kết quả mong đợi: App không bị crash (văng) do hết RAM. Ghi nhận mức tụt pin (tốt nhất là < 10-15% cho 30 phút) và nhiệt độ máy ở mức chấp nhận được (không bị quá nhiệt tự tắt camera).
+
+
+PHẦN 2: KẾ HOẠCH VÀ KỊCH BẢN DEMO BẢO VỆ ĐỒ ÁN
+--------------------------------------------------------------------------------
+2.1. Chuẩn bị (Setup trước khi lên bảo vệ):
+- 1 Điện thoại đã cài sẵn App (bản Release). Tắt thông báo (Do Not Disturb) trên điện thoại.
+- Cable kết nối điện thoại với Laptop để chiếu màn hình điện thoại lên Projector (dùng Vysor, Scrcpy hoặc AirPlay/Cast).
+- (Optional nhưng rất khuyến khích): Do lúc bảo vệ đang ở trong phòng kín (không có sóng GPS và không chạy xe được), CẦN CHUẨN BỊ SẴN 1 VIDEO GHI HÌNH THỰC TẾ (Screen Recording) quá trình chạy xe ngoài đường để phát cho hội đồng xem.
+
+2.2. Kịch bản Demo chi tiết (Thời gian: 5 - 7 phút):
+
+[Bước 1: Mở đầu & Tổng quan UI - 1 phút]
+- Thuyết trình: "Xin chào Hội đồng, sau đây em xin demo ứng dụng GNSS-Vision Navigation. Đây là màn hình chính của ứng dụng với giao diện bản đồ."
+- Thao tác: Kéo/xoay bản đồ mượt mà để show khả năng render của Hybrid Map Engine.
+
+[Bước 2: Demo Voice Command & Tìm đường - 1.5 phút]
+- Thuyết trình: "Khi đang lái xe, việc bấm phím rất nguy hiểm. Ứng dụng hỗ trợ ra lệnh bằng giọng nói Tiếng Việt."
+- Thao tác: Bấm micro, nói to rõ ràng "Chỉ đường đi Đại học Bách Khoa Hà Nội".
+- Chỉ cho hội đồng thấy đường polyline được vẽ ra, thời gian, và các thông số điều hướng.
+
+[Bước 3: Demo Tính năng Lõi - AI Vision & Cảnh báo (Phát Video hoặc dùng Webcam) - 2 phút]
+- Thuyết trình: "Tiếp theo là module Thị giác máy tính. Do ở trong phòng không có giao thông, em xin phép chạy đoạn video test thực tế ngoài đường." (Mở video đã quay trước).
+- Trong video hiển thị: 
+  + Camera nhận diện liên tục các xe máy, ô tô phía trước (Bounding Box).
+  + Nêu bật tính năng Dynamic Forbidden Zones: "Hội đồng có thể thấy các vùng đen che lên các xe đang chạy. Điều này giúp thuật toán Optical Flow của em không bị đánh lừa bởi vật thể chuyển động, mà chỉ bám vào mặt đường (vật thể tĩnh) để tính toán hướng đi."
+
+[Bước 4: Demo Sensor Fusion (Khắc phục nhiễu GPS) - 1.5 phút]
+- Thuyết trình: "Để chứng minh Sensor Fusion hoạt động hiệu quả, đây là đoạn biểu đồ/video khi xe đi dưới các tòa nhà cao tầng (hoặc hầm chui)."
+- Thao tác chỉ vào video: "Lúc này GPS báo sai số lớn (Accuracy vọt lên 25m), nhưng mũi tên điều hướng trên app vẫn giữ thẳng và không bị xoay tròn như Google Maps, nhờ bù trừ từ góc quay của Camera và IMU."
+
+[Bước 5: Demo Màn hình GNSS 3D Satellite - 1 phút]
+- Thuyết trình: "Cuối cùng, để giám sát tình trạng vệ tinh, người dùng có thể mở chế độ 3D Globe."
+- Thao tác: Chuyển sang màn hình vệ tinh 3D. Xoay quả địa cầu, hiển thị biểu đồ Skyplot Radar chứng minh app đang bắt được bao nhiêu vệ tinh, cường độ tín hiệu (SNR) của từng vệ tinh.
+- Kết luận: "Phần demo của em đến đây là kết thúc. Cảm ơn Hội đồng đã theo dõi."
+
+--------------------------------------------------------------------------------
+PHẦN 3: CÁC CÂU HỎI PHẢN BIỆN DỰ KIẾN (Q&A PREPARATION)
+Hội đồng có thể hỏi các câu khó, cần chuẩn bị sẵn câu trả lời:
+1. Q: Thuật toán Optical Flow xử lý thế nào vào ban đêm hoặc trời mưa?
+   -> A: Dạ, đây là hạn chế vật lý của Camera. App đã thiết lập cơ chế Fallback. Khi độ sáng quá thấp hoặc số lượng điểm đặc trưng (features) dưới ngưỡng cho phép, hệ thống tự động giảm trọng số của Vision về 0 và chuyển sang tin tưởng 100% vào IMU (Gyroscope + Accelerometer) trong thời gian ngắn.
+
+2. Q: Xử lý AI trên điện thoại có làm máy nóng và tốn pin không?
+   -> A: Dạ có. Để giải quyết, em đã áp dụng 3 kỹ thuật: (1) Nén video xuống 240p trước khi xử lý, (2) Chạy Isolate riêng biệt không cản trở UI, (3) AI Throttling: Nhận diện YOLO mỗi 10 frame thay vì mọi frame. Nhờ đó app chạy ổn định trên thiết bị tầm trung.
+
+3. Q: Tại sao không dùng Google Maps API mà lại dùng Goong + Mapbox?
+   -> A: Dạ, Goong API được tối ưu rất tốt cho dữ liệu địa phương Việt Nam (ngõ, ngách) và chi phí API rẻ hơn. Mapbox cung cấp khả năng custom UI và xoay bản đồ 3D mượt mà hơn.
+================================================================================

@@ -61,6 +61,8 @@ class _MapHomeViewState extends State<_MapHomeView>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   MapboxMap? _mapboxMap;
   CircleAnnotationManager? _circleAnnotationManager;
+  bool _isDrawingMarkers = false;
+  MapHomeState? _latestStateToDraw;
 
   late AnimationController _fabAnimationController;
   late AnimationController _sheetAnimationController;
@@ -336,49 +338,70 @@ class _MapHomeViewState extends State<_MapHomeView>
   }
 
   Future<void> _drawMarkers(MapHomeState state) async {
-    if (_circleAnnotationManager == null) return;
-    await _circleAnnotationManager?.deleteAll();
+    _latestStateToDraw = state;
+    if (_isDrawingMarkers) return;
 
-    if (state.isLocationLoaded) {
-      await _circleAnnotationManager?.create(
-        CircleAnnotationOptions(
-          geometry: Point(
-                  coordinates:
-                      Position(state.currentLng, state.currentLat))
-              .toJson(),
-          circleColor: AppTheme.secondaryColor.withOpacity(0.3).value,
-          circleRadius: 20.0,
-        ),
-      );
-      await _circleAnnotationManager?.create(
-        CircleAnnotationOptions(
-          geometry: Point(
-                  coordinates:
-                      Position(state.currentLng, state.currentLat))
-              .toJson(),
-          circleColor: AppTheme.primaryColor.value,
-          circleRadius: 10.0,
-          circleStrokeWidth: 3.0,
-          circleStrokeColor: Colors.white.value,
-        ),
-      );
-    }
+    _isDrawingMarkers = true;
 
-    if (state.viewState != MapViewState.explore &&
-        state.destinationLat != null &&
-        state.destinationLng != null) {
-      await _circleAnnotationManager?.create(
-        CircleAnnotationOptions(
-          geometry: Point(
-                  coordinates: Position(
-                      state.destinationLng!, state.destinationLat!))
-              .toJson(),
-          circleColor: AppTheme.accentColor.value,
-          circleRadius: 12.0,
-          circleStrokeWidth: 3.0,
-          circleStrokeColor: Colors.white.value,
-        ),
-      );
+    try {
+      while (_latestStateToDraw != null) {
+        final stateToDraw = _latestStateToDraw!;
+        _latestStateToDraw = null;
+
+        if (_circleAnnotationManager == null) break;
+
+        // Xóa tất cả marker cũ trước khi vẽ mới
+        await _circleAnnotationManager?.deleteAll();
+
+        if (stateToDraw.isLocationLoaded) {
+          // Vòng tròn bên ngoài (hiệu ứng pulse)
+          await _circleAnnotationManager?.create(
+            CircleAnnotationOptions(
+              geometry: Point(
+                      coordinates: Position(
+                          stateToDraw.currentLng, stateToDraw.currentLat))
+                  .toJson(),
+              circleColor: AppTheme.secondaryColor.withOpacity(0.3).value,
+              circleRadius: 20.0,
+            ),
+          );
+          // Vòng tròn bên trong (vị trí chính xác)
+          await _circleAnnotationManager?.create(
+            CircleAnnotationOptions(
+              geometry: Point(
+                      coordinates: Position(
+                          stateToDraw.currentLng, stateToDraw.currentLat))
+                  .toJson(),
+              circleColor: AppTheme.primaryColor.value,
+              circleRadius: 10.0,
+              circleStrokeWidth: 3.0,
+              circleStrokeColor: Colors.white.value,
+            ),
+          );
+        }
+
+        // Vẽ điểm đến nếu không ở chế độ explore
+        if (stateToDraw.viewState != MapViewState.explore &&
+            stateToDraw.destinationLat != null &&
+            stateToDraw.destinationLng != null) {
+          await _circleAnnotationManager?.create(
+            CircleAnnotationOptions(
+              geometry: Point(
+                      coordinates: Position(stateToDraw.destinationLng!,
+                          stateToDraw.destinationLat!))
+                  .toJson(),
+              circleColor: AppTheme.accentColor.value,
+              circleRadius: 12.0,
+              circleStrokeWidth: 3.0,
+              circleStrokeColor: Colors.white.value,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Lỗi vẽ marker: $e");
+    } finally {
+      _isDrawingMarkers = false;
     }
   }
 
