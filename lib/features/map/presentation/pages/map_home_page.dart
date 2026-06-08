@@ -71,6 +71,8 @@ class _MapHomeViewState extends State<_MapHomeView>
   late Animation<Offset> _sheetSlideAnimation;
   late Animation<double> _pulseAnimation;
 
+  final ValueNotifier<double> _sheetExtentNotifier = ValueNotifier(0.45);
+
   MapHomeState _previousState = const MapHomeState();
 
   @override
@@ -628,33 +630,40 @@ class _MapHomeViewState extends State<_MapHomeView>
                     if (state.viewState == MapViewState.placeDetail)
                       SlideTransition(
                         position: _sheetSlideAnimation,
-                        child: DraggableScrollableSheet(
-                          initialChildSize: 0.45,
-                          minChildSize: 0.3,
-                          maxChildSize: 0.9,
-                          snap: true,
-                          snapSizes: const [0.3, 0.45, 0.9],
-                          builder: (context, scrollController) {
-                            return MapPlaceSheet(
-                              state: state,
-                              isDark: isDark,
-                              onStartNavigation: _handleStartNavigation,
-                              onFetchAndDrawRoute: _handleFetchAndDrawRoute,
-                              onVehicleSelected: (vehicle) => context
-                                  .read<MapHomeBloc>()
-                                  .add(MapHomeVehicleSelected(vehicle)),
-                              onRouteSelected: (index) => context
-                                  .read<MapHomeBloc>()
-                                  .add(MapHomeRouteSelected(index)),
-                              scrollController: scrollController,
-                              padding: EdgeInsets.fromLTRB(
-                                  20,
-                                  14,
-                                  20,
-                                  MediaQuery.of(context).padding.bottom +
-                                      20),
-                            );
+                        child: NotificationListener<
+                            DraggableScrollableNotification>(
+                          onNotification: (notification) {
+                            _sheetExtentNotifier.value = notification.extent;
+                            return true;
                           },
+                          child: DraggableScrollableSheet(
+                            initialChildSize: 0.45,
+                            minChildSize: 0.3,
+                            maxChildSize: 0.9,
+                            snap: true,
+                            snapSizes: const [0.3, 0.45, 0.9],
+                            builder: (context, scrollController) {
+                              return MapPlaceSheet(
+                                state: state,
+                                isDark: isDark,
+                                onStartNavigation: _handleStartNavigation,
+                                onFetchAndDrawRoute: _handleFetchAndDrawRoute,
+                                onVehicleSelected: (vehicle) => context
+                                    .read<MapHomeBloc>()
+                                    .add(MapHomeVehicleSelected(vehicle)),
+                                onRouteSelected: (index) => context
+                                    .read<MapHomeBloc>()
+                                    .add(MapHomeRouteSelected(index)),
+                                scrollController: scrollController,
+                                padding: EdgeInsets.fromLTRB(
+                                    20,
+                                    14,
+                                    20,
+                                    MediaQuery.of(context).padding.bottom +
+                                        20),
+                              );
+                            },
+                          ),
                         ),
                       ),
                     if (state.viewState == MapViewState.navigating)
@@ -664,30 +673,41 @@ class _MapHomeViewState extends State<_MapHomeView>
                         onExitNavigation: _handleResetToExplore,
                         onStartVision: _startNavigationVision,
                       ),
+                    // Di chuyển Floating Buttons vào Stack để không bị đè
+                    if (state.viewState != MapViewState.navigating)
+                      ValueListenableBuilder<double>(
+                        valueListenable: _sheetExtentNotifier,
+                        builder: (context, extent, child) {
+                          return Positioned(
+                            right: 16,
+                            bottom: state.viewState == MapViewState.placeDetail
+                                ? (MediaQuery.of(context).size.height * extent) +
+                                    16
+                                : 16,
+                            child: MapFloatingButtons(
+                              state: state,
+                              isDark: isDark,
+                              onMyLocation: () {
+                                HapticFeedback.lightImpact();
+                                if (state.isLocationLoaded) {
+                                  _updateCamera(
+                                      Position(state.currentLng,
+                                          state.currentLat),
+                                      16.0);
+                                } else {
+                                  context
+                                      .read<MapHomeBloc>()
+                                      .add(const MapHomeInitLocation());
+                                }
+                              },
+                              fabScaleAnimation: _fabScaleAnimation,
+                              pulseAnimation: _pulseAnimation,
+                            ),
+                          );
+                        },
+                      ),
                   ],
                 ),
-                floatingActionButton:
-                    state.viewState != MapViewState.navigating
-                        ? MapFloatingButtons(
-                            state: state,
-                            isDark: isDark,
-                            onMyLocation: () {
-                              HapticFeedback.lightImpact();
-                              if (state.isLocationLoaded) {
-                                _updateCamera(
-                                    Position(state.currentLng,
-                                        state.currentLat),
-                                    16.0);
-                              } else {
-                                context
-                                    .read<MapHomeBloc>()
-                                    .add(const MapHomeInitLocation());
-                              }
-                            },
-                            fabScaleAnimation: _fabScaleAnimation,
-                            pulseAnimation: _pulseAnimation,
-                          )
-                        : null,
               );
             },
           ),
