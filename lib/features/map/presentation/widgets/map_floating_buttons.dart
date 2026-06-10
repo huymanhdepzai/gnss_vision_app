@@ -6,6 +6,7 @@ class MapFloatingButtons extends StatelessWidget {
   final MapHomeState state;
   final bool isDark;
   final VoidCallback onMyLocation;
+  final VoidCallback onToggleAssistant;
   final Animation<double> fabScaleAnimation;
   final Animation<double> pulseAnimation;
 
@@ -14,6 +15,7 @@ class MapFloatingButtons extends StatelessWidget {
     required this.state,
     required this.isDark,
     required this.onMyLocation,
+    required this.onToggleAssistant,
     required this.fabScaleAnimation,
     required this.pulseAnimation,
   }) : super(key: key);
@@ -29,6 +31,17 @@ class MapFloatingButtons extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
+              // Assistant Button
+              FloatingActionButton.small(
+                heroTag: "btn_assistant",
+                backgroundColor: isDark ? AppTheme.cardDark : Colors.white,
+                elevation: 4,
+                shape: const CircleBorder(),
+                onPressed: onToggleAssistant,
+                child: const Icon(Icons.smart_toy_rounded,
+                    color: AppTheme.primaryColor),
+              ),
+              const SizedBox(height: 12),
               AnimatedBuilder(
                 animation: pulseAnimation,
                 builder: (context, child) {
@@ -47,6 +60,7 @@ class MapFloatingButtons extends StatelessWidget {
                       heroTag: "btn_location",
                       backgroundColor: isDark ? AppTheme.cardDark : Colors.white,
                       elevation: 6,
+                      shape: const CircleBorder(),
                       onPressed: onMyLocation,
                       child: Container(
                         decoration: BoxDecoration(

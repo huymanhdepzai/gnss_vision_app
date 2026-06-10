@@ -26,6 +26,7 @@ import '../widgets/map_place_sheet.dart';
 import '../widgets/map_navigation_top_bar.dart';
 import '../widgets/map_navigation_panel.dart';
 import '../widgets/map_floating_buttons.dart';
+import '../widgets/chat_assistant_overlay.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 
 class MapHomeScreenV2 extends StatelessWidget {
@@ -63,6 +64,7 @@ class _MapHomeViewState extends State<_MapHomeView>
   CircleAnnotationManager? _circleAnnotationManager;
   bool _isDrawingMarkers = false;
   MapHomeState? _latestStateToDraw;
+  bool _showAssistant = false;
 
   late AnimationController _fabAnimationController;
   late AnimationController _sheetAnimationController;
@@ -683,7 +685,7 @@ class _MapHomeViewState extends State<_MapHomeView>
                             bottom: state.viewState == MapViewState.placeDetail
                                 ? (MediaQuery.of(context).size.height * extent) +
                                     16
-                                : 16,
+                                : MediaQuery.of(context).padding.bottom + 16,
                             child: MapFloatingButtons(
                               state: state,
                               isDark: isDark,
@@ -700,11 +702,28 @@ class _MapHomeViewState extends State<_MapHomeView>
                                       .add(const MapHomeInitLocation());
                                 }
                               },
+                              onToggleAssistant: () {
+                                setState(() {
+                                  _showAssistant = !_showAssistant;
+                                });
+                                if (_showAssistant) {
+                                  HapticFeedback.mediumImpact();
+                                }
+                              },
                               fabScaleAnimation: _fabScaleAnimation,
                               pulseAnimation: _pulseAnimation,
                             ),
                           );
                         },
+                      ),
+                    if (_showAssistant)
+                      Positioned(
+                        right: 16,
+                        bottom: MediaQuery.of(context).padding.bottom + 80,
+                        child: ChatAssistantOverlay(
+                          isDark: isDark,
+                          onClose: () => setState(() => _showAssistant = false),
+                        ),
                       ),
                   ],
                 ),
