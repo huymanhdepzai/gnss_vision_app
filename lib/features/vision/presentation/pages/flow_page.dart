@@ -6,7 +6,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/app_theme.dart';
-import '../controllers/flow_controller.dart';
+import '../controllers/video_flow_controller.dart';
+import '../controllers/vision_isolate_models.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../widgets/flow_painter.dart';
 import '../../../trip/presentation/controllers/trip_controller.dart';
@@ -22,7 +23,7 @@ class FlowScreenV2 extends StatefulWidget {
 
 class _FlowScreenV2State extends State<FlowScreenV2>
     with TickerProviderStateMixin {
-  final FlowController _controller = FlowController();
+  final VideoFlowController _controller = VideoFlowController();
   bool _isDebugMode = false;
 
   late AnimationController _fadeController;
@@ -31,11 +32,28 @@ class _FlowScreenV2State extends State<FlowScreenV2>
   late AnimationController _shimmerController;
   late Animation<double> _fadeAnimation;
 
+  bool _wasStopSignDetected = false;
+
   @override
   void initState() {
     super.initState();
     _initAnimations();
     _controller.init();
+    _controller.aiObstaclesNotifier.addListener(_checkStopSignAndVibrate);
+  }
+
+  void _checkStopSignAndVibrate() {
+    final hasStopSign = _controller.aiObstaclesNotifier.value
+        .any((obj) => obj.label.toLowerCase() == 'stop sign');
+    
+    if (hasStopSign && !_wasStopSignDetected) {
+      // Khi vừa mới phát hiện biển báo, rung mạnh 2 lần
+      HapticFeedback.heavyImpact();
+      Future.delayed(const Duration(milliseconds: 300), () {
+        HapticFeedback.heavyImpact();
+      });
+    }
+    _wasStopSignDetected = hasStopSign;
   }
 
   void _initAnimations() {
@@ -65,6 +83,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
 
   @override
   void dispose() {
+    _controller.aiObstaclesNotifier.removeListener(_checkStopSignAndVibrate);
     _fadeController.dispose();
     _pulseController.dispose();
     _glowController.dispose();
@@ -85,21 +104,22 @@ class _FlowScreenV2State extends State<FlowScreenV2>
         return Scaffold(
           backgroundColor: AppTheme.adaptiveBackground(isDark),
           extendBody: true,
-          body: Stack(
-            fit: StackFit.expand,
-            children: [
-              _buildVideoBackground(isDark),
-              _buildHeadingIndicator(isDark),
-              _buildDetectionOverlay(isDark),
-              _buildBackButton(topPadding, isDark),
-              ListenableBuilder(
-                listenable: _controller,
-                builder: (context, _) {
-                  if (!_controller.isPlaying) return const SizedBox.shrink();
-                  return _buildBottomDashboard(topPadding, bottomPadding, isDark);
-                },
-              ),
-            ],
+          body: ListenableBuilder(
+            listenable: _controller,
+            builder: (context, _) {
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  _buildVideoBackground(isDark),
+                  _buildHeadingIndicator(isDark),
+                  _buildDetectionOverlay(isDark),
+                  _buildStopSignWarning(isDark),
+                  _buildBackButton(topPadding, isDark),
+                  if (_controller.isPlaying)
+                    _buildBottomDashboard(topPadding, bottomPadding, isDark),
+                ],
+              );
+            },
           ),
         );
       },
@@ -157,6 +177,65 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             );
           },
         ),
+      ),
+    );
+  }
+
+  Widget _buildStopSignWarning(bool isDark) {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 80,
+      left: 16,
+      right: 16,
+      child: ValueListenableBuilder<List<DetectedObject>>(
+        valueListenable: _controller.aiObstaclesNotifier,
+        builder: (context, obstacles, child) {
+          final hasStopSign = obstacles.any((obj) => obj.label.toLowerCase() == 'stop sign');
+          
+          if (!hasStopSign) return const SizedBox.shrink();
+
+          return AnimatedBuilder(
+            animation: _pulseController,
+            builder: (context, child) {
+              return Opacity(
+                opacity: 0.7 + (_pulseController.value * 0.3),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withOpacity(isDark ? 0.85 : 0.95),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.redAccent.withOpacity(0.5 * _pulseController.value),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.5),
+                      width: 2,
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.stop_circle_rounded, color: Colors.white, size: 40),
+                      SizedBox(width: 16),
+                      Text(
+                        'CẢNH BÁO: BIỂN STOP!',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }

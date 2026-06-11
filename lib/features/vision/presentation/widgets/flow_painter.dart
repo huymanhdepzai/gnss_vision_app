@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-import '../controllers/flow_controller.dart';
+import '../controllers/vision_isolate_models.dart';
 
 class FlowPainter extends CustomPainter {
   final List<Offset> points;

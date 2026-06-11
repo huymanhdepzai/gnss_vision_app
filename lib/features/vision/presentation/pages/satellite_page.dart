@@ -720,40 +720,42 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
                   ),
                 ],
               ),
-              const Spacer(),
-              Container(
-                height: 40,
-                width: 1,
-                color: Colors.white.withOpacity(0.1),
-                margin: EdgeInsets.symmetric(horizontal: UIConsts.spacingMD),
-              ),
-              ...systems.map((sys) {
-                final count = counts[sys] ?? 0;
-                final color = kSatelliteSystemColors[sys] ?? Colors.white;
-                return Padding(
-                  padding: EdgeInsets.only(left: UIConsts.spacingMD),
-                  child: Column(
-                    children: [
-                      Text(
-                        count.toString(),
-                        style: TextStyle(
-                          color: color,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: systems.map((sys) {
+                      final count = counts[sys] ?? 0;
+                      final color = kSatelliteSystemColors[sys] ?? Colors.white;
+                      return Padding(
+                        padding: EdgeInsets.only(left: UIConsts.spacingMD),
+                        child: Column(
+                          children: [
+                            Text(
+                              count.toString(),
+                              style: TextStyle(
+                                color: color,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              sys,
+                              style: TextStyle(
+                                color: context.textSecondaryColor,
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      Text(
-                        sys,
-                        style: TextStyle(
-                          color: context.textSecondaryColor,
-                          fontSize: 8,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                      );
+                    }).toList(),
                   ),
-                );
-              }),
+                ),
+              ),
             ],
           ),
         ),

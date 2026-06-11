@@ -82,7 +82,10 @@ class VoiceFeedbackService extends ChangeNotifier {
         'VoiceFeedbackService initialized successfully with language: $targetLanguage',
       );
 
-      await _testSpeak();
+      // Do not await _testSpeak() to prevent hanging if TTS engine is not bound
+      _testSpeak().timeout(const Duration(seconds: 2)).catchError((e) {
+        debugPrint('TTS test timeout or error: $e');
+      });
     } catch (e) {
       debugPrint('Error initializing TTS: $e');
       _isInitialized = false;

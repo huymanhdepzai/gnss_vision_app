@@ -8,57 +8,15 @@ import 'package:opencv_dart/opencv_dart.dart' as cv;
 import 'package:flutter_vision/flutter_vision.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:camera/camera.dart';
 
 import '../../domain/utils/cv_core.dart';
 import '../../domain/utils/sensor_fusion.dart';
 import '../../../../shared/data/services/voice_feedback_service.dart';
 
-/// Class mang dữ liệu từ Isolate về Controller
-class IsolateResult {
-  final Uint8List? imageBytes;
-  final List<Offset> points;
-  final List<Rect> forbiddenZones;
-  final Offset moveVector;
-  final double currentFrame;
-  final Size imageSize;
-  final double confidence;
-  final int inlierCount;
-  final double quality;
-  final int trackCount;
-  final List<String> detectedLabels;
+import 'vision_isolate_models.dart';
 
-  IsolateResult({
-    required this.imageBytes,
-    required this.points,
-    required this.forbiddenZones,
-    required this.moveVector,
-    required this.currentFrame,
-    required this.imageSize,
-    this.confidence = 0.5,
-    this.inlierCount = 0,
-    this.quality = 0.5,
-    this.trackCount = 0,
-    this.detectedLabels = const [],
-  });
-}
-
-/// Các lệnh gửi tới Isolate
-class IsolateCommand {
-  final String type; // 'START', 'PAUSE', 'RESUME', 'SEEK', 'STOP'
-  final String? path;
-  final double? value;
-  final List<Rect>? aiObstacles;
-
-  IsolateCommand(this.type, {this.path, this.value, this.aiObstacles});
-}
-
-class DetectedObject {
-  final Rect rect;
-  final String label;
-  DetectedObject({required this.rect, required this.label});
-}
-
-class FlowController extends ChangeNotifier {
+class VideoFlowController extends ChangeNotifier {
   // ================= NOTIFIERS =================
   final ValueNotifier<Uint8List?> frameNotifier = ValueNotifier<Uint8List?>(
     null,
@@ -73,13 +31,19 @@ class FlowController extends ChangeNotifier {
   final VoiceFeedbackService voiceFeedback = VoiceFeedbackService();
   late FlutterVision vision;
 
+  // ================= CAMERA =================
+  CameraController? _cameraController;
+  CameraController? get cameraController => _cameraController;
+  bool isUsingCamera = false;
+  bool _isProcessingCameraFrame = false;
+
   // ================= ISOLATE =================
   Isolate? _workerIsolate;
   SendPort? _toWorkerPort;
   final ReceivePort _fromWorkerPort = ReceivePort();
 
   // ================= TRẠNG THÁI =================
-  final bool isDemoMode = true;
+  bool isDemoMode = true; // Mặc định bật demo để phục vụ FlowPage
   bool isModelLoaded = false;
   bool hasValidGps = false;
   bool isPlaying = false;
@@ -122,27 +86,59 @@ class FlowController extends ChangeNotifier {
   // ================= INIT =================
   Future<void> init() async {
     vision = FlutterVision();
-    await _loadYoloModel();
-    await _initSensors();
-    await voiceFeedback.initialize();
-    await _startWorkerIsolate();
+    
+    try {
+      await _loadYoloModel();
+    } catch (e) {
+      debugPrint("Lỗi khi load YOLO model: $e");
+    }
+
+    try {
+      await _initSensors();
+    } catch (e) {
+      debugPrint("Lỗi khi khởi tạo Sensors: $e");
+    }
+
+    try {
+      await voiceFeedback.initialize();
+    } catch (e) {
+      debugPrint("Lỗi khi khởi tạo Voice Feedback: $e");
+    }
+
+    try {
+      await _startWorkerIsolate();
+    } catch (e) {
+      debugPrint("Lỗi khi khởi tạo Isolate: $e");
+    }
   }
 
   Future<void> _startWorkerIsolate() async {
+    final ReceivePort errorPort = ReceivePort();
+    errorPort.listen((message) {
+      debugPrint("Worker Isolate Crashed: $message");
+    });
+
     _workerIsolate = await Isolate.spawn(
       _videoWorker,
       _fromWorkerPort.sendPort,
+      onError: errorPort.sendPort,
     );
     _fromWorkerPort.listen((message) {
       if (message is SendPort) {
+        debugPrint("Đã nhận SendPort từ Isolate!");
         _toWorkerPort = message;
       } else if (message is IsolateResult) {
         _handleFrameResult(message);
-      } else if (message is Map<String, dynamic> &&
-          message['type'] == 'METADATA') {
-        totalFrames = message['totalFrames'];
-        fps = message['fps'];
-        notifyListeners();
+      } else if (message is Map<String, dynamic>) {
+        if (message['type'] == 'METADATA') {
+          totalFrames = message['totalFrames'];
+          fps = message['fps'];
+          notifyListeners();
+        } else if (message['type'] == 'ERROR') {
+          debugPrint("Worker Isolate Error: ${message['message']}");
+          isPlaying = false;
+          notifyListeners();
+        }
       }
     });
   }
@@ -218,10 +214,15 @@ class FlowController extends ChangeNotifier {
       visionQuality: res.quality,
     );
 
-    frameNotifier.value = res.imageBytes;
+    if (!isUsingCamera) {
+      frameNotifier.value = res.imageBytes;
+    }
     headingNotifier.value = finalFusedHeading;
     turnIntensityNotifier.value = (res.moveVector.dx / 20).clamp(-1.0, 1.0);
     progressNotifier.value = res.currentFrame;
+    
+    // Đảm bảo UI cập nhật các thuộc tính khác (imageSize, pointsToDraw, ...)
+    notifyListeners();
   }
 
   Future<void> _runAI(Uint8List bytes, Size size) async {
@@ -265,7 +266,6 @@ class FlowController extends ChangeNotifier {
         _toWorkerPort?.send(IsolateCommand('AI_UPDATE', aiObstacles: aiObstacles));
       } else {
         _consecutiveEmptyAiRuns++;
-        // Xóa ngay lập tức (ngưỡng = 1) để tránh hiện tượng lưu khung cũ
         if (_consecutiveEmptyAiRuns >= 1 && aiObstaclesNotifier.value.isNotEmpty) {
           aiObstaclesNotifier.value = [];
           _toWorkerPort?.send(IsolateCommand('AI_UPDATE', aiObstacles: []));
@@ -278,13 +278,29 @@ class FlowController extends ChangeNotifier {
           labels: detectedLabels,
         );
       }
+    } catch (e) {
+      debugPrint("Lỗi chạy AI: $e");
     } finally {
       _isAiBusy = false;
     }
   }
 
-  // ================= ĐIỀU KHIỂN =================
+
+
   Future<void> playVideo(String path) async {
+    
+    // Đảm bảo Isolate đã sẵn sàng
+    int waitCount = 0;
+    while (_toWorkerPort == null && waitCount < 50) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      waitCount++;
+    }
+
+    if (_toWorkerPort == null) {
+      debugPrint("Lỗi: Isolate chưa sẵn sàng");
+      return;
+    }
+    
     isPlaying = true;
     isPaused = false;
     _toWorkerPort?.send(IsolateCommand('START', path: path));
@@ -300,16 +316,19 @@ class FlowController extends ChangeNotifier {
   }
 
   void togglePause() {
+    if (isUsingCamera) return;
     isPaused = !isPaused;
     _toWorkerPort?.send(IsolateCommand(isPaused ? 'PAUSE' : 'RESUME'));
     notifyListeners();
   }
 
   void seekTo(double val) {
+    if (isUsingCamera) return;
     _toWorkerPort?.send(IsolateCommand('SEEK', value: val));
   }
 
   void cycleSpeed() {
+    if (isUsingCamera) return;
     if (playbackSpeed == 1.0) {
       playbackSpeed = 1.5;
     } else if (playbackSpeed == 1.5) {
@@ -355,38 +374,60 @@ class FlowController extends ChangeNotifier {
 
   // ================= WORKER ISOLATE (HÀM TÁCH BIỆT) =================
   static void _videoWorker(SendPort mainSendPort) {
+    print("Worker Isolate: Đang khởi động...");
     final ReceivePort workerReceivePort = ReceivePort();
     mainSendPort.send(workerReceivePort.sendPort);
+    print("Worker Isolate: Đã gửi SendPort về Main Isolate.");
 
     cv.VideoCapture? cap;
-    CVCore cvCore = CVCore();
+    CVCore? cvCore;
+    try {
+      cvCore = CVCore();
+      print("Worker Isolate: Khởi tạo CVCore thành công.");
+    } catch (e) {
+      print("Worker Isolate: Lỗi khởi tạo CVCore: $e");
+    }
+    
     bool isPlaying = false;
     bool isPaused = false;
+    bool isCamera = false;
     double speed = 1.0;
     List<Rect> obstacles = [];
 
     workerReceivePort.listen((message) async {
       if (message is IsolateCommand) {
         switch (message.type) {
-          case 'START':
+            case 'START':
+            isCamera = false;
             cap?.release();
             cap = cv.VideoCapture.fromFile(message.path!);
             if (cap!.isOpened) {
               isPlaying = true;
               mainSendPort.send({
                 'type': 'METADATA',
-                'totalFrames': cap!.get(cv.CAP_PROP_FRAME_COUNT),
-                'fps': cap!.get(cv.CAP_PROP_FPS),
+                'totalFrames': cap!.get(cv.CAP_PROP_FRAME_COUNT) ?? 0.0,
+                'fps': cap!.get(cv.CAP_PROP_FPS) ?? 30.0,
               });
               _runLoop(
                 cap!,
-                cvCore,
+                cvCore!,
                 mainSendPort,
-                () => isPlaying && !isPaused,
+                () => isPlaying && !isPaused && !isCamera,
                 () => speed,
                 () => obstacles,
               );
+            } else {
+              mainSendPort.send({
+                'type': 'ERROR',
+                'message': 'Không thể mở video tại ${message.path}',
+              });
             }
+            break;
+          case 'CAMERA_START':
+            // Removed
+            break;
+          case 'CAMERA_FRAME':
+            // Removed
             break;
           case 'PAUSE':
             isPaused = true;
@@ -404,10 +445,11 @@ class FlowController extends ChangeNotifier {
             cap?.set(cv.CAP_PROP_POS_FRAMES, message.value!);
             break;
           case 'RESET':
-            cvCore.resetTracking();
+            cvCore?.resetTracking();
             break;
           case 'STOP':
             isPlaying = false;
+            isCamera = false;
             cap?.release();
             break;
         }
@@ -433,32 +475,28 @@ class FlowController extends ChangeNotifier {
       var (ret, frame) = cap.read();
       if (!ret || frame.isEmpty) break;
 
-      // 1. Resize cực nhanh
       double scale = 240.0 / frame.cols;
       cv.Mat smallFrame = cv.resize(frame, (240, (frame.rows * scale).toInt()));
       frame.dispose();
 
-      // 2. CV Processing
       Map<String, dynamic> cvRes = cvCore.processFrame(
         smallFrame,
         aiObstacles: getObstacles(),
       );
 
-      // 3. Encode
       var (ok, encoded) = cv.imencode(
         ".jpg",
         smallFrame,
         params: cv.VecI32.fromList([cv.IMWRITE_JPEG_QUALITY, 50]),
       );
 
-      // Gửi kết quả về main
       sendPort.send(
         IsolateResult(
           imageBytes: ok ? encoded : null,
-          points: cvRes['points'],
-          forbiddenZones: cvRes['forbiddenZones'],
-          moveVector: cvRes['vector'],
-          currentFrame: cap.get(cv.CAP_PROP_POS_FRAMES),
+          points: cvRes['points'] ?? [],
+          forbiddenZones: cvRes['forbiddenZones'] ?? [],
+          moveVector: cvRes['vector'] ?? const Offset(0, 0),
+          currentFrame: cap.get(cv.CAP_PROP_POS_FRAMES) ?? 0.0,
           imageSize: Size(
             smallFrame.cols.toDouble(),
             smallFrame.rows.toDouble(),
@@ -473,14 +511,14 @@ class FlowController extends ChangeNotifier {
       smallFrame.dispose();
       timer.stop();
 
-      // Điều tiết FPS
-      int targetMs = (1000 / (30 * getSpeed())).round();
+      double currentFps = 30 * getSpeed();
+      if (currentFps <= 0) currentFps = 30;
+      int targetMs = (1000 / currentFps).round();
       int wait = targetMs - timer.elapsedMilliseconds;
       if (wait > 0) {
         await Future.delayed(Duration(milliseconds: wait));
       } else {
-        // Skip frame nếu quá chậm
-        cap.set(cv.CAP_PROP_POS_FRAMES, cap.get(cv.CAP_PROP_POS_FRAMES) + 1);
+        cap.set(cv.CAP_PROP_POS_FRAMES, (cap.get(cv.CAP_PROP_POS_FRAMES) ?? 0) + 1);
         await Future.delayed(const Duration(milliseconds: 2));
       }
     }
