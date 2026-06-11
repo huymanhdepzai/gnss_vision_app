@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/app_theme.dart';
 import '../bloc/map_home_state.dart';
 
@@ -32,14 +33,21 @@ class MapFloatingButtons extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               // Assistant Button
-              FloatingActionButton.small(
+              FloatingActionButton(
                 heroTag: "btn_assistant",
-                backgroundColor: isDark ? AppTheme.cardDark : Colors.white,
-                elevation: 4,
+                backgroundColor: Colors.white,
+                elevation: 6,
                 shape: const CircleBorder(),
                 onPressed: onToggleAssistant,
-                child: const Icon(Icons.smart_toy_rounded,
-                    color: AppTheme.primaryColor),
+                child: Center(
+                  child: SvgPicture.asset(
+                    'assets/icons/bot-svg.svg',
+                    colorFilter: const ColorFilter.mode(
+                        AppTheme.primaryColor, BlendMode.srcIn),
+                    width: 24,
+                    height: 24,
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               AnimatedBuilder(
@@ -58,7 +66,8 @@ class MapFloatingButtons extends StatelessWidget {
                     ),
                     child: FloatingActionButton(
                       heroTag: "btn_location",
-                      backgroundColor: isDark ? AppTheme.cardDark : Colors.white,
+                      backgroundColor: isDark ? AppTheme.cardDark : Colors
+                          .white,
                       elevation: 6,
                       shape: const CircleBorder(),
                       onPressed: onMyLocation,

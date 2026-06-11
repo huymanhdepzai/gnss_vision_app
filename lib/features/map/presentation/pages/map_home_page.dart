@@ -717,6 +717,12 @@ class _MapHomeViewState extends State<_MapHomeView>
                         },
                       ),
                     if (_showAssistant)
+                      GestureDetector(
+                        onTap: () => setState(() => _showAssistant = false),
+                        behavior: HitTestBehavior.opaque,
+                        child: const SizedBox.expand(),
+                      ),
+                    if (_showAssistant)
                       Positioned(
                         right: 16,
                         bottom: MediaQuery.of(context).padding.bottom + 80,

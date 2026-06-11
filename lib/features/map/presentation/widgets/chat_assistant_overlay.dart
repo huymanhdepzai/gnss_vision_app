@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'dart:ui';
 import '../../../../core/app_theme.dart';
 
 class ChatAssistantOverlay extends StatefulWidget {
@@ -32,13 +34,13 @@ class _ChatAssistantOverlayState extends State<ChatAssistantOverlay> {
 
   final Map<String, String> _answers = {
     'Làm sao để dùng dẫn đường AR?':
-        'Bạn chỉ cần chọn một địa điểm, nhấn "Bắt đầu" dẫn đường, sau đó nhấn vào biểu tượng Vision (hình con mắt) để bật chế độ dẫn đường thực tế tăng cường (AR).',
+    'Bạn chỉ cần chọn một địa điểm, nhấn "Bắt đầu" dẫn đường, sau đó nhấn vào biểu tượng Vision (hình con mắt) để bật chế độ dẫn đường thực tế tăng cường (AR).',
     'Xem bản đồ vệ tinh ở đâu?':
-        'Bạn có thể mở menu bên trái (Drawer) và chọn "Bản đồ vệ tinh" hoặc nói lệnh giọng nói "satellite".',
+    'Bạn có thể mở menu bên trái (Drawer) và chọn "Bản đồ vệ tinh" hoặc nói lệnh giọng nói "satellite".',
     'Làm thế nào để tìm đường?':
-        'Sử dụng thanh tìm kiếm phía trên để nhập điểm đến, sau đó chọn phương tiện và nhấn "Bắt đầu".',
+    'Sử dụng thanh tìm kiếm phía trên để nhập điểm đến, sau đó chọn phương tiện và nhấn "Bắt đầu".',
     'Ứng dụng này có gì đặc biệt?':
-        'GNSS Vision kết hợp bản đồ Mapbox với công nghệ AR và điều khiển bằng giọng nói để mang lại trải nghiệm dẫn đường hiện đại và an toàn hơn.'
+    'GNSS Vision kết hợp bản đồ Mapbox với công nghệ AR và điều khiển bằng giọng nói để mang lại trải nghiệm dẫn đường hiện đại và an toàn hơn.'
   };
 
   bool _isTyping = false;
@@ -88,127 +90,306 @@ class _ChatAssistantOverlayState extends State<ChatAssistantOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = widget.isDark ? AppTheme.cardDark : Colors.white;
-    final textColor = widget.isDark ? Colors.white : Colors.black87;
+    final bgColor = widget.isDark
+        ? AppTheme.cardDark.withOpacity(0.9)
+        : Colors.white.withOpacity(0.9);
 
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          width: 320,
+          height: 450,
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: widget.isDark ? Colors.white10 : Colors.black12,
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: _buildChatArea(),
+              ),
+              _buildQuickQuestions(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
     return Container(
-      width: 300,
-      height: 400,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.primaryColor,
+            AppTheme.primaryColor.withOpacity(0.8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
+            color: AppTheme.primaryColor.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Column(
+      child: Row(
         children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppTheme.primaryColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.smart_toy_rounded, color: Colors.white),
-                const SizedBox(width: 8),
-                const Text(
-                  'Trợ lý GNSS',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+          Stack(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: Colors.white24,
+                  shape: BoxShape.circle,
+                ),
+                child: SvgPicture.asset(
+                  'assets/icons/bot-svg.svg',
+                  colorFilter: const ColorFilter.mode(
+                      Colors.white, BlendMode.srcIn),
+                  width: 24,
+                  height: 24,
+                ),
+              ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: Colors.greenAccent,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppTheme.primaryColor, width: 2),
                   ),
                 ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white, size: 20),
-                  onPressed: widget.onClose,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Trợ lý GNSS',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  letterSpacing: 0.5,
                 ),
-              ],
+              ),
+              Text(
+                'Đang trực tuyến',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.8),
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: widget.onClose,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: Colors.white10,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                    Icons.close_rounded, color: Colors.white, size: 20),
+              ),
             ),
           ),
-          // Chat Area
-          Expanded(
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChatArea() {
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(16),
+      itemCount: _messages.length + (_isTyping ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == _messages.length && _isTyping) {
+          return const _MessageBubble(
+            text: '',
+            isBot: true,
+            isTyping: true,
+          );
+        }
+        final msg = _messages[index];
+        return _MessageBubble(
+          text: msg['text']!,
+          isBot: msg['role'] == 'bot',
+        );
+      },
+    );
+  }
+
+  Widget _buildQuickQuestions() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: widget.isDark ? Colors.white.withOpacity(0.03) : Colors.black
+            .withOpacity(0.02),
+        border: Border(
+          top: BorderSide(
+            color: widget.isDark ? Colors.white10 : Colors.black12,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 8),
+            child: Text(
+              'Gợi ý câu hỏi',
+              style: TextStyle(
+                color: widget.isDark ? Colors.white60 : Colors.black54,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                textBaseline: TextBaseline.alphabetic,
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 40,
             child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(12),
-              itemCount: _messages.length + (_isTyping ? 1 : 0),
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: _quickQuestions.length,
               itemBuilder: (context, index) {
-                if (index == _messages.length && _isTyping) {
-                  return const Align(
-                    alignment: Alignment.centerLeft,
-                    child: TypingIndicator(),
-                  );
-                }
-                final msg = _messages[index];
-                final isBot = msg['role'] == 'bot';
-                return Align(
-                  alignment:
-                      isBot ? Alignment.centerLeft : Alignment.centerRight,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isBot
-                          ? (widget.isDark ? Colors.grey[800] : Colors.grey[200])
-                          : AppTheme.primaryColor,
-                      borderRadius: BorderRadius.circular(12).copyWith(
-                        bottomLeft: isBot ? Radius.zero : const Radius.circular(12),
-                        bottomRight: isBot ? const Radius.circular(12) : Radius.zero,
-                      ),
+                final q = _quickQuestions[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: ActionChip(
+                    label: Text(q),
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.primaryColor,
+                      fontWeight: FontWeight.w500,
                     ),
-                    child: Text(
-                      msg['text']!,
-                      style: TextStyle(
-                        color: isBot ? textColor : Colors.white,
-                        fontSize: 13,
-                      ),
-                    ),
+                    onPressed: () => _handleQuestion(q),
+                    backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                    side: BorderSide(
+                        color: AppTheme.primaryColor.withOpacity(0.2)),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
                   ),
                 );
               },
             ),
           ),
-          // Quick Questions
-          Container(
-            height: 100,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(
-                  color: widget.isDark ? Colors.white12 : Colors.black12,
+        ],
+      ),
+    );
+  }
+}
+
+class _MessageBubble extends StatelessWidget {
+  final String text;
+  final bool isBot;
+  final bool isTyping;
+
+  const _MessageBubble({
+    Key? key,
+    required this.text,
+    required this.isBot,
+    this.isTyping = false,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme
+        .of(context)
+        .brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Align(
+        alignment: isBot ? Alignment.centerLeft : Alignment.centerRight,
+        child: Column(
+          crossAxisAlignment: isBot
+              ? CrossAxisAlignment.start
+              : CrossAxisAlignment.end,
+          children: [
+            Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery
+                    .of(context)
+                    .size
+                    .width * 0.6,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: isBot
+                    ? null
+                    : LinearGradient(
+                  colors: [
+                    AppTheme.primaryColor,
+                    AppTheme.primaryColor.withOpacity(0.85),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                color: isBot
+                    ? (isDark ? Colors.grey[850] : Colors.grey[100])
+                    : null,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(20),
+                  topRight: const Radius.circular(20),
+                  bottomLeft: Radius.circular(isBot ? 4 : 20),
+                  bottomRight: Radius.circular(isBot ? 20 : 4),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: isTyping
+                  ? const TypingIndicator()
+                  : Text(
+                text,
+                style: TextStyle(
+                  color: isBot
+                      ? (isDark ? Colors.white.withOpacity(0.9) : Colors
+                      .black87)
+                      : Colors.white,
+                  fontSize: 13.5,
+                  height: 1.4,
                 ),
               ),
             ),
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              children: _quickQuestions.map((q) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Center(
-                    child: ActionChip(
-                      label: Text(q),
-                      labelStyle: const TextStyle(fontSize: 11),
-                      onPressed: () => _handleQuestion(q),
-                      backgroundColor: AppTheme.secondaryColor.withOpacity(0.1),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -231,7 +412,8 @@ class _TypingIndicatorState extends State<TypingIndicator>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
-    )..repeat(reverse: true);
+    )
+      ..repeat(reverse: true);
   }
 
   @override
@@ -242,41 +424,27 @@ class _TypingIndicatorState extends State<TypingIndicator>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? Colors.grey[800]
-            : Colors.grey[200],
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(12),
-          topRight: Radius.circular(12),
-          bottomRight: Radius.circular(12),
-        ),
-      ),
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: List.generate(3, (index) {
-              return Container(
-                width: 4,
-                height: 4,
-                margin: const EdgeInsets.symmetric(horizontal: 1),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withOpacity(
-                        ((_controller.value + (index * 0.33)) % 1.0)
-                            .clamp(0.2, 1.0),
-                      ),
-                  shape: BoxShape.circle,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(3, (index) {
+        return AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return Container(
+              width: 5,
+              height: 5,
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withOpacity(
+                  ((_controller.value + (index * 0.33)) % 1.0)
+                      .clamp(0.2, 1.0),
                 ),
-              );
-            }),
-          );
-        },
-      ),
+                shape: BoxShape.circle,
+              ),
+            );
+          },
+        );
+      }),
     );
   }
 }
