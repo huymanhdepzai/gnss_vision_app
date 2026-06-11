@@ -1,7 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'dart:math';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import '../../../../core/app_theme.dart';
 import '../../../../core/widgets/modern_ui.dart';
 import '../../../../core/widgets/modern_animations.dart';
@@ -276,7 +276,13 @@ class GnssAnalysisView extends StatelessWidget {
   }
 
   Widget _buildSnrDistribution(BuildContext context) {
-    final sortedSats = List<SatelliteData>.from(satellites)..sort((a, b) => b.snr.compareTo(a.snr));
+    // Sử dụng sắp xếp ổn định theo Hệ thống và PRN để các cột không bị nhảy vị trí khi SNR thay đổi
+    final displaySats = List<SatelliteData>.from(satellites)
+      ..sort((a, b) {
+        int sysComp = a.system.compareTo(b.system);
+        if (sysComp != 0) return sysComp;
+        return a.prn.compareTo(b.prn);
+      });
 
     return EntranceAnimation(
       type: EntranceType.fadeSlideUp,
@@ -287,7 +293,7 @@ class GnssAnalysisView extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const ModernSectionHeader(
-              title: "BIỂU ĐỒ SNR (dB-Hz)",
+              title: "PHỔ TÍN HIỆU SNR",
               icon: Icons.bar_chart_rounded,
               color: AppTheme.successColor,
             ),
@@ -296,39 +302,58 @@ class GnssAnalysisView extends StatelessWidget {
               height: 180,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
-                itemCount: sortedSats.length,
+                itemCount: displaySats.length,
                 itemBuilder: (context, index) {
-                  final sat = sortedSats[index];
+                  final sat = displaySats[index];
                   final color = kSatelliteSystemColors[sat.system] ?? Colors.white;
                   final heightFactor = (sat.snr / 50).clamp(0.05, 1.0);
                   
                   return Container(
+                    key: ValueKey('snr_bar_${sat.system}_${sat.prn}'),
                     width: 30,
                     margin: const EdgeInsets.only(right: 8),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Text(sat.snr.toStringAsFixed(0), style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.bold)),
+                        Text(sat.snr.toStringAsFixed(0), 
+                          style: TextStyle(
+                            fontSize: 9, 
+                            color: sat.usedInFix ? color : color.withOpacity(0.5), 
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
                         SizedBox(height: 4),
-                        Container(
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeOutCubic,
                           width: 12,
                           height: 120 * heightFactor,
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
-                              colors: [color, color.withOpacity(0.3)],
+                              colors: sat.usedInFix 
+                                ? [color, color.withOpacity(0.3)]
+                                : [color.withOpacity(0.4), color.withOpacity(0.1)],
                             ),
                             borderRadius: BorderRadius.circular(4),
                             boxShadow: [
-                              if (sat.usedInFix) BoxShadow(color: color.withOpacity(0.4), blurRadius: 4),
+                              if (sat.usedInFix) 
+                                BoxShadow(color: color.withOpacity(0.4), blurRadius: 4, spreadRadius: 1),
                             ],
                           ),
                         ),
                         SizedBox(height: 8),
                         Transform.rotate(
                           angle: -pi / 4,
-                          child: Text("${sat.system[0]}${sat.prn}", style: const TextStyle(fontSize: 8, color: Colors.white54)),
+                          child: Text("${sat.system[0]}${sat.prn}", 
+                            style: TextStyle(
+                              fontSize: 8, 
+                              color: sat.usedInFix ? Colors.white70 : Colors.white24,
+                              fontWeight: sat.usedInFix ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
                         ),
                         SizedBox(height: 12),
                       ],
@@ -419,6 +444,9 @@ class GnssLineChartPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (history.isEmpty) return;
 
+    final double labelHeight = 24.0;
+    final double chartHeight = size.height - labelHeight;
+
     final paintSnr = Paint()
       ..color = snrColor
       ..style = PaintingStyle.stroke
@@ -432,20 +460,17 @@ class GnssLineChartPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     final paintGrid = Paint()
-      ..color = Colors.white10
+      ..color = Colors.white.withOpacity(0.05)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
 
     // Draw Grid
     for (int i = 0; i <= 4; i++) {
-      double y = size.height * i / 4;
+      double y = chartHeight * i / 4;
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paintGrid);
     }
 
-    final double stepX = size.width / (history.length - 1);
-    
-    // Scale SNR (0-50 dB-Hz)
-    // Scale SATs (0-20 sats)
+    final double stepX = size.width / (history.length > 1 ? history.length - 1 : 1);
     
     final Path pathSnr = Path();
     final Path pathSat = Path();
@@ -454,10 +479,10 @@ class GnssLineChartPainter extends CustomPainter {
       final double x = i * stepX;
       
       final double snr = (history[i]['avgSnr'] as double).clamp(0, 50);
-      final double ySnr = size.height - (snr / 50 * size.height);
+      final double ySnr = chartHeight - (snr / 50 * chartHeight);
       
       final double sats = (history[i]['usedInFix'] as int).toDouble().clamp(0, 20);
-      final double ySat = size.height - (sats / 20 * size.height);
+      final double ySat = chartHeight - (sats / 20 * chartHeight);
 
       if (i == 0) {
         pathSnr.moveTo(x, ySnr);
@@ -474,8 +499,8 @@ class GnssLineChartPainter extends CustomPainter {
     
     // Fill area under SNR path
     final Path fillPathSnr = Path.from(pathSnr)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
+      ..lineTo(history.length > 1 ? (history.length - 1) * stepX : 0, chartHeight)
+      ..lineTo(0, chartHeight)
       ..close();
     
     canvas.drawPath(
@@ -484,8 +509,46 @@ class GnssLineChartPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [snrColor.withOpacity(0.2), Colors.transparent],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ).createShader(Rect.fromLTWH(0, 0, size.width, chartHeight))
     );
+
+    // Draw Time Labels (X-axis)
+    final int labelCount = history.length < 5 ? history.length : 5;
+    if (labelCount > 1) {
+      final DateFormat formatter = DateFormat('HH:mm:ss');
+      for (int i = 0; i < labelCount; i++) {
+        final int index = ((history.length - 1) * i / (labelCount - 1)).round();
+        if (index >= history.length) continue;
+
+        final DateTime time = history[index]['timestamp'];
+        final String timeStr = formatter.format(time);
+
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: timeStr,
+            style: TextStyle(
+              color: Colors.white38,
+              fontSize: 8,
+              fontWeight: FontWeight.w500,
+              fontFamily: 'monospace',
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+
+        double x = index * stepX;
+        // Adjust alignment for edge cases
+        if (i == 0) {
+          x = 0;
+        } else if (i == labelCount - 1) {
+          x = size.width - textPainter.width;
+        } else {
+          x -= textPainter.width / 2;
+        }
+
+        textPainter.paint(canvas, Offset(x, chartHeight + 8));
+      }
+    }
   }
 
   @override

@@ -228,19 +228,6 @@ class SatelliteDrawer extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24),
-          child: Text(
-            "LỌC CHÒM SAO",
-            style: TextStyle(
-              color: context.textSecondaryColor.withOpacity(0.4),
-              fontSize: 9,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.5,
-            ),
-          ),
-        ),
-        SizedBox(height: 12),
         SizedBox(
           height: 34,
           child: ListView(

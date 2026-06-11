@@ -530,8 +530,10 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
                   child: Column(
                     children: [
                       _buildAppBar(context),
-                      SizedBox(height: UIConsts.spacingSM),
-                      _buildStatsOverview(context, activeFixes, avgSnr),
+                      if (_viewMode != SatelliteViewMode.analysis) ...[
+                        SizedBox(height: UIConsts.spacingSM),
+                        _buildStatsOverview(context, activeFixes, avgSnr),
+                      ],
                       Expanded(child: _buildMainView(context)),
                     ],
                   ),
@@ -846,46 +848,49 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
   Widget _buildGlobeView(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        return Stack(
-          key: const ValueKey('globe'),
-          alignment: Alignment.center,
-          children: [
-            AnimatedBuilder(
-              animation: _pulseController,
-              builder: (context, child) {
-                return Container(
-                  width: 320 * _pulseAnimation.value,
-                  height: 320 * _pulseAnimation.value,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        AppTheme.primaryColor.withOpacity(0.05),
-                        Colors.transparent,
-                      ],
+        return Transform.translate(
+          offset: const Offset(0, -60), // Nhích trái đất lên trên để thu hẹp khoảng cách với phần trên
+          child: Stack(
+            key: const ValueKey('globe'),
+            alignment: Alignment.center,
+            children: [
+              AnimatedBuilder(
+                animation: _pulseController,
+                builder: (context, child) {
+                  return Container(
+                    width: 320 * _pulseAnimation.value,
+                    height: 320 * _pulseAnimation.value,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          AppTheme.primaryColor.withOpacity(0.05),
+                          Colors.transparent,
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              ),
 
-            Opacity(
-              opacity: _isGlobeLoaded ? 1.0 : 0.0,
-              child: SizedBox(
-                width: constraints.maxWidth,
-                height: constraints.maxHeight,
-                child: FlutterEarthGlobe(
-                  controller: _globeController,
-                  radius: 120,
+              Opacity(
+                opacity: _isGlobeLoaded ? 1.0 : 0.0,
+                child: SizedBox(
+                  width: constraints.maxWidth,
+                  height: constraints.maxHeight,
+                  child: FlutterEarthGlobe(
+                    controller: _globeController,
+                    radius: 120,
+                  ),
                 ),
               ),
-            ),
 
-            if (!_isGlobeLoaded) _buildLoadingIndicator(context),
-            if (_isGlobeLoaded) ...[
-              _buildOrbitalRings(),
+              if (!_isGlobeLoaded) _buildLoadingIndicator(context),
+              if (_isGlobeLoaded) ...[
+                _buildOrbitalRings(),
+              ],
             ],
-          ],
+          ),
         );
       },
     );
