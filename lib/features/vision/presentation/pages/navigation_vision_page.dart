@@ -352,7 +352,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
               end: Alignment.bottomRight,
               colors: isDark
                   ? [const Color(0xFF0A0E21), const Color(0xFF111833)]
-                  : [const Color(0xFF1A1F3D), const Color(0xFF0D1025)],
+                  : [const Color(0xFFF0F4FA), const Color(0xFFDEE5F0)],
             ),
           ),
           child: Center(
@@ -374,13 +374,13 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                         ],
                       ),
                       border: Border.all(
-                        color: AppTheme.secondaryColor.withOpacity(0.35),
+                        color: AppTheme.secondaryColor.withOpacity(isDark ? 0.35 : 0.5),
                         width: 1.5,
                       ),
                     ),
                     child: Icon(
                       Icons.videocam_rounded,
-                      color: AppTheme.secondaryColor.withOpacity(0.9),
+                      color: isDark ? AppTheme.secondaryColor.withOpacity(0.9) : AppTheme.secondaryColor,
                       size: 20,
                     ),
                   ),
@@ -391,7 +391,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
+                      gradient: const LinearGradient(
                         colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
                       ),
                       borderRadius: BorderRadius.circular(20),
@@ -443,12 +443,14 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [
-                        Colors.black.withOpacity(0.6),
-                        Colors.black.withOpacity(0.4),
-                      ],
+                      colors: isDark 
+                        ? [Colors.black.withOpacity(0.6), Colors.black.withOpacity(0.4)]
+                        : [Colors.white.withOpacity(0.8), Colors.white.withOpacity(0.6)],
                     ),
                     borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      if (!isDark) BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4),
+                    ],
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -468,7 +470,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                         ),
                       ),
                       const SizedBox(width: 4),
-                      Text(
+                      const Text(
                         'LIVE',
                         style: TextStyle(
                           color: AppTheme.accentColor,
@@ -489,6 +491,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
           child: _buildPiPControlButton(
             icon: _isPiPExpanded ? Icons.compress_rounded : Icons.expand_rounded,
             onTap: _togglePiPExpand,
+            isDark: isDark,
           ),
         ),
         if (_flowController.isPlaying && expandT < 0.5)
@@ -496,7 +499,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
             bottom: 6,
             left: 6,
             right: 6,
-            child: _buildPiPCollapsedInfo(isSmallDevice),
+            child: _buildPiPCollapsedInfo(isSmallDevice, isDark),
           ),
         if (expandT > 0.5 && _flowController.isPlaying)
           Positioned(
@@ -512,7 +515,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
     );
   }
 
-  Widget _buildPiPControlButton({required IconData icon, required VoidCallback onTap}) {
+  Widget _buildPiPControlButton({required IconData icon, required VoidCallback onTap, required bool isDark}) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -528,15 +531,17 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withOpacity(0.22),
-                    Colors.white.withOpacity(0.06),
-                  ],
+                  colors: isDark 
+                    ? [Colors.white.withOpacity(0.22), Colors.white.withOpacity(0.06)]
+                    : [Colors.black.withOpacity(0.12), Colors.black.withOpacity(0.04)],
                 ),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withOpacity(0.18), width: 1),
+                border: Border.all(
+                  color: isDark ? Colors.white.withOpacity(0.18) : Colors.black.withOpacity(0.1), 
+                  width: 1
+                ),
               ),
-              child: Icon(icon, color: Colors.white.withOpacity(0.85), size: 14),
+              child: Icon(icon, color: isDark ? Colors.white.withOpacity(0.85) : Colors.black87, size: 14),
             ),
           ),
         ),
@@ -544,7 +549,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
     );
   }
 
-  Widget _buildPiPCollapsedInfo(bool isSmallDevice) {
+  Widget _buildPiPCollapsedInfo(bool isSmallDevice, bool isDark) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: BackdropFilter(
@@ -553,7 +558,9 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [Colors.black.withOpacity(0.55), Colors.black.withOpacity(0.35)],
+              colors: isDark 
+                ? [Colors.black.withOpacity(0.55), Colors.black.withOpacity(0.35)]
+                : [Colors.white.withOpacity(0.8), Colors.white.withOpacity(0.6)],
             ),
             borderRadius: BorderRadius.circular(8),
           ),
@@ -582,7 +589,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                       Text(
                         ' km/h',
                         style: TextStyle(
-                          color: Colors.white54,
+                          color: isDark ? Colors.white54 : Colors.black54,
                           fontSize: isSmallDevice ? 7 : 8,
                           fontWeight: FontWeight.w600,
                         ),
@@ -595,7 +602,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.warning_amber_rounded, color: AppTheme.accentColor, size: 11),
+                    const Icon(Icons.warning_amber_rounded, color: AppTheme.accentColor, size: 11),
                     const SizedBox(width: 2),
                     Text(
                       '${_flowController.aiObstacles.length}',
@@ -625,10 +632,15 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Colors.black.withOpacity(0.6), Colors.black.withOpacity(0.4)],
+              colors: isDark 
+                ? [Colors.black.withOpacity(0.6), Colors.black.withOpacity(0.4)]
+                : [Colors.white.withOpacity(0.85), Colors.white.withOpacity(0.65)],
             ),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.white.withOpacity(0.1), width: 0.5),
+            border: Border.all(
+              color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05), 
+              width: 0.5
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -644,6 +656,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                     unit: 'km/h',
                     color: color,
                     isSmallDevice: isSmallDevice,
+                    isDark: isDark,
                   );
                 },
               ),
@@ -656,6 +669,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                     unit: '\u00b0 ${_getCardinalDirection(heading)}',
                     color: AppTheme.primaryColor,
                     isSmallDevice: isSmallDevice,
+                    isDark: isDark,
                   );
                 },
               ),
@@ -666,6 +680,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                   unit: 'VT',
                   color: AppTheme.accentColor,
                   isSmallDevice: isSmallDevice,
+                  isDark: isDark,
                 ),
               if (_flowController.isModelLoaded)
                 _buildPiPStatItem(
@@ -674,6 +689,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                   unit: '',
                   color: AppTheme.successColor,
                   isSmallDevice: isSmallDevice,
+                  isDark: isDark,
                 ),
             ],
           ),
@@ -688,6 +704,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
     required String unit,
     required Color color,
     required bool isSmallDevice,
+    required bool isDark,
   }) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -707,7 +724,7 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
           Text(
             unit,
             style: TextStyle(
-              color: Colors.white54,
+              color: isDark ? Colors.white54 : Colors.black54,
               fontSize: isSmallDevice ? 8 : 9,
               fontWeight: FontWeight.w600,
             ),

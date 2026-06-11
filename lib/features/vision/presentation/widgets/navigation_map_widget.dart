@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/app_theme.dart';
+import '../../../../core/providers/theme_provider.dart';
 import '../../../map/presentation/controllers/navigation_controller.dart';
 import '../../../map/domain/entities/navigation_route.dart';
 
@@ -51,6 +52,22 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
     if (widget.headingUpNotifier != null) {
       _isHeadingUp = widget.headingUpNotifier!.value;
       widget.headingUpNotifier!.addListener(_onHeadingUpChanged);
+    }
+    
+    // Thêm listener cho theme thay đổi
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ThemeProvider>().addListener(_onThemeChanged);
+    });
+  }
+
+  void _onThemeChanged() {
+    if (_mapboxMap != null && mounted) {
+      final isDark = context.read<ThemeProvider>().isDarkMode;
+      final mapTilesKey = dotenv.env['GOONG_MAPTILES_KEY'] ?? '';
+      final style = isDark ? 'navigation_night' : 'navigation_day';
+      _mapboxMap?.loadStyleURI(
+        'https://tiles.goong.io/assets/$style.json?api_key=$mapTilesKey',
+      );
     }
   }
 
@@ -143,6 +160,11 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
     if (widget.headingUpNotifier != null) {
       widget.headingUpNotifier!.removeListener(_onHeadingUpChanged);
     }
+    
+    try {
+      context.read<ThemeProvider>().removeListener(_onThemeChanged);
+    } catch (_) {}
+    
     super.dispose();
   }
 
@@ -367,10 +389,16 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
 
   void _onMapCreated(MapboxMap mapboxMap) {
     _mapboxMap = mapboxMap;
-    final mapTilesKey = dotenv.env['GOONG_MAPTILES_KEY'] ?? '';
-    mapboxMap.loadStyleURI(
-      'https://tiles.goong.io/assets/navigation_night.json?api_key=$mapTilesKey',
-    );
+    // Delay style loading to prevent lag during page transition
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (!mounted || _isDisposed) return;
+      final isDark = context.read<ThemeProvider>().isDarkMode;
+      final mapTilesKey = dotenv.env['GOONG_MAPTILES_KEY'] ?? '';
+      final style = isDark ? 'navigation_night' : 'navigation_day';
+      _mapboxMap?.loadStyleURI(
+        'https://tiles.goong.io/assets/$style.json?api_key=$mapTilesKey',
+      );
+    });
   }
 
   bool _isInitializingStyle = false;
@@ -881,6 +909,7 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
   }  @override
   Widget build(BuildContext context) {
     final mapboxToken = dotenv.env['MAPBOX_ACCESS_TOKEN'] ?? '';
+    final isDark = context.read<ThemeProvider>().isDarkMode;
 
     return Stack(
       children: [
@@ -893,6 +922,38 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
             onStyleLoadedListener: _onStyleLoaded,
           ),
         ),
+        // Loading overlay che khuất phần map đang khởi tạo để tránh lag thị giác
+        if (!_isMapReady)
+          Positioned.fill(
+            child: Container(
+              color: isDark ? const Color(0xFF060A18) : Colors.white,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      "ĐANG KHỞI TẠO BẢN ĐỒ...",
+                      style: TextStyle(
+                        color: isDark ? Colors.white54 : Colors.black45,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         Positioned(top: 8, right: 8, child: _buildExitButton()),
       ],
     );
