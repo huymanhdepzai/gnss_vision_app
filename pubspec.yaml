@@ -115,7 +115,7 @@ flutter_launcher_icons:
   image_path: "assets/branding/icons/concept_D_orbit_navigator.png"
   adaptive_icon_foreground: "assets/branding/icons/icon_foreground.png"
   adaptive_icon_background: "assets/branding/icons/icon_background.png"
-  adaptive_icon_monochrome: "assets/branding/icons/icon_monochrome.png"
+  # adaptive_icon_monochrome: "assets/branding/icons/icon_monochrome.svg"
 
   web_manifest:
     background_color: "#0C1222"
