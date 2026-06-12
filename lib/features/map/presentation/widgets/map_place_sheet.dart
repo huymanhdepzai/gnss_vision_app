@@ -1,8 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/app_theme.dart';
 import '../bloc/map_home_state.dart';
+import '../bloc/map_home_bloc.dart';
 
 import '../../data/datasources/goong_search_data_source.dart';
 
@@ -34,6 +36,7 @@ class MapPlaceSheet extends StatefulWidget {
 
 class _MapPlaceSheetState extends State<MapPlaceSheet> {
   bool _isDetailsExpanded = false;
+  bool _isRouteMode = false;
 
   Color _a(Color c, double o) => c.withOpacity(o);
 
@@ -91,121 +94,165 @@ class _MapPlaceSheetState extends State<MapPlaceSheet> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildPlaceIcon(),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.state.destinationName,
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w900,
-                                color: textColor,
-                                letterSpacing: -0.5,
+                  if (!_isRouteMode) ...[
+                    // CHẾ ĐỘ CHI TIẾT ĐỊA ĐIỂM
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildPlaceIcon(),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.state.destinationName,
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                  color: textColor,
+                                  letterSpacing: -0.5,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            if (detail?.rating != null)
-                              Row(
-                                children: [
-                                  Text(
-                                    detail!.rating!.toString(),
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.amber,
+                              const SizedBox(height: 4),
+                              if (detail?.rating != null)
+                                Row(
+                                  children: [
+                                    Text(
+                                      detail!.rating!.toString(),
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.amber,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  ...List.generate(5, (index) {
-                                    return Icon(
-                                      index < detail.rating!.floor()
-                                          ? Icons.star_rounded
-                                          : Icons.star_outline_rounded,
-                                      size: 14,
-                                      color: Colors.amber,
-                                    );
-                                  }),
-                                ],
+                                    const SizedBox(width: 4),
+                                    ...List.generate(5, (index) {
+                                      return Icon(
+                                        index < detail.rating!.floor()
+                                            ? Icons.star_rounded
+                                            : Icons.star_outline_rounded,
+                                        size: 14,
+                                        color: Colors.amber,
+                                      );
+                                    }),
+                                  ],
+                                ),
+                              Text(
+                                widget.state.destinationAddress,
+                                style: TextStyle(
+                                  color: textColor.withOpacity(0.5),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w400,
+                                  height: 1.4,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    if (detail != null) 
+                      _buildDetailedInfoSection(detail)
+                    else if (widget.state.isSearching)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 30),
+                        decoration: BoxDecoration(
+                          color: widget.isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.02),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Column(
+                          children: [
+                            const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryColor),
+                            ),
+                            const SizedBox(height: 12),
                             Text(
-                              widget.state.destinationAddress,
+                              "Đang tải thông tin chi tiết...",
                               style: TextStyle(
-                                color: textColor.withOpacity(0.5),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w400,
-                                height: 1.4,
+                                fontSize: 12,
+                                color: widget.isDark ? Colors.white54 : Colors.black54,
+                                fontWeight: FontWeight.w500,
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (detail != null) 
-                    _buildDetailedInfoSection(detail)
-                  else if (widget.state.isSearching)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 30),
-                      decoration: BoxDecoration(
-                        color: widget.isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.02),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Column(
-                        children: [
-                          const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryColor),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildPrimaryButton(
+                            text: "Đường đi",
+                            icon: Icons.route_rounded,
+                            onTap: () {
+                              setState(() => _isRouteMode = true);
+                              widget.onFetchAndDrawRoute();
+                            },
+                            gradient: AppTheme.accentGradient,
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            "Đang tải thông tin chi tiết...",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: widget.isDark ? Colors.white54 : Colors.black54,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  const SizedBox(height: 24),
-                  _buildInfoRow(),
-                  const SizedBox(height: 16),
-                  _buildVehicleSelection(),
-                  if (widget.state.availableRoutes.length > 1) ...[
-                    const SizedBox(height: 16),
-                    _buildRouteSelection(),
-                  ],
-                  const SizedBox(height: 28),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildPrimaryButton(
-                          text: "Bắt đầu",
-                          icon: Icons.navigation_rounded,
-                          onTap: widget.onStartNavigation,
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      _buildSecondaryButton(
-                        icon: Icons.route_rounded,
-                        onTap: widget.onFetchAndDrawRoute,
-                      ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildPrimaryButton(
+                            text: "Bắt đầu",
+                            icon: Icons.navigation_rounded,
+                            onTap: widget.onStartNavigation,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    // CHẾ ĐỘ THÔNG TIN ĐƯỜNG ĐI
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Chi tiết tuyến đường",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            color: widget.isDark ? Colors.white : AppTheme.textDark,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => setState(() => _isRouteMode = false),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: widget.isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.close_rounded, 
+                                size: 20, 
+                                color: widget.isDark ? Colors.white70 : AppTheme.textDark),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    _buildVehicleSelection(widget.state),
+                    const SizedBox(height: 16),
+                    _buildInfoRow(widget.state),
+                    if (widget.state.availableRoutes.length > 1) ...[
+                      const SizedBox(height: 20),
+                      _buildRouteSelection(widget.state),
                     ],
-                  ),
+                    const SizedBox(height: 28),
+                    _buildPrimaryButton(
+                      text: "Bắt đầu",
+                      icon: Icons.navigation_rounded,
+                      onTap: widget.onStartNavigation,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -399,59 +446,116 @@ class _MapPlaceSheetState extends State<MapPlaceSheet> {
     );
   }
 
-  Widget _buildInfoRow() {
-    return Row(
-      children: [
-        _infoChip(Icons.straighten_rounded, widget.state.distance, AppTheme.primaryColor),
-        const SizedBox(width: 12),
-        _infoChip(Icons.access_time_rounded, widget.state.duration, AppTheme.secondaryColor),
-      ],
-    );
+  String _getArrivalTime(String durationText) {
+    try {
+      int minutes = 0;
+      final RegExp hourRegExp = RegExp(r'(\d+)\s*giờ');
+      final RegExp minRegExp = RegExp(r'(\d+)\s*phút');
+
+      final hourMatch = hourRegExp.firstMatch(durationText);
+      final minMatch = minRegExp.firstMatch(durationText);
+
+      if (hourMatch != null) {
+        minutes += int.parse(hourMatch.group(1)!) * 60;
+      }
+      if (minMatch != null) {
+        minutes += int.parse(minMatch.group(1)!);
+      }
+
+      if (minutes == 0 && durationText.isNotEmpty) {
+        // Fallback for cases like "1 min" or just numbers
+        final RegExp fallbackRegExp = RegExp(r'(\d+)');
+        final fallbackMatch = fallbackRegExp.firstMatch(durationText);
+        if (fallbackMatch != null) {
+          minutes = int.parse(fallbackMatch.group(1)!);
+        }
+      }
+
+      final arrivalTime = DateTime.now().add(Duration(minutes: minutes));
+      return "${arrivalTime.hour.toString().padLeft(2, '0')}:${arrivalTime.minute.toString().padLeft(2, '0')}";
+    } catch (e) {
+      return "--:--";
+    }
   }
 
-  Widget _infoChip(IconData icon, String value, Color color) {
+  Widget _buildInfoRow(MapHomeState state) {
+    final arrivalTime = _getArrivalTime(state.duration);
+    final textColor = widget.isDark ? Colors.white : AppTheme.textDark;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: _a(color, widget.isDark ? 0.08 : 0.04),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _a(color, 0.12), width: 1),
-      ),
-      child: Row(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 8),
-          Text(
-            value,
-            style: TextStyle(
-              color: widget.isDark ? _a(Colors.white, 0.8) : AppTheme.textDark,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Đến nơi lúc $arrivalTime",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Khoảng cách: ${state.distance}",
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: textColor.withOpacity(0.6),
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                state.duration,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildVehicleSelection() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _vehicleOption('car', Icons.directions_car_rounded, 'Ô tô'),
-        const SizedBox(width: 12),
-        _vehicleOption('bike', Icons.two_wheeler_rounded, 'Xe máy'),
-        const SizedBox(width: 12),
-        _vehicleOption('foot', Icons.directions_walk_rounded, 'Đi bộ'),
-      ],
+  Widget _buildVehicleSelection(MapHomeState state) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: widget.isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          Expanded(child: _vehicleOption('car', Icons.directions_car_rounded, state)),
+          Expanded(child: _vehicleOption('bike', Icons.two_wheeler_rounded, state)),
+          Expanded(child: _vehicleOption('foot', Icons.directions_walk_rounded, state)),
+        ],
+      ),
     );
   }
 
-  Widget _vehicleOption(String vehicleType, IconData icon, String label) {
-    final isSelected = widget.state.vehicle == vehicleType;
-    final color = isSelected
-        ? AppTheme.primaryColor
-        : (widget.isDark ? Colors.white54 : Colors.black54);
+  Widget _vehicleOption(
+      String vehicleType, IconData icon, MapHomeState state) {
+    final isSelected = state.vehicle == vehicleType;
+    final activeColor = AppTheme.primaryColor;
+    final inactiveColor = widget.isDark ? Colors.white38 : Colors.black26;
 
     return GestureDetector(
       onTap: () {
@@ -462,39 +566,25 @@ class _MapPlaceSheetState extends State<MapPlaceSheet> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: isSelected
-              ? _a(AppTheme.primaryColor, widget.isDark ? 0.15 : 0.1)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? AppTheme.primaryColor
-                : (widget.isDark ? Colors.white12 : Colors.black12),
+          border: Border(
+            bottom: BorderSide(
+              color: isSelected ? activeColor : Colors.transparent,
+              width: 3,
+            ),
           ),
         ),
-        child: Row(
-          children: [
-            Icon(icon, size: 18, color: color),
-            if (isSelected) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ]
-          ],
+        child: Icon(
+          icon,
+          size: 26,
+          color: isSelected ? activeColor : inactiveColor,
         ),
       ),
     );
   }
 
-  Widget _buildRouteSelection() {
+  Widget _buildRouteSelection(MapHomeState state) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -511,11 +601,11 @@ class _MapPlaceSheetState extends State<MapPlaceSheet> {
           height: 60,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: widget.state.availableRoutes.length,
+            itemCount: state.availableRoutes.length,
             separatorBuilder: (_, __) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
-              final route = widget.state.availableRoutes[index];
-              final isSelected = widget.state.selectedRouteIndex == index;
+              final route = state.availableRoutes[index];
+              final isSelected = state.selectedRouteIndex == index;
               return GestureDetector(
                 onTap: () {
                   if (!isSelected) {
@@ -572,6 +662,7 @@ class _MapPlaceSheetState extends State<MapPlaceSheet> {
     required String text,
     required IconData icon,
     required VoidCallback onTap,
+    Gradient? gradient,
   }) {
     return GestureDetector(
       onTap: () {
@@ -581,11 +672,11 @@ class _MapPlaceSheetState extends State<MapPlaceSheet> {
       child: Container(
         height: 56,
         decoration: BoxDecoration(
-          gradient: AppTheme.primaryGradient,
+          gradient: gradient ?? AppTheme.primaryGradient,
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: AppTheme.primaryColor.withOpacity(0.3),
+              color: (gradient?.colors.first ?? AppTheme.primaryColor).withOpacity(0.3),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),

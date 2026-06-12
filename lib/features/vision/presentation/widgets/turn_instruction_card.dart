@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../../core/app_theme.dart';
+import '../../../../core/providers/theme_provider.dart';
 import '../../../map/domain/entities/navigation_step.dart';
 
 class TurnInstructionCard extends StatelessWidget {
@@ -25,28 +27,41 @@ class TurnInstructionCard extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final isDark = context.read<ThemeProvider>().isDarkMode;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Colors.black.withOpacity(0.75),
-            Colors.black.withOpacity(0.6),
-          ],
+          colors: isDark 
+            ? [
+                Colors.black.withOpacity(0.75),
+                Colors.black.withOpacity(0.6),
+              ]
+            : [
+                Colors.white.withOpacity(0.92),
+                const Color(0xFFF0F4FA).withOpacity(0.85),
+              ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppTheme.secondaryColor.withOpacity(0.5),
+          color: AppTheme.secondaryColor.withOpacity(isDark ? 0.5 : 0.4),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.secondaryColor.withOpacity(0.15),
+            color: AppTheme.secondaryColor.withOpacity(isDark ? 0.15 : 0.08),
             blurRadius: 12,
             spreadRadius: 2,
           ),
+          if (!isDark)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
         ],
       ),
       child: ClipRRect(
@@ -58,10 +73,10 @@ class TurnInstructionCard extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildMainInstruction(context),
+                _buildMainInstruction(context, isDark),
                 if (destinationName.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  _buildDestinationBar(context),
+                  _buildDestinationBar(context, isDark),
                 ],
               ],
             ),
@@ -71,7 +86,7 @@ class TurnInstructionCard extends StatelessWidget {
     );
   }
 
-  Widget _buildMainInstruction(BuildContext context) {
+  Widget _buildMainInstruction(BuildContext context, bool isDark) {
     return Row(
       children: [
         _buildManeuverIcon(),
@@ -82,8 +97,8 @@ class TurnInstructionCard extends StatelessWidget {
             children: [
               Text(
                 _getInstructionText(),
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: isDark ? Colors.white : AppTheme.textDark,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
@@ -95,14 +110,14 @@ class TurnInstructionCard extends StatelessWidget {
                 children: [
                   Icon(
                     Icons.straighten_rounded,
-                    color: AppTheme.secondaryColor.withOpacity(0.8),
+                    color: AppTheme.secondaryColor.withOpacity(isDark ? 0.8 : 0.7),
                     size: 14,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     _formatDistance(currentStep!.distance),
                     style: TextStyle(
-                      color: AppTheme.secondaryColor.withOpacity(0.9),
+                      color: AppTheme.secondaryColor.withOpacity(isDark ? 0.9 : 0.8),
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
@@ -114,7 +129,7 @@ class TurnInstructionCard extends StatelessWidget {
                       child: Text(
                         currentStep!.name!,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.6),
+                          color: isDark ? Colors.white.withOpacity(0.6) : Colors.black54,
                           fontSize: 12,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -136,7 +151,7 @@ class TurnInstructionCard extends StatelessWidget {
       height: 48,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
@@ -152,11 +167,11 @@ class TurnInstructionCard extends StatelessWidget {
     );
   }
 
-  Widget _buildDestinationBar(BuildContext context) {
+  Widget _buildDestinationBar(BuildContext context, bool isDark) {
     return Container(
       height: 2,
       decoration: BoxDecoration(
-        color: Colors.white10,
+        color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
         borderRadius: BorderRadius.circular(1),
       ),
       child: FractionallySizedBox(

@@ -1,13 +1,22 @@
 import 'dart:ui';
 import 'package:opencv_dart/opencv_dart.dart' as cv;
+import 'motion_estimator.dart';
+import 'kalman_filter.dart';
+import 'feature_tracker.dart';
 
 class CVCore {
   cv.Mat? _oldGray;
   cv.VecPoint2f? _p0;
+
+  final KalmanFilter2D _motionKalman;
+  final MotionEstimator _motionEstimator;
+  final FeatureTracker _featureTracker;
+
   Offset _smoothedVector = Offset.zero;
   Offset _velocity = Offset.zero;
   final double _posAlpha = 0.15;
   final double _velAlpha = 0.15;
+
   List<Rect> _lastKnownObstacles = [];
   int _framesSinceLastYolo = 0;
   double _lastConfidence = 0.0;
@@ -15,7 +24,13 @@ class CVCore {
   double _lastQuality = 0.0;
   bool _kalmanInitialized = false;
 
-  CVCore();
+  CVCore({double processNoise = 0.08, double measurementNoise = 1.5})
+      : _motionKalman = KalmanFilter2D(
+          processNoise: processNoise,
+          measurementNoise: measurementNoise,
+        ),
+        _motionEstimator = MotionEstimator(),
+        _featureTracker = FeatureTracker()..initializeGrid();
 
   Map<String, dynamic> processFrame(
     cv.Mat frame, {
@@ -83,6 +98,7 @@ class CVCore {
         List<cv.Point2f> oldPoints = _p0!.toList();
 
         if (status != null && p1 != null) {
+          List<double> qualities = [];
           for (int i = 0; i < status.length; i++) {
             if (status[i] == 1) {
               double nx = p1[i].x;
@@ -103,29 +119,58 @@ class CVCore {
                   ny >= 0 &&
                   ny < frameH &&
                   !isInsideForbidden) {
-                trackedPoints.add(Offset(nx, ny));
                 goodNewPoints.add(cv.Point2f(nx, ny));
                 oldPointsForRansac.add(Offset(ox, oy));
                 newPointsForRansac.add(Offset(nx, ny));
+                qualities.add(1.0); // Simple quality for now
               }
             }
           }
 
+          // NÂNG CẤP 4: Sử dụng FeatureTracker để quản lý điểm theo lưới
+          _featureTracker.updatePoints(
+              newPointsForRansac, qualities, frameW, frameH);
+          trackedPoints = _featureTracker.getAllPoints();
+
           if (oldPointsForRansac.length >= 8) {
-            double sumDx = 0;
-            double sumDy = 0;
-            int count = 0;
-            for (int i = 0; i < oldPointsForRansac.length; i++) {
-              sumDx += newPointsForRansac[i].dx - oldPointsForRansac[i].dx;
-              sumDy += newPointsForRansac[i].dy - oldPointsForRansac[i].dy;
-              count++;
+            var result = _motionEstimator.estimateMotion(
+              oldPointsForRansac,
+              newPointsForRansac,
+            );
+
+            rawMoveVector = result.vector;
+            _lastInlierCount = result.inliers;
+            _lastQuality = result.quality;
+
+            if (result.inliers >= 8 && result.confidence > 0.3) {
+              if (!_kalmanInitialized) {
+                _motionKalman.setPosition(rawMoveVector);
+                _kalmanInitialized = true;
+              }
+
+              _motionKalman.predict(0.033);
+              _motionKalman.update(rawMoveVector.dx, rawMoveVector.dy);
+
+              Offset smoothed = _motionKalman.getPosition();
+              double uncertainty = _motionKalman.getUncertainty();
+
+              if (uncertainty < 10.0 && rawMoveVector.distance < 50.0) {
+                _smoothedVector = smoothed;
+                _lastConfidence =
+                    result.confidence * (1.0 - uncertainty / 10.0);
+              } else {
+                _applyLegacySmoothing(rawMoveVector);
+                _lastConfidence = result.confidence * 0.5;
+              }
+            } else {
+              _applyLegacySmoothing(rawMoveVector);
+              _lastConfidence = result.confidence * 0.3;
             }
-            if (count > 0) {
-              rawMoveVector = Offset(sumDx / count, sumDy / count);
-              _lastConfidence = count / 60.0;
-              _lastInlierCount = count;
-              _lastQuality = _lastConfidence;
-            }
+          } else {
+            _lastConfidence = 0.0;
+            _lastInlierCount = 0;
+            _lastQuality = 0.0;
+            _applyLegacySmoothing(Offset.zero);
           }
 
           p1.dispose();
@@ -134,10 +179,13 @@ class CVCore {
         }
       }
 
-      int targetPoints = 60;
-      if (_p0 == null ||
+      int targetPoints = _calculateAdaptivePointCount(_lastConfidence);
+      bool needsReinit = _p0 == null ||
           _p0!.isEmpty ||
-          goodNewPoints.length < targetPoints ~/ 2) {
+          _featureTracker.getTotalPointCount() < targetPoints ~/ 2 ||
+          _featureTracker.getCellsNeedingPoints(frameW, frameH).isNotEmpty;
+
+      if (needsReinit) {
         mask = cv.Mat.zeros(frameH, frameW, cv.MatType.CV_8UC1);
         int roiY = (frameH * 0.4).toInt();
         cv.rectangle(
@@ -175,24 +223,10 @@ class CVCore {
         _p0 = cv.VecPoint2f.fromList(goodNewPoints);
       }
 
-      // Apply smoothing
-      Offset targetVelocity = Offset(
-        rawMoveVector.dx - _smoothedVector.dx,
-        rawMoveVector.dy - _smoothedVector.dy,
-      );
-      _velocity = Offset(
-        (_velocity.dx * (1 - _velAlpha)) + (targetVelocity.dx * _velAlpha),
-        (_velocity.dy * (1 - _velAlpha)) + (targetVelocity.dy * _velAlpha),
-      );
-      _smoothedVector = Offset(
-        _smoothedVector.dx + _velocity.dx * _posAlpha,
-        _smoothedVector.dy + _velocity.dy * _posAlpha,
-      );
-
       if (_oldGray != null) _oldGray!.dispose();
       _oldGray = frameGray.clone();
     } catch (e) {
-      // Handle error silently
+      // Handle error
     } finally {
       frameGray?.dispose();
       mask?.dispose();
@@ -206,7 +240,36 @@ class CVCore {
       'inlierCount': _lastInlierCount,
       'quality': _lastQuality,
       'trackCount': trackedPoints.length,
+      'trackingQuality': _featureTracker.getTrackingQuality(),
     };
+  }
+
+  void _applyLegacySmoothing(Offset rawVector) {
+    Offset targetVelocity = Offset(
+      rawVector.dx - _smoothedVector.dx,
+      rawVector.dy - _smoothedVector.dy,
+    );
+    _velocity = Offset(
+      (_velocity.dx * (1 - _velAlpha)) + (targetVelocity.dx * _velAlpha),
+      (_velocity.dy * (1 - _velAlpha)) + (targetVelocity.dy * _velAlpha),
+    );
+    _smoothedVector = Offset(
+      _smoothedVector.dx + _velocity.dx * _posAlpha,
+      _smoothedVector.dy + _velocity.dy * _posAlpha,
+    );
+  }
+
+  int _calculateAdaptivePointCount(double confidence) {
+    int baseCount = 60;
+    if (confidence > 0.7) {
+      return (baseCount * 0.7).toInt();
+    } else if (confidence > 0.5) {
+      return (baseCount * 0.85).toInt();
+    } else if (confidence > 0.3) {
+      return baseCount;
+    } else {
+      return (baseCount * 1.2).toInt();
+    }
   }
 
   void resetTracking() {
@@ -217,6 +280,7 @@ class CVCore {
     _smoothedVector = Offset.zero;
     _velocity = Offset.zero;
     _lastKnownObstacles.clear();
+    _motionKalman.reset();
     _kalmanInitialized = false;
     _lastConfidence = 0.0;
     _lastInlierCount = 0;

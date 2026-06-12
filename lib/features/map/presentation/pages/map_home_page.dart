@@ -26,6 +26,7 @@ import '../widgets/map_place_sheet.dart';
 import '../widgets/map_navigation_top_bar.dart';
 import '../widgets/map_navigation_panel.dart';
 import '../widgets/map_floating_buttons.dart';
+import '../widgets/chat_assistant_overlay.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 
 class MapHomeScreenV2 extends StatelessWidget {
@@ -61,6 +62,9 @@ class _MapHomeViewState extends State<_MapHomeView>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   MapboxMap? _mapboxMap;
   CircleAnnotationManager? _circleAnnotationManager;
+  bool _isDrawingMarkers = false;
+  MapHomeState? _latestStateToDraw;
+  bool _showAssistant = false;
 
   late AnimationController _fabAnimationController;
   late AnimationController _sheetAnimationController;
@@ -68,6 +72,8 @@ class _MapHomeViewState extends State<_MapHomeView>
   late Animation<double> _fabScaleAnimation;
   late Animation<Offset> _sheetSlideAnimation;
   late Animation<double> _pulseAnimation;
+
+  final ValueNotifier<double> _sheetExtentNotifier = ValueNotifier(0.45);
 
   MapHomeState _previousState = const MapHomeState();
 
@@ -336,49 +342,70 @@ class _MapHomeViewState extends State<_MapHomeView>
   }
 
   Future<void> _drawMarkers(MapHomeState state) async {
-    if (_circleAnnotationManager == null) return;
-    await _circleAnnotationManager?.deleteAll();
+    _latestStateToDraw = state;
+    if (_isDrawingMarkers) return;
 
-    if (state.isLocationLoaded) {
-      await _circleAnnotationManager?.create(
-        CircleAnnotationOptions(
-          geometry: Point(
-                  coordinates:
-                      Position(state.currentLng, state.currentLat))
-              .toJson(),
-          circleColor: AppTheme.secondaryColor.withOpacity(0.3).value,
-          circleRadius: 20.0,
-        ),
-      );
-      await _circleAnnotationManager?.create(
-        CircleAnnotationOptions(
-          geometry: Point(
-                  coordinates:
-                      Position(state.currentLng, state.currentLat))
-              .toJson(),
-          circleColor: AppTheme.primaryColor.value,
-          circleRadius: 10.0,
-          circleStrokeWidth: 3.0,
-          circleStrokeColor: Colors.white.value,
-        ),
-      );
-    }
+    _isDrawingMarkers = true;
 
-    if (state.viewState != MapViewState.explore &&
-        state.destinationLat != null &&
-        state.destinationLng != null) {
-      await _circleAnnotationManager?.create(
-        CircleAnnotationOptions(
-          geometry: Point(
-                  coordinates: Position(
-                      state.destinationLng!, state.destinationLat!))
-              .toJson(),
-          circleColor: AppTheme.accentColor.value,
-          circleRadius: 12.0,
-          circleStrokeWidth: 3.0,
-          circleStrokeColor: Colors.white.value,
-        ),
-      );
+    try {
+      while (_latestStateToDraw != null) {
+        final stateToDraw = _latestStateToDraw!;
+        _latestStateToDraw = null;
+
+        if (_circleAnnotationManager == null) break;
+
+        // Xóa tất cả marker cũ trước khi vẽ mới
+        await _circleAnnotationManager?.deleteAll();
+
+        if (stateToDraw.isLocationLoaded) {
+          // Vòng tròn bên ngoài (hiệu ứng pulse)
+          await _circleAnnotationManager?.create(
+            CircleAnnotationOptions(
+              geometry: Point(
+                      coordinates: Position(
+                          stateToDraw.currentLng, stateToDraw.currentLat))
+                  .toJson(),
+              circleColor: AppTheme.secondaryColor.withOpacity(0.3).value,
+              circleRadius: 20.0,
+            ),
+          );
+          // Vòng tròn bên trong (vị trí chính xác)
+          await _circleAnnotationManager?.create(
+            CircleAnnotationOptions(
+              geometry: Point(
+                      coordinates: Position(
+                          stateToDraw.currentLng, stateToDraw.currentLat))
+                  .toJson(),
+              circleColor: AppTheme.primaryColor.value,
+              circleRadius: 10.0,
+              circleStrokeWidth: 3.0,
+              circleStrokeColor: Colors.white.value,
+            ),
+          );
+        }
+
+        // Vẽ điểm đến nếu không ở chế độ explore
+        if (stateToDraw.viewState != MapViewState.explore &&
+            stateToDraw.destinationLat != null &&
+            stateToDraw.destinationLng != null) {
+          await _circleAnnotationManager?.create(
+            CircleAnnotationOptions(
+              geometry: Point(
+                      coordinates: Position(stateToDraw.destinationLng!,
+                          stateToDraw.destinationLat!))
+                  .toJson(),
+              circleColor: AppTheme.accentColor.value,
+              circleRadius: 12.0,
+              circleStrokeWidth: 3.0,
+              circleStrokeColor: Colors.white.value,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Lỗi vẽ marker: $e");
+    } finally {
+      _isDrawingMarkers = false;
     }
   }
 
@@ -417,6 +444,71 @@ class _MapHomeViewState extends State<_MapHomeView>
     );
   }
 
+  void _showTopNotification(BuildContext context, String message, Color backgroundColor) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 10,
+        left: 16,
+        right: 16,
+        child: Material(
+          color: Colors.transparent,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: -100.0, end: 0.0),
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, child) {
+              return Transform.translate(
+                offset: Offset(0, value),
+                child: Opacity(
+                  opacity: (value + 100) / 100,
+                  child: child,
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      message,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(overlayEntry);
+    Future.delayed(const Duration(seconds: 3), () {
+      if (overlayEntry.mounted) {
+        overlayEntry.remove();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final mapboxToken = dotenv.env['MAPBOX_ACCESS_TOKEN'] ?? '';
@@ -424,175 +516,226 @@ class _MapHomeViewState extends State<_MapHomeView>
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, _) {
         final isDark = themeProvider.isDarkMode;
-        return BlocConsumer<MapHomeBloc, MapHomeState>(
-          listenWhen: (previous, current) =>
-              previous.isLocationLoaded != current.isLocationLoaded ||
-              previous.currentLat != current.currentLat ||
-              previous.currentLng != current.currentLng ||
-              previous.destinationLat != current.destinationLat ||
-              previous.destinationLng != current.destinationLng ||
-              previous.routeGeoJson != current.routeGeoJson ||
-              previous.viewState != current.viewState ||
-              previous.route != current.route ||
-              previous.mapStyleUrl != current.mapStyleUrl,
-          listener: (context, state) {
-            if (_previousState.mapStyleUrl != state.mapStyleUrl &&
-                state.mapStyleUrl != null) {
-              _mapboxMap?.loadStyleURI(state.mapStyleUrl!);
-            }
-
-            if (state.viewState == MapViewState.navigating &&
-                state.route != null) {
-              final navCtrl = context.read<NavigationController>();
-              if (navCtrl.currentRoute != state.route) {
-                navCtrl.startNavigation(state.route!);
-              }
-            } else if (state.viewState != MapViewState.navigating) {
-              context.read<NavigationController>().stopNavigation();
-            }
-
-            _handleStateSideEffects(_previousState, state);
-            _previousState = state;
+        return BlocListener<AuthBloc, AuthState>(
+          listener: (context, authState) {
+            authState.maybeWhen(
+              error: (message) {
+                _showTopNotification(context, message, Colors.redAccent);
+              },
+              orElse: () {},
+            );
           },
-          builder: (context, state) {
-            return Scaffold(
-              key: _scaffoldKey,
-              drawer: AppDrawer(
-                onNavigateToVision: () => _handleVoiceCommand('gnss-vision'),
-                onNavigateToSatellite: () {
-                  Navigator.push(
-                    context,
-                    PageTransition(
-                      child: const SatelliteScreenV2(),
-                      type: PageTransitionType.fadeSlide,
-                      duration: const Duration(milliseconds: 600),
-                    ),
-                  );
-                },
-              ),
-              body: Stack(
-                children: [
-                  MapWidget(
-                    key: const ValueKey("mapWidget"),
-                    resourceOptions:
-                        ResourceOptions(accessToken: mapboxToken),
-                    onMapCreated: _onMapCreated,
-                    onStyleLoadedListener: _onStyleLoaded,
-                    onTapListener: (coordinate) {
-                      if (state.viewState ==
-                          MapViewState.placeDetail) {
-                        _handleResetToExplore();
-                      }
-                      FocusScope.of(context).unfocus();
-                    },
-                  ),
-                  if (state.viewState == MapViewState.explore ||
-                      state.viewState == MapViewState.placeDetail)
-                    BlocBuilder<AuthBloc, AuthState>(
-                      builder: (context, authState) {
-                        final user = authState.maybeWhen(
-                          authenticated: (u, isBio) => u,
-                          orElse: () => null,
-                        );
-                        return MapSearchBar(
-                          state: state,
-                          isDark: isDark,
-                          user: user,
-                          onSearchChanged: (query) => context
-                              .read<MapHomeBloc>()
-                              .add(MapHomeSearchChanged(query)),
-                          onSelectPlace: _handleSelectPlace,
-                          onMenuTap: () =>
-                              _scaffoldKey.currentState?.openDrawer(),
-                          onBackTap: _handleResetToExplore,
-                          onClearSearch: () => context
-                              .read<MapHomeBloc>()
-                              .add(const MapHomeClearSearch()),
-                          onProfileTap: () {
-                            HapticFeedback.mediumImpact();
-                            Navigator.push(
-                                context,
-                                PageTransition(
-                                    child: const TripManagerScreen(),
-                                    type: PageTransitionType.slideLeft));
-                          },
-                          pulseAnimation: _pulseAnimation,
-                          padding: EdgeInsets.fromLTRB(
-                              16,
-                              MediaQuery.of(context).padding.top + 8,
-                              16,
-                              28),
-                        );
+          child: BlocConsumer<MapHomeBloc, MapHomeState>(
+            listenWhen: (previous, current) =>
+                previous.isLocationLoaded != current.isLocationLoaded ||
+                previous.currentLat != current.currentLat ||
+                previous.currentLng != current.currentLng ||
+                previous.destinationLat != current.destinationLat ||
+                previous.destinationLng != current.destinationLng ||
+                previous.routeGeoJson != current.routeGeoJson ||
+                previous.viewState != current.viewState ||
+                previous.route != current.route ||
+                previous.mapStyleUrl != current.mapStyleUrl,
+            listener: (context, state) {
+              if (_previousState.mapStyleUrl != state.mapStyleUrl &&
+                  state.mapStyleUrl != null) {
+                _mapboxMap?.loadStyleURI(state.mapStyleUrl!);
+              }
+
+              if (state.viewState == MapViewState.navigating &&
+                  state.route != null) {
+                final navCtrl = context.read<NavigationController>();
+                if (navCtrl.currentRoute != state.route) {
+                  navCtrl.startNavigation(state.route!);
+                }
+              } else if (state.viewState != MapViewState.navigating) {
+                context.read<NavigationController>().stopNavigation();
+              }
+
+              _handleStateSideEffects(_previousState, state);
+              _previousState = state;
+            },
+            builder: (context, state) {
+              return Scaffold(
+                key: _scaffoldKey,
+                drawer: AppDrawer(
+                  onNavigateToVision: () => _handleVoiceCommand('gnss-vision'),
+                  onNavigateToSatellite: () {
+                    Navigator.push(
+                      context,
+                      PageTransition(
+                        child: const SatelliteScreenV2(),
+                        type: PageTransitionType.fadeSlide,
+                        duration: const Duration(milliseconds: 600),
+                      ),
+                    );
+                  },
+                ),
+                body: Stack(
+                  children: [
+                    MapWidget(
+                      key: const ValueKey("mapWidget"),
+                      resourceOptions:
+                          ResourceOptions(accessToken: mapboxToken),
+                      onMapCreated: _onMapCreated,
+                      onStyleLoadedListener: _onStyleLoaded,
+                      onTapListener: (coordinate) {
+                        if (state.viewState ==
+                            MapViewState.placeDetail) {
+                          _handleResetToExplore();
+                        }
+                        FocusScope.of(context).unfocus();
                       },
                     ),
-                  if (state.viewState == MapViewState.navigating)
-                    MapNavigationTopBar(
-                        state: state, isDark: isDark),
-                  if (state.viewState == MapViewState.placeDetail)
-                    SlideTransition(
-                      position: _sheetSlideAnimation,
-                      child: DraggableScrollableSheet(
-                        initialChildSize: 0.45,
-                        minChildSize: 0.3,
-                        maxChildSize: 0.9,
-                        snap: true,
-                        snapSizes: const [0.3, 0.45, 0.9],
-                        builder: (context, scrollController) {
-                          return MapPlaceSheet(
+                    if (state.viewState == MapViewState.explore ||
+                        state.viewState == MapViewState.placeDetail)
+                      BlocBuilder<AuthBloc, AuthState>(
+                        builder: (context, authState) {
+                          final user = authState.maybeWhen(
+                            authenticated: (u, isBio) => u,
+                            orElse: () => null,
+                          );
+                          return MapSearchBar(
                             state: state,
                             isDark: isDark,
-                            onStartNavigation: _handleStartNavigation,
-                            onFetchAndDrawRoute: _handleFetchAndDrawRoute,
-                            onVehicleSelected: (vehicle) => context
+                            user: user,
+                            onSearchChanged: (query) => context
                                 .read<MapHomeBloc>()
-                                .add(MapHomeVehicleSelected(vehicle)),
-                            onRouteSelected: (index) => context
+                                .add(MapHomeSearchChanged(query)),
+                            onSelectPlace: _handleSelectPlace,
+                            onMenuTap: () =>
+                                _scaffoldKey.currentState?.openDrawer(),
+                            onBackTap: _handleResetToExplore,
+                            onClearSearch: () => context
                                 .read<MapHomeBloc>()
-                                .add(MapHomeRouteSelected(index)),
-                            scrollController: scrollController,
+                                .add(const MapHomeClearSearch()),
+                            onProfileTap: () {
+                              HapticFeedback.mediumImpact();
+                              Navigator.push(
+                                  context,
+                                  PageTransition(
+                                      child: const TripManagerScreen(),
+                                      type: PageTransitionType.slideLeft));
+                            },
+                            pulseAnimation: _pulseAnimation,
                             padding: EdgeInsets.fromLTRB(
-                                20,
-                                14,
-                                20,
-                                MediaQuery.of(context).padding.bottom +
-                                    20),
+                                16,
+                                MediaQuery.of(context).padding.top + 8,
+                                16,
+                                28),
                           );
                         },
                       ),
-                    ),
-                  if (state.viewState == MapViewState.navigating)
-                    MapNavigationPanel(
-                      state: state,
-                      isDark: isDark,
-                      onExitNavigation: _handleResetToExplore,
-                      onStartVision: _startNavigationVision,
-                    ),
-                ],
-              ),
-              floatingActionButton:
-                  state.viewState != MapViewState.navigating
-                      ? MapFloatingButtons(
-                          state: state,
-                          isDark: isDark,
-                          onMyLocation: () {
-                            HapticFeedback.lightImpact();
-                            if (state.isLocationLoaded) {
-                              _updateCamera(
-                                  Position(state.currentLng,
-                                      state.currentLat),
-                                  16.0);
-                            } else {
-                              context
-                                  .read<MapHomeBloc>()
-                                  .add(const MapHomeInitLocation());
-                            }
+                    if (state.viewState == MapViewState.navigating)
+                      MapNavigationTopBar(
+                          state: state, isDark: isDark),
+                    if (state.viewState == MapViewState.placeDetail)
+                      SlideTransition(
+                        position: _sheetSlideAnimation,
+                        child: NotificationListener<
+                            DraggableScrollableNotification>(
+                          onNotification: (notification) {
+                            _sheetExtentNotifier.value = notification.extent;
+                            return true;
                           },
-                          fabScaleAnimation: _fabScaleAnimation,
-                          pulseAnimation: _pulseAnimation,
-                        )
-                      : null,
-            );
-          },
+                          child: DraggableScrollableSheet(
+                            initialChildSize: 0.45,
+                            minChildSize: 0.3,
+                            maxChildSize: 0.9,
+                            snap: true,
+                            snapSizes: const [0.3, 0.45, 0.9],
+                            builder: (context, scrollController) {
+                              return MapPlaceSheet(
+                                state: state,
+                                isDark: isDark,
+                                onStartNavigation: _handleStartNavigation,
+                                onFetchAndDrawRoute: _handleFetchAndDrawRoute,
+                                onVehicleSelected: (vehicle) => context
+                                    .read<MapHomeBloc>()
+                                    .add(MapHomeVehicleSelected(vehicle)),
+                                onRouteSelected: (index) => context
+                                    .read<MapHomeBloc>()
+                                    .add(MapHomeRouteSelected(index)),
+                                scrollController: scrollController,
+                                padding: EdgeInsets.fromLTRB(
+                                    20,
+                                    14,
+                                    20,
+                                    MediaQuery.of(context).padding.bottom +
+                                        20),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    if (state.viewState == MapViewState.navigating)
+                      MapNavigationPanel(
+                        state: state,
+                        isDark: isDark,
+                        onExitNavigation: _handleResetToExplore,
+                        onStartVision: _startNavigationVision,
+                      ),
+                    // Di chuyển Floating Buttons vào Stack để không bị đè
+                    if (state.viewState != MapViewState.navigating)
+                      ValueListenableBuilder<double>(
+                        valueListenable: _sheetExtentNotifier,
+                        builder: (context, extent, child) {
+                          return Positioned(
+                            right: 16,
+                            bottom: state.viewState == MapViewState.placeDetail
+                                ? (MediaQuery.of(context).size.height * extent) +
+                                    16
+                                : MediaQuery.of(context).padding.bottom + 16,
+                            child: MapFloatingButtons(
+                              state: state,
+                              isDark: isDark,
+                              onMyLocation: () {
+                                HapticFeedback.lightImpact();
+                                if (state.isLocationLoaded) {
+                                  _updateCamera(
+                                      Position(state.currentLng,
+                                          state.currentLat),
+                                      16.0);
+                                } else {
+                                  context
+                                      .read<MapHomeBloc>()
+                                      .add(const MapHomeInitLocation());
+                                }
+                              },
+                              onToggleAssistant: () {
+                                setState(() {
+                                  _showAssistant = !_showAssistant;
+                                });
+                                if (_showAssistant) {
+                                  HapticFeedback.mediumImpact();
+                                }
+                              },
+                              fabScaleAnimation: _fabScaleAnimation,
+                              pulseAnimation: _pulseAnimation,
+                            ),
+                          );
+                        },
+                      ),
+                    if (_showAssistant)
+                      GestureDetector(
+                        onTap: () => setState(() => _showAssistant = false),
+                        behavior: HitTestBehavior.opaque,
+                        child: const SizedBox.expand(),
+                      ),
+                    if (_showAssistant)
+                      Positioned(
+                        right: 16,
+                        bottom: MediaQuery.of(context).padding.bottom + 80,
+                        child: ChatAssistantOverlay(
+                          isDark: isDark,
+                          onClose: () => setState(() => _showAssistant = false),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
         );
       },
     );

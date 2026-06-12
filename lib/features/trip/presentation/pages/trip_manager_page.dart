@@ -37,9 +37,133 @@ class _TripManagerScreenState extends State<TripManagerScreen>
     );
     _animationController.forward();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<TripController>().loadTrips();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final controller = context.read<TripController>();
+      await controller.loadTrips();
+      if (mounted && controller.trips.isEmpty) {
+        _showSyncOnboardingDialog();
+      }
     });
+  }
+
+  void _showSyncOnboardingDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOutBack,
+        builder: (context, value, child) => Transform.scale(
+          scale: value,
+          child: Opacity(
+            opacity: value.clamp(0.0, 1.0),
+            child: AlertDialog(
+              backgroundColor: isDark ? AppTheme.cardDark : Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+              contentPadding: const EdgeInsets.all(24),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppTheme.successColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: SvgPicture.asset(
+                      'assets/icons/cloud.svg',
+                      width: 48,
+                      height: 48,
+                      colorFilter: const ColorFilter.mode(AppTheme.successColor, BlendMode.srcIn),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Khôi phục hành trình?',
+                    style: TextStyle(
+                      color: AppTheme.adaptiveText(isDark),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Bạn có muốn khôi phục dữ liệu hành trình cũ từ Google Drive không?',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppTheme.adaptiveSubtext(isDark),
+                      fontSize: 14,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: Text(
+                            'Để sau',
+                            style: TextStyle(
+                              color: AppTheme.adaptiveSubtext(isDark),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Container(
+                          decoration: AppTheme.gradientButtonDecoration(
+                            gradient: const LinearGradient(
+                              colors: [AppTheme.successColor, Color(0xFF34D399)],
+                            ),
+                            isDark: isDark,
+                          ).copyWith(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _handleGlobalSync();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              foregroundColor: Colors.white,
+                              shadowColor: Colors.transparent,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: const Text(
+                              'Đồng bộ ngay',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -149,38 +273,7 @@ class _TripManagerScreenState extends State<TripManagerScreen>
         ),
       ),
       actions: [
-        IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: AppTheme.iconContainerDecoration(
-              isDark: isDark,
-              color: AppTheme.successColor,
-            ),
-            child: const Icon(
-              Icons.cloud_download_rounded,
-              color: Colors.white,
-              size: 18,
-            ),
-          ),
-          onPressed: () async {
-            HapticFeedback.mediumImpact();
-            final tripController = context.read<TripController>();
-            final success = await tripController.syncAllFromCloud();
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    success 
-                      ? 'Đã tải dữ liệu từ đám mây thành công' 
-                      : 'Đồng bộ thất bại: ${tripController.error}',
-                  ),
-                  backgroundColor: success ? AppTheme.successColor : AppTheme.errorDark,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            }
-          },
-        ),
+        _buildSyncActionButton(isDark),
         IconButton(
           icon: Container(
             padding: const EdgeInsets.all(8),
@@ -203,34 +296,224 @@ class _TripManagerScreenState extends State<TripManagerScreen>
     );
   }
 
-  Widget _buildLoadingState(bool isDark) {
+  Widget _buildSyncActionButton(bool isDark) {
+    final tripController = context.watch<TripController>();
+    final isSyncing = tripController.isSyncingFromCloud;
+
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-            strokeWidth: 3,
-          ),
-          const SizedBox(height: UIConsts.spacingLG),
-          Text(
-            'Đang tải hành trình...',
-            style: TextStyle(
-              color: AppTheme.adaptiveSubtext(isDark),
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        margin: const EdgeInsets.only(right: 12),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: isSyncing ? null : _handleGlobalSync,
+            borderRadius: BorderRadius.circular(UIConsts.radiusLG),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              padding: EdgeInsets.symmetric(
+                horizontal: isSyncing ? 14 : 16, 
+                vertical: 8
+              ),
+              decoration: isSyncing 
+                ? BoxDecoration(
+                    color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(UIConsts.radiusLG),
+                    border: Border.all(color: Colors.white24),
+                  )
+                : AppTheme.gradientButtonDecoration(
+                    gradient: AppTheme.primaryGradient,
+                    isDark: isDark,
+                  ).copyWith(
+                    borderRadius: BorderRadius.circular(UIConsts.radiusLG),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryColor.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isSyncing)
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  else
+                    SvgPicture.asset(
+                      'assets/icons/cloud.svg',
+                      colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                      width: 16,
+                      height: 16,
+                    ),
+                  const SizedBox(width: 8),
+                  Text(
+                    isSyncing ? 'Đang tải...' : 'Đồng bộ',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
+        ),
       ),
     );
+  }
+
+  Widget _buildLoadingState(bool isDark) {
+    final tripController = context.read<TripController>();
+    final isSyncing = tripController.isSyncingFromCloud;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(UIConsts.spacing3XL),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (isSyncing) ...[
+              SvgPicture.asset(
+                'assets/icons/cloud.svg',
+                width: 64,
+                height: 64,
+              ),
+              const SizedBox(height: UIConsts.spacingXL),
+              const LinearProgressIndicator(
+                backgroundColor: AppTheme.primaryColor,
+                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.secondaryColor),
+              ),
+            ] else
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                strokeWidth: 3,
+              ),
+            const SizedBox(height: UIConsts.spacingLG),
+            Text(
+              isSyncing ? 'Đang đồng bộ dữ liệu từ đám mây...' : 'Đang tải hành trình...',
+              style: TextStyle(
+                color: AppTheme.adaptiveSubtext(isDark),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showTopNotification(BuildContext context, String message, Color backgroundColor, {bool isSuccess = true}) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 10,
+        left: 16,
+        right: 16,
+        child: Material(
+          color: Colors.transparent,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: -100.0, end: 0.0),
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, child) {
+              return Transform.translate(
+                offset: Offset(0, value),
+                child: Opacity(
+                  opacity: (value + 100) / 100,
+                  child: child,
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      message,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(overlayEntry);
+    Future.delayed(const Duration(seconds: 3), () {
+      if (overlayEntry.mounted) {
+        overlayEntry.remove();
+      }
+    });
+  }
+
+  Future<void> _handleGlobalSync() async {
+    HapticFeedback.mediumImpact();
+    final tripController = context.read<TripController>();
+    final success = await tripController.syncAllFromCloud();
+    if (mounted) {
+      _showTopNotification(
+        context, 
+        success ? 'Đã tải dữ liệu từ đám mây thành công!' : 'Đồng bộ thất bại: ${tripController.error}',
+        success ? AppTheme.successColor : AppTheme.errorDark,
+        isSuccess: success,
+      );
+    }
+  }
+
+  Future<void> _handleCreateTrip() async {
+    HapticFeedback.mediumImpact();
+    final result = await Navigator.push(
+      context,
+      PageTransition(
+        child: const CreateTripScreen(),
+        type: PageTransitionType.slideUp,
+      ),
+    );
+    if (result != null && result is Trip) {
+      if (mounted) {
+        context.read<TripController>().loadTrips();
+      }
+    }
   }
 
   Widget _buildEmptyState(bool isDark) {
     return FadeTransition(
       opacity: _fadeAnimation,
-      child: Padding(
-        padding: const EdgeInsets.all(UIConsts.spacing3XL),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(
+            horizontal: UIConsts.spacing3XL, vertical: UIConsts.spacing4XL),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -549,35 +832,28 @@ class _TripManagerScreenState extends State<TripManagerScreen>
       final success = await tripController.syncTripToCloud(trip.id);
       debugPrint('Sync result: $success');
       if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle_rounded, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(child: Text('Đã tải lên drive thành công cho: ${trip.title}')),
-              ],
-            ),
-            backgroundColor: AppTheme.successColor,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
+        _showTopNotification(
+          context, 
+          'Đã tải lên drive thành công cho: ${trip.title}', 
+          AppTheme.successColor
         );
       } else if (!success && mounted) {
         final error = tripController.error;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đồng bộ thất bại: $error'),
-            backgroundColor: AppTheme.accentColor,
-            behavior: SnackBarBehavior.floating,
-          ),
+        _showTopNotification(
+          context, 
+          'Đồng bộ thất bại: $error', 
+          AppTheme.errorDark,
+          isSuccess: false
         );
       }
     } catch (e) {
       debugPrint('Error during sync call: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi hệ thống: $e'), backgroundColor: AppTheme.accentColor),
+        _showTopNotification(
+          context, 
+          'Lỗi hệ thống: $e', 
+          AppTheme.errorDark,
+          isSuccess: false
         );
       }
     }

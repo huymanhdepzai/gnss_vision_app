@@ -91,6 +91,51 @@ class _SettingsPageState extends State<SettingsPage> {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
+  Future<void> _clearCache() async {
+    final isDark = Provider.of<ThemeProvider>(context, listen: false).isDarkMode;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? AppTheme.cardDark : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Xóa bộ nhớ đệm?', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('Hành động này sẽ giải phóng không gian lưu trữ tạm thời.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xóa', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final dir = await getTemporaryDirectory();
+        if (dir.existsSync()) {
+          dir.listSync().forEach((e) {
+            try {
+              e.deleteSync(recursive: true);
+            } catch (_) {}
+          });
+        }
+        await _calculateCacheSize();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã xóa bộ nhớ đệm')),
+          );
+        }
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Lỗi khi xóa bộ nhớ đệm')),
+          );
+        }
+      }
+    }
+  }
+
   Color _a(Color c, double o) => c.withOpacity(o);
 
   @override
@@ -196,7 +241,12 @@ class _SettingsPageState extends State<SettingsPage> {
     return _listContainer(isDark, [
       // _infoItem('Phiên bản', _appVersion),
       _infoItem('Cập nhật', _lastUpdate.isEmpty ? 'Mới nhất' : _lastUpdate),
-      _infoItem('Bộ nhớ đệm', _cacheSize),
+      _infoItem(
+        'Bộ nhớ đệm', 
+        _cacheSize, 
+        onAction: _clearCache,
+        actionLabel: 'Xóa',
+      ),
     ]);
   }
 
@@ -301,7 +351,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _infoItem(String label, String value) {
+  Widget _infoItem(String label, String value, {VoidCallback? onAction, String? actionLabel}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(
@@ -311,9 +361,38 @@ class _SettingsPageState extends State<SettingsPage> {
             label,
             style: const TextStyle(fontSize: 15, color: Colors.grey, fontWeight: FontWeight.w500),
           ),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.primaryColor),
+          Row(
+            children: [
+              Text(
+                value,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.primaryColor),
+              ),
+              if (onAction != null) ...[
+                const SizedBox(width: 12),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onAction,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        actionLabel ?? 'Xóa',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ),

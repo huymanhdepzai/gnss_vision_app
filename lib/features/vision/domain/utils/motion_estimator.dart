@@ -22,17 +22,17 @@ class MotionEstimator {
       int idx = _random.nextInt(oldPoints.length);
 
       Offset sampleMotion = Offset(
-        oldPoints[idx].dx - newPoints[idx].dx,
-        oldPoints[idx].dy - newPoints[idx].dy,
+        newPoints[idx].dx - oldPoints[idx].dx,
+        newPoints[idx].dy - oldPoints[idx].dy,
       );
 
       List<int> currentInliers = [];
       double totalError = 0.0;
 
       for (int i = 0; i < oldPoints.length; i++) {
-        double errorX = (oldPoints[i].dx - newPoints[i].dx - sampleMotion.dx)
+        double errorX = (newPoints[i].dx - oldPoints[i].dx - sampleMotion.dx)
             .abs();
-        double errorY = (oldPoints[i].dy - newPoints[i].dy - sampleMotion.dy)
+        double errorY = (newPoints[i].dy - oldPoints[i].dy - sampleMotion.dy)
             .abs();
         double error = math.sqrt(errorX * errorX + errorY * errorY);
 
@@ -57,16 +57,16 @@ class MotionEstimator {
       double sumWeight = 0;
 
       for (int i in bestInliers) {
-        double errorX = (oldPoints[i].dx - newPoints[i].dx - bestMotion.dx)
+        double errorX = (newPoints[i].dx - oldPoints[i].dx - bestMotion.dx)
             .abs();
-        double errorY = (oldPoints[i].dy - newPoints[i].dy - bestMotion.dy)
+        double errorY = (newPoints[i].dy - oldPoints[i].dy - bestMotion.dy)
             .abs();
         double error = math.sqrt(errorX * errorX + errorY * errorY);
 
         double weight = 1.0 / (1.0 + error);
 
-        sumDx += (oldPoints[i].dx - newPoints[i].dx) * weight;
-        sumDy += (oldPoints[i].dy - newPoints[i].dy) * weight;
+        sumDx += (newPoints[i].dx - oldPoints[i].dx) * weight;
+        sumDy += (newPoints[i].dy - oldPoints[i].dy) * weight;
         sumWeight += weight;
       }
 
@@ -104,9 +104,9 @@ class MotionEstimator {
     List<Offset> filtered = [];
 
     for (int i = 0; i < oldPoints.length && i < newPoints.length; i++) {
-      double errorX = (oldPoints[i].dx - newPoints[i].dx - expectedMotion.dx)
+      double errorX = (newPoints[i].dx - oldPoints[i].dx - expectedMotion.dx)
           .abs();
-      double errorY = (oldPoints[i].dy - newPoints[i].dy - expectedMotion.dy)
+      double errorY = (newPoints[i].dy - oldPoints[i].dy - expectedMotion.dy)
           .abs();
 
       if (errorX < threshold && errorY < threshold) {
@@ -130,8 +130,8 @@ class MotionEstimator {
     List<int> validIndices = [];
 
     for (int i = 0; i < oldPoints.length && i < newPoints.length; i++) {
-      double dx = oldPoints[i].dx - newPoints[i].dx;
-      double dy = oldPoints[i].dy - newPoints[i].dy;
+      double dx = newPoints[i].dx - oldPoints[i].dx;
+      double dy = newPoints[i].dy - oldPoints[i].dy;
       double error = math.sqrt(
         (dx - medianMotion.dx) * (dx - medianMotion.dx) +
             (dy - medianMotion.dy) * (dy - medianMotion.dy),

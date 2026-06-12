@@ -331,9 +331,18 @@ class _CreateTripScreenState extends State<CreateTripScreen>
   Future<void> _createTrip() async {
     if (!_canCreateTrip) return;
 
-    HapticFeedback.heavyImpact();
-
     final tripController = context.read<TripController>();
+    final title = _titleController.text.trim();
+
+    if (!tripController.isTripTitleAvailable(title)) {
+      _showTopNotification(
+        'Tên hành trình đã tồn tại. Vui lòng chọn tên khác.',
+        AppTheme.errorDark,
+      );
+      return;
+    }
+
+    HapticFeedback.heavyImpact();
 
     double distanceValue = 0;
     if (_distance.isNotEmpty) {
@@ -345,7 +354,7 @@ class _CreateTripScreenState extends State<CreateTripScreen>
     }
 
     final trip = await tripController.createTrip(
-      title: _titleController.text,
+      title: title,
       startLat: _startLocation!.lat.toDouble(),
       startLng: _startLocation!.lng.toDouble(),
       endLat: _endLocation!.lat.toDouble(),
@@ -359,6 +368,71 @@ class _CreateTripScreenState extends State<CreateTripScreen>
     if (trip != null && mounted) {
       Navigator.pop(context, trip);
     }
+  }
+
+  void _showTopNotification(String message, Color backgroundColor) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 10,
+        left: 16,
+        right: 16,
+        child: Material(
+          color: Colors.transparent,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: -100.0, end: 0.0),
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, child) {
+              return Transform.translate(
+                offset: Offset(0, value),
+                child: Opacity(
+                  opacity: (value + 100) / 100,
+                  child: child,
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      message,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(overlayEntry);
+    Future.delayed(const Duration(seconds: 3), () {
+      if (overlayEntry.mounted) {
+        overlayEntry.remove();
+      }
+    });
   }
 
   @override

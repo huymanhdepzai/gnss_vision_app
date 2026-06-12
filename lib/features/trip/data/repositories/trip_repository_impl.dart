@@ -190,8 +190,8 @@ class TripRepositoryImpl implements TripRepository {
       final rootFolderId = await driveDataSource.getOrCreateRootFolder();
       debugPrint('TripRepository: Root folder ID: $rootFolderId');
       
-      debugPrint('TripRepository: Creating trip folder on Drive');
-      final tripFolderId = await driveDataSource.createTripFolder(tripModel.title, rootFolderId);
+      debugPrint('TripRepository: Checking/Creating trip folder on Drive');
+      final tripFolderId = await driveDataSource.getOrCreateTripFolder(tripModel.title, rootFolderId);
       debugPrint('TripRepository: Trip folder ID: $tripFolderId');
 
       if (onProgress != null) onProgress(0.3);

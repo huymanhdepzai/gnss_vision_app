@@ -49,6 +49,16 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<Either<Failure, bool>> isDeviceBiometricAvailable() async {
+    try {
+      final result = await remoteDataSource.isDeviceBiometricAvailable();
+      return Right(result);
+    } catch (e) {
+      return Left(Failure('Lỗi kiểm tra sinh trắc học thiết bị: $e'));
+    }
+  }
+
+  @override
   Future<Either<Failure, UserEntity>> signInSilently() async {
     try {
       final userModel = await remoteDataSource.signInSilently();

@@ -1,11 +1,13 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
+import '../controllers/vision_isolate_models.dart';
+
 class FlowPainter extends CustomPainter {
   final List<Offset> points;
   final Size imageSize;
   final List<Rect>? staticRois;
-  final List<Rect>? aiObstacles;
+  final List<DetectedObject>? aiObstacles;
   final bool isDebugMode;
   final double? confidence;
   final Offset? moveVector;
@@ -24,17 +26,35 @@ class FlowPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (imageSize.width == 0 || imageSize.height == 0) return;
 
-    final double scaleX = size.width / imageSize.width;
-    final double scaleY = size.height / imageSize.height;
+    // --- Calculate Fit and Offset (BoxFit.contain logic) ---
+    final double imageAspect = imageSize.width / imageSize.height;
+    final double screenAspect = size.width / size.height;
 
-    _drawDebugGrid(canvas, size, scaleX, scaleY);
-    _drawObstacles(canvas, size, scaleX, scaleY);
-    _drawTrackingPoints(canvas, size, scaleX, scaleY);
-    _drawMotionVector(canvas, size, scaleX, scaleY);
+    double drawWidth, drawHeight;
+    double offsetX = 0, offsetY = 0;
+
+    if (screenAspect > imageAspect) {
+      drawHeight = size.height;
+      drawWidth = drawHeight * imageAspect;
+      offsetX = (size.width - drawWidth) / 2;
+    } else {
+      drawWidth = size.width;
+      drawHeight = drawWidth / imageAspect;
+      offsetY = (size.height - drawHeight) / 2;
+    }
+
+    final double scaleX = drawWidth / imageSize.width;
+    final double scaleY = drawHeight / imageSize.height;
+
+    // Save the global context to draw background elements later
+    _drawDebugGrid(canvas, size, scaleX, scaleY, offsetX, offsetY);
+    _drawObstacles(canvas, size, scaleX, scaleY, offsetX, offsetY);
+    _drawTrackingPoints(canvas, size, scaleX, scaleY, offsetX, offsetY);
+    _drawMotionVector(canvas, size, scaleX, scaleY, offsetX, offsetY);
     _drawConfidenceIndicator(canvas, size);
   }
 
-  void _drawDebugGrid(Canvas canvas, Size size, double scaleX, double scaleY) {
+  void _drawDebugGrid(Canvas canvas, Size size, double scaleX, double scaleY, double dx, double dy) {
     if (!isDebugMode || staticRois == null) return;
 
     final hudPaint = Paint()
@@ -44,141 +64,155 @@ class FlowPainter extends CustomPainter {
 
     for (var roi in staticRois!) {
       Rect scaledRoi = Rect.fromLTRB(
-        roi.left * scaleX,
-        roi.top * scaleY,
-        roi.right * scaleX,
-        roi.bottom * scaleY,
+        roi.left * scaleX + dx,
+        roi.top * scaleY + dy,
+        roi.right * scaleX + dx,
+        roi.bottom * scaleY + dy,
       );
       canvas.drawRect(scaledRoi, hudPaint);
-
-      final centerHud = scaledRoi.center;
-      canvas.drawLine(
-        Offset(centerHud.dx - 10, centerHud.dy),
-        Offset(centerHud.dx + 10, centerHud.dy),
-        hudPaint,
-      );
-      canvas.drawLine(
-        Offset(centerHud.dx, centerHud.dy - 10),
-        Offset(centerHud.dx, centerHud.dy + 10),
-        hudPaint,
-      );
     }
   }
 
-  void _drawObstacles(Canvas canvas, Size size, double scaleX, double scaleY) {
+  void _drawObstacles(Canvas canvas, Size size, double scaleX, double scaleY, double dx, double dy) {
     if (aiObstacles == null || aiObstacles!.isEmpty) return;
 
-    for (var box in aiObstacles!) {
-      Rect scaledBox = Rect.fromLTRB(
-        box.left * scaleX,
-        box.top * scaleY,
-        box.right * scaleX,
-        box.bottom * scaleY,
-      );
+    final borderPaint = Paint()
+      ..color = Colors.red
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0;
 
-      final glowPaint = Paint()
-        ..color = Colors.red.withOpacity(0.3)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 8
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
+    final fillPaint = Paint()
+      ..color = Colors.red.withOpacity(0.15)
+      ..style = PaintingStyle.fill;
 
-      RRect roundedBox = RRect.fromRectAndRadius(
-        scaledBox,
-        const Radius.circular(12),
-      );
+    for (var obj in aiObstacles!) {
+      final box = obj.rect;
+      double left = box.left;
+      double top = box.top;
+      double right = box.right;
+      double bottom = box.bottom;
 
-      canvas.drawRRect(roundedBox, glowPaint);
-
-      final borderPaint = Paint()
-        ..color = Colors.red.shade400
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5;
-
-      canvas.drawRRect(roundedBox, borderPaint);
-
-      final fillPaint = Paint()
-        ..color = Colors.red.withOpacity(0.12)
-        ..style = PaintingStyle.fill;
-
-      canvas.drawRRect(roundedBox, fillPaint);
-
-      final cornerPaint = Paint()
-        ..color = Colors.red.shade300
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..strokeCap = StrokeCap.round;
-
-      final cornerLen = 20.0;
-      final corners = [
-        [
-          Offset(scaledBox.left, scaledBox.top + cornerLen),
-          Offset(scaledBox.left, scaledBox.top),
-          Offset(scaledBox.left + cornerLen, scaledBox.top),
-        ],
-        [
-          Offset(scaledBox.right - cornerLen, scaledBox.top),
-          Offset(scaledBox.right, scaledBox.top),
-          Offset(scaledBox.right, scaledBox.top + cornerLen),
-        ],
-        [
-          Offset(scaledBox.left, scaledBox.bottom - cornerLen),
-          Offset(scaledBox.left, scaledBox.bottom),
-          Offset(scaledBox.left + cornerLen, scaledBox.bottom),
-        ],
-        [
-          Offset(scaledBox.right - cornerLen, scaledBox.bottom),
-          Offset(scaledBox.right, scaledBox.bottom),
-          Offset(scaledBox.right, scaledBox.bottom - cornerLen),
-        ],
-      ];
-
-      for (var corner in corners) {
-        final path = Path()..moveTo(corner[0].dx, corner[0].dy);
-        for (int i = 1; i < corner.length; i++) {
-          path.lineTo(corner[i].dx, corner[i].dy);
-        }
-        canvas.drawPath(path, cornerPaint);
+      if (left < 1.1 && right < 1.1 && top < 1.1 && bottom < 1.1) {
+        left *= imageSize.width;
+        top *= imageSize.height;
+        right *= imageSize.width;
+        bottom *= imageSize.height;
       }
 
-      _drawWarningIcon(
-        canvas,
-        scaledBox.center,
-        (scaledBox.width + scaledBox.height) / 8,
+      Rect scaledBox = Rect.fromLTRB(
+        left * scaleX + dx,
+        top * scaleY + dy,
+        right * scaleX + dx,
+        bottom * scaleY + dy,
       );
+
+      // Draw box with shadow and glow
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(scaledBox, const Radius.circular(8)),
+        Paint()
+          ..color = Colors.red.withOpacity(0.4)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 6
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+      );
+
+      canvas.drawRRect(RRect.fromRectAndRadius(scaledBox, const Radius.circular(8)), fillPaint);
+      canvas.drawRRect(RRect.fromRectAndRadius(scaledBox, const Radius.circular(8)), borderPaint);
+
+      _drawBoldCorners(canvas, scaledBox);
+      _drawLabelToBackground(canvas, size, scaledBox, obj.label, dx, dy);
     }
   }
 
-  void _drawWarningIcon(Canvas canvas, Offset center, double size) {
-    final iconPaint = Paint()
-      ..color = Colors.red.shade300
-      ..style = PaintingStyle.fill;
-
-    final path = Path();
-    final halfSize = size / 2;
-
-    path.moveTo(center.dx, center.dy - halfSize);
-    path.lineTo(center.dx - halfSize + size / 6, center.dy + halfSize);
-    path.lineTo(center.dx + halfSize - size / 6, center.dy + halfSize);
-    path.close();
-
-    canvas.drawPath(path, iconPaint);
-
-    final exclaimPaint = Paint()
-      ..color = Colors.white
+  void _drawLabelToBackground(Canvas canvas, Size screenSize, Rect box, String label, double dx, double dy) {
+    final leaderPaint = Paint()
+      ..color = Colors.red.withOpacity(0.5)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
+      ..strokeWidth = 1.0;
+
+    Offset start, end;
+    bool isLeft = box.center.dx < screenSize.width / 2;
+    bool isTop = box.center.dy < screenSize.height / 2;
+
+    // --- Optimized Exit Direction (Exclude Bottom) ---
+    if (isTop && dy > 30) {
+      // Priority 1: Top Area for objects in the upper half
+      start = Offset(box.center.dx, box.top);
+      double targetY = dy / 2;
+      double targetX = (box.center.dx).clamp(40.0, screenSize.width - 40.0);
+      end = Offset(targetX, targetY);
+    } else if (dx > 25) {
+      // Priority 2: Left/Right Sides for everything else (or if Top is small)
+      start = isLeft ? Offset(box.left, box.top) : Offset(box.right, box.top);
+      double targetX = isLeft ? dx / 2 : screenSize.width - (dx / 2);
+      double targetY = (box.top - 20).clamp(50.0, screenSize.height - 180.0); // Stay away from bottom controls
+      end = Offset(targetX, targetY);
+    } else {
+      // Fallback: Default to Top-Sides, avoiding downward lines
+      start = isLeft ? Offset(box.left, box.top) : Offset(box.right, box.top);
+      end = isLeft ? Offset(box.left - 40, box.top - 30) : Offset(box.right + 40, box.top - 30);
+    }
+
+    // Draw a subtle "elbow" path for a tech look
+    final path = Path()
+      ..moveTo(start.dx, start.dy)
+      ..lineTo(end.dx, end.dy);
+
+    canvas.drawPath(path, leaderPaint);
+    
+    // Tiny node at the start
+    canvas.drawCircle(start, 2.5, Paint()..color = Colors.red.withOpacity(0.8));
+
+    // --- Draw Label ---
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: ' ${label.toUpperCase()} ',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 9,
+          fontWeight: FontWeight.w900,
+          backgroundColor: Colors.red,
+          letterSpacing: 1.2,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+
+    textPainter.layout();
+    
+    // Center label on the end point
+    double drawX = isLeft ? end.dx : end.dx - textPainter.width;
+    if (dx <= 30 && dy <= 30) { // Fallback for small background
+       drawX = isLeft ? end.dx - textPainter.width : end.dx;
+    }
+    
+    textPainter.paint(canvas, Offset(drawX, end.dy - textPainter.height / 2));
+  }
+
+  void _drawBoldCorners(Canvas canvas, Rect rect) {
+    final cornerPaint = Paint()
+      ..color = Colors.red
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
       ..strokeCap = StrokeCap.round;
 
-    canvas.drawLine(
-      Offset(center.dx, center.dy - size / 4),
-      Offset(center.dx, center.dy + size / 8),
-      exclaimPaint,
-    );
-    canvas.drawCircle(
-      Offset(center.dx, center.dy + size / 4),
-      1.5,
-      Paint()..color = Colors.white,
-    );
+    final len = (rect.width * 0.2).clamp(10.0, 30.0);
+    
+    // Top-Left
+    canvas.drawLine(Offset(rect.left, rect.top + len), Offset(rect.left, rect.top), cornerPaint);
+    canvas.drawLine(Offset(rect.left, rect.top), Offset(rect.left + len, rect.top), cornerPaint);
+    
+    // Top-Right
+    canvas.drawLine(Offset(rect.right - len, rect.top), Offset(rect.right, rect.top), cornerPaint);
+    canvas.drawLine(Offset(rect.right, rect.top), Offset(rect.right, rect.top + len), cornerPaint);
+    
+    // Bottom-Left
+    canvas.drawLine(Offset(rect.left, rect.bottom - len), Offset(rect.left, rect.bottom), cornerPaint);
+    canvas.drawLine(Offset(rect.left, rect.bottom), Offset(rect.left + len, rect.bottom), cornerPaint);
+    
+    // Bottom-Right
+    canvas.drawLine(Offset(rect.right - len, rect.bottom), Offset(rect.right, rect.bottom), cornerPaint);
+    canvas.drawLine(Offset(rect.right, rect.bottom), Offset(rect.right, rect.bottom - len), cornerPaint);
   }
 
   void _drawTrackingPoints(
@@ -186,6 +220,8 @@ class FlowPainter extends CustomPainter {
     Size size,
     double scaleX,
     double scaleY,
+    double dx,
+    double dy,
   ) {
     if (!isDebugMode || points.isEmpty) return;
 
@@ -194,8 +230,8 @@ class FlowPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     for (var point in points) {
-      double mappedX = point.dx * scaleX;
-      double mappedY = point.dy * scaleY;
+      double mappedX = point.dx * scaleX + dx;
+      double mappedY = point.dy * scaleY + dy;
 
       final glowPaint = Paint()
         ..color = Colors.greenAccent.withOpacity(0.3)
@@ -211,6 +247,8 @@ class FlowPainter extends CustomPainter {
     Size size,
     double scaleX,
     double scaleY,
+    double dx,
+    double dy,
   ) {
     if (moveVector == null || !isDebugMode) return;
 
@@ -302,259 +340,104 @@ class DirectionArrowPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 20;
+    final radius = size.width / 2;
 
-    _drawOuterRing(canvas, center, radius);
-    _drawTickMarks(canvas, center, radius);
-    _drawDirectionCardinals(canvas, center, radius);
-    _drawInnerGlow(canvas, center, radius);
+    _drawFuturisticGlow(canvas, center, radius);
     _drawMainArrow(canvas, center, radius);
-    _drawConfidenceRing(canvas, center, radius);
     if (showPath && turnIntensity.abs() > 0.05) {
-      _drawTurnIndicator(canvas, center, radius);
+      _drawDynamicPath(canvas, center, radius);
     }
   }
 
-  void _drawOuterRing(Canvas canvas, Offset center, double radius) {
-    final ringPaint = Paint()
-      ..color = Colors.white.withOpacity(0.1)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-
-    canvas.drawCircle(center, radius, ringPaint);
-
-    final gradientPaint = Paint()
-      ..shader = SweepGradient(
-        colors: [
-          primaryColor.withOpacity(0.3),
-          accentColor.withOpacity(0.3),
-          primaryColor.withOpacity(0.3),
-        ],
-        stops: const [0.0, 0.5, 1.0],
-      ).createShader(Rect.fromCircle(center: center, radius: radius))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-
-    canvas.drawCircle(center, radius, gradientPaint);
-  }
-
-  void _drawTickMarks(Canvas canvas, Offset center, double radius) {
-    final majorTickPaint = Paint()
-      ..color = Colors.white.withOpacity(0.6)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
-
-    final minorTickPaint = Paint()
-      ..color = Colors.white.withOpacity(0.3)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-
-    for (int i = 0; i < 360; i += 5) {
-      final angle = (i - 90) * math.pi / 180;
-      final isMajor = i % 30 == 0;
-      final tickLength = isMajor ? 15 : 8;
-      final paint = isMajor ? majorTickPaint : minorTickPaint;
-
-      final innerRadius = radius - tickLength;
-      final outerRadius = radius;
-
-      canvas.drawLine(
-        Offset(
-          center.dx + innerRadius * math.cos(angle),
-          center.dy + innerRadius * math.sin(angle),
-        ),
-        Offset(
-          center.dx + outerRadius * math.cos(angle),
-          center.dy + outerRadius * math.sin(angle),
-        ),
-        paint,
-      );
-    }
-  }
-
-  void _drawDirectionCardinals(Canvas canvas, Offset center, double radius) {
-    final directions = ['N', 'E', 'S', 'W'];
-    final angles = [0, 90, 180, 270];
-
-    for (int i = 0; i < directions.length; i++) {
-      final angle = (angles[i] - 90) * math.pi / 180;
-      final textOffset = Offset(
-        center.dx + (radius - 35) * math.cos(angle),
-        center.dy + (radius - 35) * math.sin(angle),
-      );
-
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: directions[i],
-          style: TextStyle(
-            color: directions[i] == 'N'
-                ? accentColor
-                : Colors.white.withOpacity(0.8),
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      );
-
-      textPainter.layout();
-      textPainter.paint(
-        canvas,
-        Offset(
-          textOffset.dx - textPainter.width / 2,
-          textOffset.dy - textPainter.height / 2,
-        ),
-      );
-    }
-  }
-
-  void _drawInnerGlow(Canvas canvas, Offset center, double radius) {
+  void _drawFuturisticGlow(Canvas canvas, Offset center, double radius) {
     final glowPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          primaryColor.withOpacity(0.15),
-          accentColor.withOpacity(0.08),
+          accentColor.withOpacity(0.2),
+          primaryColor.withOpacity(0.1),
           Colors.transparent,
         ],
-        stops: const [0.0, 0.5, 1.0],
-      ).createShader(Rect.fromCircle(center: center, radius: radius * 0.6));
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
 
-    canvas.drawCircle(center, radius * 0.6, glowPaint);
+    canvas.drawCircle(center, radius, glowPaint);
   }
 
   void _drawMainArrow(Canvas canvas, Offset center, double radius) {
     final arrowPath = Path();
-    final arrowSize = radius * 0.6;
-    final arrowWidth = arrowSize * 0.35;
+    final arrowSize = radius * 0.8;
+    final arrowWidth = arrowSize * 0.4;
 
+    // Bold, sleek arrow shape
     arrowPath.moveTo(0, -arrowSize);
-    arrowPath.lineTo(arrowWidth, arrowSize * 0.4);
-    arrowPath.lineTo(arrowWidth * 0.5, arrowSize * 0.2);
-    arrowPath.lineTo(arrowWidth * 0.5, arrowSize * 0.6);
-    arrowPath.lineTo(-arrowWidth * 0.5, arrowSize * 0.6);
-    arrowPath.lineTo(-arrowWidth * 0.5, arrowSize * 0.2);
-    arrowPath.lineTo(-arrowWidth, arrowSize * 0.4);
+    arrowPath.lineTo(arrowWidth, arrowSize * 0.2);
+    arrowPath.lineTo(0, 0); // Inner notch
+    arrowPath.lineTo(-arrowWidth, arrowSize * 0.2);
     arrowPath.close();
 
     canvas.save();
     canvas.translate(center.dx, center.dy);
+    
+    // Smoothly rotate based on heading and add a slight tilt for "3D" effect
     canvas.rotate(heading * math.pi / 180);
 
-    final shadowPaint = Paint()
-      ..color = primaryColor.withOpacity(0.3)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
+    // Outer Glow for the arrow
+    final arrowGlow = Paint()
+      ..color = accentColor.withOpacity(0.5)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+    canvas.drawPath(arrowPath, arrowGlow);
 
-    canvas.drawPath(arrowPath, shadowPaint);
+    // Gradient Fill
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [accentColor, primaryColor],
+      ).createShader(Rect.fromLTWH(-arrowWidth, -arrowSize, arrowWidth * 2, arrowSize));
+    
+    canvas.drawPath(arrowPath, fillPaint);
 
-    final gradientPaint = Paint()
-      ..shader =
-          LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [accentColor, accentColor.withOpacity(0.8), primaryColor],
-          ).createShader(
-            Rect.fromLTWH(
-              -arrowWidth,
-              -arrowSize,
-              arrowWidth * 2,
-              arrowSize * 1.6,
-            ),
-          );
-
-    canvas.drawPath(arrowPath, gradientPaint);
-
+    // Strong Border
     final borderPaint = Paint()
-      ..color = Colors.white.withOpacity(0.5)
+      ..color = Colors.white.withOpacity(0.8)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
     canvas.drawPath(arrowPath, borderPaint);
 
     canvas.restore();
   }
 
-  void _drawConfidenceRing(Canvas canvas, Offset center, double radius) {
-    final sweepAngle = confidence * 2 * math.pi;
-
-    final confidencePaint = Paint()
-      ..shader = SweepGradient(
-        center: Alignment.center,
-        colors: [
-          Colors.green.shade400,
-          Colors.green.shade300,
-          Colors.transparent,
-        ],
-        stops: [0.0, confidence, confidence],
-        transform: GradientRotation(-math.pi / 2),
-      ).createShader(Rect.fromCircle(center: center, radius: radius))
+  void _drawDynamicPath(Canvas canvas, Offset center, double radius) {
+    final pathPaint = Paint()
+      ..color = turnIntensity.abs() > 0.4 ? Colors.orangeAccent : accentColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
+      ..strokeWidth = 6
       ..strokeCap = StrokeCap.round;
 
+    final arcRect = Rect.fromCircle(center: center, radius: radius * 0.6);
+    final sweepAngle = (turnIntensity * 90) * math.pi / 180;
+    
+    // Draw a bold arc representing the turn direction
     canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius * 0.75),
+      arcRect,
       -math.pi / 2,
       sweepAngle,
       false,
-      confidencePaint,
+      pathPaint..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
     );
-  }
-
-  void _drawTurnIndicator(Canvas canvas, Offset center, double radius) {
-    final turnPaint = Paint()
-      ..color = turnIntensity.abs() > 0.3
-          ? Colors.orange.shade400
-          : Colors.blue.shade400
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round;
-
-    final arcRadius = radius * 0.85;
-    // Start from Top (North)
-    final startAngle = -math.pi / 2;
-    // Sweep based on turn intensity (positive = right/clockwise, negative = left/counter-clockwise)
-    final sweepAngle = turnIntensity * math.pi / 2;
-
+    
     canvas.drawArc(
-      Rect.fromCircle(center: center, radius: arcRadius),
-      startAngle,
+      arcRect,
+      -math.pi / 2,
       sweepAngle,
       false,
-      turnPaint,
+      pathPaint..maskFilter = null,
     );
-
-    final arrowAngle = startAngle + sweepAngle;
-    final arrowPos = Offset(
-      center.dx + arcRadius * math.cos(arrowAngle),
-      center.dy + arcRadius * math.sin(arrowAngle),
-    );
-
-    final arrowHeadPaint = Paint()
-      ..color = turnPaint.color
-      ..style = PaintingStyle.fill;
-
-    final arrowPath = Path();
-    const double arrowSize = 10;
-
-    // Rotate arrow head to point in the direction of the turn
-    canvas.save();
-    canvas.translate(arrowPos.dx, arrowPos.dy);
-    canvas.rotate(arrowAngle + (turnIntensity > 0 ? math.pi / 2 : -math.pi / 2));
-
-    arrowPath.moveTo(0, -arrowSize / 2);
-    arrowPath.lineTo(arrowSize, 0);
-    arrowPath.lineTo(0, arrowSize / 2);
-    arrowPath.close();
-
-    canvas.drawPath(arrowPath, arrowHeadPaint);
-    canvas.restore();
   }
 
   @override
   bool shouldRepaint(covariant DirectionArrowPainter oldDelegate) {
     return oldDelegate.heading != heading ||
-        oldDelegate.turnIntensity != turnIntensity ||
-        oldDelegate.confidence != confidence;
+        oldDelegate.turnIntensity != turnIntensity;
   }
 }

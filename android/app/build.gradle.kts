@@ -44,6 +44,11 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
         }
     }
+    packaging {
+        resources {
+            excludes += "lib/**/libtensorflowlite_flex_jni.so"
+        }
+    }
 }
 
 flutter {

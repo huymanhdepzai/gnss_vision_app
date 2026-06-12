@@ -21,6 +21,9 @@ import '../../../../core/extensions/context_extensions.dart';
 import '../widgets/satellite_drawer.dart';
 import 'satellite_detail_page.dart';
 import 'satellite_export_list_page.dart';
+import '../widgets/gnss_analysis_view.dart';
+
+enum SatelliteViewMode { globe, radar, analysis }
 
 class UserLocationData {
   final double latitude;
@@ -59,11 +62,15 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
   List<SatelliteData> _satellites = [];
   UserLocationData? _userLocation;
   final List<StarModel> _stars = [];
+  
+  // History tracking for analysis
+  final List<Map<String, dynamic>> _gnssHistory = [];
+  static const int _maxHistoryPoints = 60; // Approx 1-2 minutes of history
 
   StreamSubscription? _gnssSubscription;
   Timer? _mockTimer;
 
-  bool _showGlobe = true;
+  SatelliteViewMode _viewMode = SatelliteViewMode.globe;
   bool _isUsingRealData = false;
   bool _isGlobeLoaded = false;
   String _filterSystem = 'ALL';
@@ -211,6 +218,7 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
             setState(() {
               _satellites = realSats;
               _isUsingRealData = true;
+              _updateGnssHistory();
             });
             _updateGlobePoints();
 
@@ -227,6 +235,24 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
       }
     } else {
       _startMockDataFallback();
+    }
+  }
+
+  void _updateGnssHistory() {
+    if (_satellites.isEmpty) return;
+    
+    final avgSnr = _satellites.map((s) => s.snr).reduce((a, b) => a + b) / _satellites.length;
+    final usedInFix = _satellites.where((s) => s.usedInFix).length;
+    
+    _gnssHistory.add({
+      'timestamp': DateTime.now(),
+      'avgSnr': avgSnr,
+      'usedInFix': usedInFix,
+      'total': _satellites.length,
+    });
+    
+    if (_gnssHistory.length > _maxHistoryPoints) {
+      _gnssHistory.removeAt(0);
     }
   }
 
@@ -449,7 +475,10 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     }
 
     if (mounted) {
-      setState(() => _satellites = sats);
+      setState(() {
+        _satellites = sats;
+        _updateGnssHistory();
+      });
       _updateGlobePoints();
     }
 
@@ -466,6 +495,7 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
             usedInFix: s.usedInFix,
           );
         }).toList();
+        _updateGnssHistory();
       });
       _updateGlobePoints();
     });
@@ -500,8 +530,10 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
                   child: Column(
                     children: [
                       _buildAppBar(context),
-                      SizedBox(height: UIConsts.spacingSM),
-                      _buildStatsOverview(context, activeFixes, avgSnr),
+                      if (_viewMode != SatelliteViewMode.analysis) ...[
+                        SizedBox(height: UIConsts.spacingSM),
+                        _buildStatsOverview(context, activeFixes, avgSnr),
+                      ],
                       Expanded(child: _buildMainView(context)),
                     ],
                   ),
@@ -568,7 +600,7 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildStatusIndicator(context),
+                // _buildStatusIndicator(context),
                 SizedBox(width: UIConsts.spacingSM),
                 PressScale(
                   onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
@@ -610,58 +642,6 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
             ),
           ),
         ),
-        SizedBox(height: UIConsts.spacingXS),
-        Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: UIConsts.spacingSM,
-            vertical: UIConsts.spacingXS,
-          ),
-          decoration: BoxDecoration(
-            color: _isUsingRealData
-                ? AppTheme.successColor.withOpacity(
-                    context.isDark ? 0.2 : 0.15)
-                : AppTheme.warningColor.withOpacity(
-                    context.isDark ? 0.2 : 0.15),
-            borderRadius: BorderRadius.circular(UIConsts.radiusSM),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _isUsingRealData
-                      ? AppTheme.successColor
-                      : AppTheme.warningColor,
-                  boxShadow: [
-                    BoxShadow(
-                      color: (_isUsingRealData
-                              ? AppTheme.successColor
-                              : AppTheme.warningColor)
-                          .withOpacity(0.5),
-                      blurRadius: 8,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(width: UIConsts.spacingSM),
-              Text(
-                _isUsingRealData ? "GNSS TRỰC TIẾP" : "MÔ PHỎNG",
-                style: TextStyle(
-                  color: _isUsingRealData
-                      ? AppTheme.successColor
-                      : AppTheme.warningColor,
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -697,6 +677,8 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     final qualityColor = _getSignalQualityColor(avgSnr);
     final qualityLabel = _getSignalQuality(avgSnr);
     final signalQuality = avgSnr / 50.0;
+    final counts = _constellationCounts;
+    final systems = ['GPS', 'GLONASS', 'GALILEO', 'BEIDOU'];
 
     return EntranceAnimation(
       type: EntranceType.fadeSlideUp,
@@ -704,103 +686,78 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
       duration: UIConsts.animEntrance,
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: UIConsts.spacingLG),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 4,
-              child: ModernCard(
-                accentColor: qualityColor,
-                hasGlow: true,
-                padding: EdgeInsets.symmetric(
-                  vertical: UIConsts.spacingLG,
-                  horizontal: UIConsts.spacingLG,
-                ),
-                child: Row(
-                  children: [
-                    _buildSignalQualityGauge(signalQuality, qualityColor),
-                    SizedBox(width: UIConsts.spacingMD),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            qualityLabel,
-                            style: TextStyle(
-                              color: qualityColor,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          SizedBox(height: UIConsts.spacingXS),
-                          Row(
-                            children: [
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: qualityColor,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: qualityColor.withOpacity(0.6),
-                                      blurRadius: 6,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              SizedBox(width: UIConsts.spacingXS),
-                              Expanded(
-                                child: Text(
-                                  'SNR: ${avgSnr.toStringAsFixed(1)} dB-Hz',
-                                  style: TextStyle(
-                                    color: context.textSecondaryColor,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+        child: ModernCard(
+          accentColor: qualityColor,
+          hasGlow: true,
+          padding: EdgeInsets.symmetric(
+            vertical: UIConsts.spacingLG,
+            horizontal: UIConsts.spacingLG,
+          ),
+          child: Row(
+            children: [
+              _buildSignalQualityGauge(signalQuality, qualityColor),
+              SizedBox(width: UIConsts.spacingMD),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    qualityLabel,
+                    style: TextStyle(
+                      color: qualityColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
                     ),
-                  ],
+                  ),
+                  SizedBox(height: UIConsts.spacingXS),
+                  Text(
+                    'SNR: ${avgSnr.toStringAsFixed(1)} dB-Hz',
+                    style: TextStyle(
+                      color: context.textSecondaryColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: systems.map((sys) {
+                      final count = counts[sys] ?? 0;
+                      final color = kSatelliteSystemColors[sys] ?? Colors.white;
+                      return Padding(
+                        padding: EdgeInsets.only(left: UIConsts.spacingMD),
+                        child: Column(
+                          children: [
+                            Text(
+                              count.toString(),
+                              style: TextStyle(
+                                color: color,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              sys,
+                              style: TextStyle(
+                                color: context.textSecondaryColor,
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ),
               ),
-            ),
-            SizedBox(width: UIConsts.spacingSM),
-            Expanded(
-              flex: 2,
-              child: ModernCard(
-                accentColor: AppTheme.secondaryColor,
-                padding: EdgeInsets.symmetric(vertical: UIConsts.spacingLG),
-                child: _buildStatItem(
-                  context,
-                  "TRONG TẦM",
-                  "${_satellites.length}",
-                  AppTheme.secondaryColor,
-                  Icons.satellite_alt_rounded,
-                ),
-              ),
-            ),
-            SizedBox(width: UIConsts.spacingSM),
-            Expanded(
-              flex: 2,
-              child: ModernCard(
-                accentColor: AppTheme.successColor,
-                padding: EdgeInsets.symmetric(vertical: UIConsts.spacingLG),
-                child: _buildStatItem(
-                  context,
-                  "CỐ ĐỊNH",
-                  "$activeFixes",
-                  AppTheme.successColor,
-                  Icons.gps_fixed_rounded,
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -876,7 +833,14 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
               ),
             );
           },
-          child: _showGlobe ? _buildGlobeView(context) : _buildRadarView(context),
+          child: _viewMode == SatelliteViewMode.globe
+              ? _buildGlobeView(context)
+              : _viewMode == SatelliteViewMode.radar
+                  ? _buildRadarView(context)
+                  : GnssAnalysisView(
+                      satellites: _satellites,
+                      history: _gnssHistory,
+                    ),
         ),
         _buildViewToggle(context),
       ],
@@ -886,47 +850,49 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
   Widget _buildGlobeView(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        return Stack(
-          key: const ValueKey('globe'),
-          alignment: Alignment.center,
-          children: [
-            AnimatedBuilder(
-              animation: _pulseController,
-              builder: (context, child) {
-                return Container(
-                  width: 320 * _pulseAnimation.value,
-                  height: 320 * _pulseAnimation.value,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        AppTheme.primaryColor.withOpacity(0.05),
-                        Colors.transparent,
-                      ],
+        return Transform.translate(
+          offset: const Offset(0, -60), // Nhích trái đất lên trên để thu hẹp khoảng cách với phần trên
+          child: Stack(
+            key: const ValueKey('globe'),
+            alignment: Alignment.center,
+            children: [
+              AnimatedBuilder(
+                animation: _pulseController,
+                builder: (context, child) {
+                  return Container(
+                    width: 320 * _pulseAnimation.value,
+                    height: 320 * _pulseAnimation.value,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          AppTheme.primaryColor.withOpacity(0.05),
+                          Colors.transparent,
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              ),
 
-            Opacity(
-              opacity: _isGlobeLoaded ? 1.0 : 0.0,
-              child: SizedBox(
-                width: constraints.maxWidth,
-                height: constraints.maxHeight,
-                child: FlutterEarthGlobe(
-                  controller: _globeController,
-                  radius: 120,
+              Opacity(
+                opacity: _isGlobeLoaded ? 1.0 : 0.0,
+                child: SizedBox(
+                  width: constraints.maxWidth,
+                  height: constraints.maxHeight,
+                  child: FlutterEarthGlobe(
+                    controller: _globeController,
+                    radius: 120,
+                  ),
                 ),
               ),
-            ),
 
-            if (!_isGlobeLoaded) _buildLoadingIndicator(context),
-            if (_isGlobeLoaded) ...[
-              _buildOrbitalRings(),
-              _buildConstellationLegend(context),
+              if (!_isGlobeLoaded) _buildLoadingIndicator(context),
+              if (_isGlobeLoaded) ...[
+                _buildOrbitalRings(),
+              ],
             ],
-          ],
+          ),
         );
       },
     );
@@ -1168,17 +1134,24 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
           children: [
             _buildToggleButton(
               context,
-              "ĐỊA CẦU 3D",
+              "ĐỊA CẦU",
               Icons.public_rounded,
-              _showGlobe,
-              () => _switchView(true),
+              _viewMode == SatelliteViewMode.globe,
+              () => _switchView(SatelliteViewMode.globe),
             ),
             _buildToggleButton(
               context,
               "SKYPLOT",
               Icons.radar_rounded,
-              !_showGlobe,
-              () => _switchView(false),
+              _viewMode == SatelliteViewMode.radar,
+              () => _switchView(SatelliteViewMode.radar),
+            ),
+            _buildToggleButton(
+              context,
+              "PHÂN TÍCH",
+              Icons.analytics_rounded,
+              _viewMode == SatelliteViewMode.analysis,
+              () => _switchView(SatelliteViewMode.analysis),
             ),
           ],
         ),
@@ -1186,9 +1159,9 @@ class _SatelliteScreenV2State extends State<SatelliteScreenV2>
     );
   }
 
-  void _switchView(bool showGlobe) {
+  void _switchView(SatelliteViewMode mode) {
     HapticFeedback.lightImpact();
-    setState(() => _showGlobe = showGlobe);
+    setState(() => _viewMode = mode);
   }
 
   Widget _buildToggleButton(
