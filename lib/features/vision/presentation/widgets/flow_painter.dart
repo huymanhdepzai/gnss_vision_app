@@ -307,7 +307,7 @@ class FlowPainter extends CustomPainter {
     // Label TARGET LOCKED
     final textPainter = TextPainter(
       text: const TextSpan(
-        text: ' TARGET LOCKED ',
+        text: ' ĐÃ CHỌN ',
         style: TextStyle(
           color: Colors.black,
           fontSize: 10,
