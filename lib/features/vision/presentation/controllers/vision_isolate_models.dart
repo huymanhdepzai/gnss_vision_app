@@ -14,6 +14,7 @@ class IsolateResult {
   final double quality;
   final int trackCount;
   final List<String> detectedLabels;
+  final Rect? targetBox;
 
   IsolateResult({
     required this.imageBytes,
@@ -27,18 +28,20 @@ class IsolateResult {
     this.quality = 0.5,
     this.trackCount = 0,
     this.detectedLabels = const [],
+    this.targetBox,
   });
 }
 
 /// Các lệnh gửi tới Isolate
 class IsolateCommand {
-  final String type; // 'START', 'PAUSE', 'RESUME', 'SEEK', 'STOP', 'CAMERA_FRAME'
+  final String type; // 'START', 'PAUSE', 'RESUME', 'SEEK', 'STOP', 'CAMERA_FRAME', 'SET_TARGET'
   final String? path;
   final double? value;
   final List<Rect>? aiObstacles;
   final Uint8List? imageData;
   final int? width;
   final int? height;
+  final Offset? point;
 
   IsolateCommand(this.type, {
     this.path, 
@@ -47,6 +50,7 @@ class IsolateCommand {
     this.imageData,
     this.width,
     this.height,
+    this.point,
   });
 }
 

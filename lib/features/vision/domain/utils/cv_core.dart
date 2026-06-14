@@ -4,7 +4,13 @@ import 'motion_estimator.dart';
 import 'kalman_filter.dart';
 import 'feature_tracker.dart';
 
+enum TrackingMode { environment, objectFocus }
+
 class CVCore {
+  TrackingMode _mode = TrackingMode.environment;
+  Rect? _targetBox;
+  int _unmatchedYoloCount = 0;
+
   cv.Mat? _oldGray;
   cv.VecPoint2f? _p0;
 
@@ -52,10 +58,53 @@ class CVCore {
       if (aiObstacles.isNotEmpty) {
         _lastKnownObstacles = List.from(aiObstacles);
         _framesSinceLastYolo = 0;
+
+        if (_mode == TrackingMode.objectFocus && _targetBox != null) {
+          double maxIou = 0.0;
+          Rect? bestMatch;
+          for (var box in _lastKnownObstacles) {
+            double intersection = _targetBox!.intersect(box).width.clamp(0.0, double.infinity) *
+                                  _targetBox!.intersect(box).height.clamp(0.0, double.infinity);
+            double union = _targetBox!.width * _targetBox!.height + box.width * box.height - intersection;
+            double iou = union > 0 ? intersection / union : 0.0;
+
+            if (iou > maxIou) {
+              maxIou = iou;
+              bestMatch = box;
+            }
+          }
+          // Snap to YOLO box to prevent drift
+          if (maxIou > 0.3 && bestMatch != null) {
+            _targetBox = bestMatch;
+            _unmatchedYoloCount = 0;
+          } else {
+            _unmatchedYoloCount++;
+            if (_unmatchedYoloCount > 15) { // ~0.5s without YOLO match
+              _mode = TrackingMode.environment;
+              _targetBox = null;
+            }
+          }
+        }
       } else {
         _framesSinceLastYolo++;
         if (_framesSinceLastYolo > 20) {
           _lastKnownObstacles.clear();
+        }
+        if (_mode == TrackingMode.objectFocus) {
+          _unmatchedYoloCount++;
+          if (_unmatchedYoloCount > 15) {
+            _mode = TrackingMode.environment;
+            _targetBox = null;
+          }
+        }
+      }
+
+      if (_mode == TrackingMode.objectFocus && _targetBox != null) {
+        // Check if target is out of frame
+        if (_targetBox!.right < 0 || _targetBox!.left > frameW || 
+            _targetBox!.bottom < 0 || _targetBox!.top > frameH) {
+          _mode = TrackingMode.environment;
+          _targetBox = null;
         }
       }
 
@@ -132,7 +181,7 @@ class CVCore {
               newPointsForRansac, qualities, frameW, frameH);
           trackedPoints = _featureTracker.getAllPoints();
 
-          if (oldPointsForRansac.length >= 8) {
+          if (oldPointsForRansac.length >= (_mode == TrackingMode.objectFocus ? 4 : 8)) {
             var result = _motionEstimator.estimateMotion(
               oldPointsForRansac,
               newPointsForRansac,
@@ -142,7 +191,11 @@ class CVCore {
             _lastInlierCount = result.inliers;
             _lastQuality = result.quality;
 
-            if (result.inliers >= 8 && result.confidence > 0.3) {
+            if (_mode == TrackingMode.objectFocus && _targetBox != null) {
+              _targetBox = _targetBox!.shift(rawMoveVector);
+            }
+
+            if (result.inliers >= (_mode == TrackingMode.objectFocus ? 4 : 8) && result.confidence > 0.3) {
               if (!_kalmanInitialized) {
                 _motionKalman.setPosition(rawMoveVector);
                 _kalmanInitialized = true;
@@ -180,33 +233,56 @@ class CVCore {
       }
 
       int targetPoints = _calculateAdaptivePointCount(_lastConfidence);
-      bool needsReinit = _p0 == null ||
-          _p0!.isEmpty ||
-          _featureTracker.getTotalPointCount() < targetPoints ~/ 2 ||
-          _featureTracker.getCellsNeedingPoints(frameW, frameH).isNotEmpty;
+      if (_mode == TrackingMode.objectFocus) targetPoints = 30; // Fewer points needed for a single object
+
+      bool needsReinit = _p0 == null || _p0!.isEmpty;
+      
+      if (_mode == TrackingMode.environment) {
+        needsReinit = needsReinit ||
+            _featureTracker.getTotalPointCount() < targetPoints ~/ 2 ||
+            _featureTracker.getCellsNeedingPoints(frameW, frameH).isNotEmpty;
+      } else {
+        // Only re-init if points drop too low in the target box
+        needsReinit = needsReinit || _featureTracker.getTotalPointCount() < 8;
+      }
 
       if (needsReinit) {
         mask = cv.Mat.zeros(frameH, frameW, cv.MatType.CV_8UC1);
-        int roiY = (frameH * 0.4).toInt();
-        cv.rectangle(
-          mask,
-          cv.Rect(0, roiY, frameW, frameH - roiY),
-          cv.Scalar.fromRgb(255, 255, 255),
-          thickness: -1,
-        );
 
-        for (var zone in forbiddenZones) {
+        if (_mode == TrackingMode.objectFocus && _targetBox != null) {
           cv.rectangle(
             mask,
             cv.Rect(
-              zone.left.toInt(),
-              zone.top.toInt(),
-              zone.width.toInt(),
-              zone.height.toInt(),
+              _targetBox!.left.toInt().clamp(0, frameW),
+              _targetBox!.top.toInt().clamp(0, frameH),
+              _targetBox!.width.toInt().clamp(0, frameW),
+              _targetBox!.height.toInt().clamp(0, frameH),
             ),
-            cv.Scalar.fromRgb(0, 0, 0),
+            cv.Scalar.fromRgb(255, 255, 255),
             thickness: -1,
           );
+        } else {
+          int roiY = (frameH * 0.4).toInt();
+          cv.rectangle(
+            mask,
+            cv.Rect(0, roiY, frameW, frameH - roiY),
+            cv.Scalar.fromRgb(255, 255, 255),
+            thickness: -1,
+          );
+
+          for (var zone in forbiddenZones) {
+            cv.rectangle(
+              mask,
+              cv.Rect(
+                zone.left.toInt(),
+                zone.top.toInt(),
+                zone.width.toInt(),
+                zone.height.toInt(),
+              ),
+              cv.Scalar.fromRgb(0, 0, 0),
+              thickness: -1,
+            );
+          }
         }
 
         if (_p0 != null) _p0!.dispose();
@@ -241,6 +317,7 @@ class CVCore {
       'quality': _lastQuality,
       'trackCount': trackedPoints.length,
       'trackingQuality': _featureTracker.getTrackingQuality(),
+      'targetBox': _targetBox,
     };
   }
 
@@ -285,5 +362,25 @@ class CVCore {
     _lastConfidence = 0.0;
     _lastInlierCount = 0;
     _lastQuality = 0.0;
+    _mode = TrackingMode.environment;
+    _targetBox = null;
+  }
+
+  void setTarget(Offset point, List<Rect> aiObstacles) {
+    for (var box in aiObstacles) {
+      if (box.contains(point)) {
+        _targetBox = box;
+        _mode = TrackingMode.objectFocus;
+        _unmatchedYoloCount = 0;
+        _p0?.dispose();
+        _p0 = null;
+        return;
+      }
+    }
+    // Clicks outside reset tracking
+    _mode = TrackingMode.environment;
+    _targetBox = null;
+    _p0?.dispose();
+    _p0 = null;
   }
 }

@@ -25,6 +25,7 @@ class VideoFlowController extends ChangeNotifier {
   final ValueNotifier<double> headingNotifier = ValueNotifier<double>(0.0);
   final ValueNotifier<double> turnIntensityNotifier = ValueNotifier<double>(0.0);
   final ValueNotifier<double> progressNotifier = ValueNotifier<double>(0.0);
+  final ValueNotifier<Rect?> targetBoxNotifier = ValueNotifier<Rect?>(null);
 
   // ================= MODULES =================
   final SensorFusion fusionCore = SensorFusion();
@@ -198,7 +199,7 @@ class VideoFlowController extends ChangeNotifier {
     pointsToDraw = res.points;
     imageSize = res.imageSize;
 
-    // AI chạy cực nhanh: Mỗi 2 frame để bám sát video nhất có thể
+    // Chạy AI mỗi 2 frame để đảm bảo không lọt mất vật thể
     if (_frameCounter % 2 == 0 && res.imageBytes != null && !_isAiBusy) {
       _runAI(res.imageBytes!, res.imageSize);
     }
@@ -220,6 +221,7 @@ class VideoFlowController extends ChangeNotifier {
     headingNotifier.value = finalFusedHeading;
     turnIntensityNotifier.value = (res.moveVector.dx / 20).clamp(-1.0, 1.0);
     progressNotifier.value = res.currentFrame;
+    targetBoxNotifier.value = res.targetBox;
     
     // Đảm bảo UI cập nhật các thuộc tính khác (imageSize, pointsToDraw, ...)
     notifyListeners();
@@ -266,7 +268,8 @@ class VideoFlowController extends ChangeNotifier {
         _toWorkerPort?.send(IsolateCommand('AI_UPDATE', aiObstacles: aiObstacles));
       } else {
         _consecutiveEmptyAiRuns++;
-        if (_consecutiveEmptyAiRuns >= 1 && aiObstaclesNotifier.value.isNotEmpty) {
+        // Tăng giới hạn chịu đựng lên 3 lần AI rỗng liên tiếp mới xóa box
+        if (_consecutiveEmptyAiRuns >= 3 && aiObstaclesNotifier.value.isNotEmpty) {
           aiObstaclesNotifier.value = [];
           _toWorkerPort?.send(IsolateCommand('AI_UPDATE', aiObstacles: []));
         }
@@ -344,6 +347,11 @@ class VideoFlowController extends ChangeNotifier {
 
   void resetTracking() {
     _toWorkerPort?.send(IsolateCommand('RESET'));
+  }
+
+  void setTarget(double x, double y) {
+    if (isUsingCamera) return;
+    _toWorkerPort?.send(IsolateCommand('SET_TARGET', point: Offset(x, y)));
   }
 
   void toggleVoice() {
@@ -447,6 +455,11 @@ class VideoFlowController extends ChangeNotifier {
           case 'RESET':
             cvCore?.resetTracking();
             break;
+          case 'SET_TARGET':
+            if (message.point != null) {
+              cvCore?.setTarget(message.point!, obstacles);
+            }
+            break;
           case 'STOP':
             isPlaying = false;
             isCamera = false;
@@ -475,8 +488,9 @@ class VideoFlowController extends ChangeNotifier {
       var (ret, frame) = cap.read();
       if (!ret || frame.isEmpty) break;
 
-      double scale = 240.0 / frame.cols;
-      cv.Mat smallFrame = cv.resize(frame, (240, (frame.rows * scale).toInt()));
+      // Tăng độ phân giải lên 640px để hình ảnh rõ nét hơn (gốc là 240px)
+      double scale = 640.0 / frame.cols;
+      cv.Mat smallFrame = cv.resize(frame, (640, (frame.rows * scale).toInt()));
       frame.dispose();
 
       Map<String, dynamic> cvRes = cvCore.processFrame(
@@ -484,10 +498,11 @@ class VideoFlowController extends ChangeNotifier {
         aiObstacles: getObstacles(),
       );
 
+      // Tăng chất lượng nén JPEG lên 75 (gốc là 50)
       var (ok, encoded) = cv.imencode(
         ".jpg",
         smallFrame,
-        params: cv.VecI32.fromList([cv.IMWRITE_JPEG_QUALITY, 50]),
+        params: cv.VecI32.fromList([cv.IMWRITE_JPEG_QUALITY, 75]),
       );
 
       sendPort.send(
@@ -505,6 +520,7 @@ class VideoFlowController extends ChangeNotifier {
           inlierCount: cvRes['inlierCount'] ?? 0,
           quality: cvRes['quality'] ?? 0.5,
           trackCount: cvRes['trackCount'] ?? 0,
+          targetBox: cvRes['targetBox'],
         ),
       );
 
@@ -518,8 +534,8 @@ class VideoFlowController extends ChangeNotifier {
       if (wait > 0) {
         await Future.delayed(Duration(milliseconds: wait));
       } else {
-        cap.set(cv.CAP_PROP_POS_FRAMES, (cap.get(cv.CAP_PROP_POS_FRAMES) ?? 0) + 1);
-        await Future.delayed(const Duration(milliseconds: 2));
+        cap.grab(); // Fast forward 1 frame without decoding
+        await Future.delayed(const Duration(milliseconds: 1));
       }
     }
   }

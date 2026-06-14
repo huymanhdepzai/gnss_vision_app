@@ -113,6 +113,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                   _buildVideoBackground(isDark),
                   _buildHeadingIndicator(isDark),
                   _buildDetectionOverlay(isDark),
+                  _buildTrackingStatusBanner(topPadding, isDark),
                   _buildStopSignWarning(isDark),
                   _buildBackButton(topPadding, isDark),
                   if (_controller.isPlaying)
@@ -123,6 +124,63 @@ class _FlowScreenV2State extends State<FlowScreenV2>
           ),
         );
       },
+    );
+  }
+
+  Widget _buildTrackingStatusBanner(double topPadding, bool isDark) {
+    if (!_controller.isPlaying) return const SizedBox.shrink();
+
+    return Positioned(
+      top: topPadding + 16,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: ValueListenableBuilder<Rect?>(
+          valueListenable: _controller.targetBoxNotifier,
+          builder: (context, targetBox, _) {
+            final isLocked = targetBox != null;
+            final color = isLocked ? Colors.greenAccent : Colors.cyanAccent;
+            final text = isLocked ? "TARGET LOCKED" : "ENVIRONMENT SCANNING";
+            final icon = isLocked ? Icons.my_location_rounded : Icons.radar_rounded;
+
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0D1117).withOpacity(0.8) : Colors.white.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: color.withOpacity(0.5),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withOpacity(isLocked ? 0.4 : 0.1),
+                    blurRadius: 12,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, color: color, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    text,
+                    style: TextStyle(
+                      color: isDark ? Colors.white : AppTheme.textDark,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -162,21 +220,27 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             return ValueListenableBuilder<List<DetectedObject>>(
               valueListenable: _controller.aiObstaclesNotifier,
               builder: (context, obstacles, _) {
-                return CustomPaint(
-                  painter: FlowPainter(
-                    points: _controller.pointsToDraw,
-                    imageSize: _controller.imageSize,
-                    staticRois: _controller.staticRois,
-                    aiObstacles: obstacles,
-                    isDebugMode: _isDebugMode,
-                    confidence: null,
-                    moveVector: null,
-                  ),
-                );
-              },
-            );
-          },
-        ),
+                return ValueListenableBuilder<Rect?>(
+                valueListenable: _controller.targetBoxNotifier,
+                builder: (context, targetBox, _) {
+                  return CustomPaint(
+                    painter: FlowPainter(
+                      points: _controller.pointsToDraw,
+                      imageSize: _controller.imageSize,
+                      staticRois: _controller.staticRois,
+                      aiObstacles: obstacles,
+                      isDebugMode: _isDebugMode,
+                      confidence: null,
+                      moveVector: null,
+                      targetBox: targetBox,
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
       ),
     );
   }
@@ -298,22 +362,30 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                     : [const Color(0xFFF8FAFC), const Color(0xFFF1F5F9)],
               ),
             ),
-            child: Center(
-              child: RepaintBoundary(
+            child: SizedBox.expand(
+              child: ClipRect(
                 child: FittedBox(
                   fit: BoxFit.contain,
                   child: SizedBox(
                     width: _controller.imageSize.width,
                     height: _controller.imageSize.height,
-                    child: Stack(
-                      children: [
-                        Image.memory(
-                          bytes,
-                          fit: BoxFit.contain,
-                          gaplessPlayback: true,
-                          filterQuality: FilterQuality.medium,
-                        ),
-                      ],
+                    child: GestureDetector(
+                      onTapDown: (details) {
+                        _controller.setTarget(
+                          details.localPosition.dx,
+                          details.localPosition.dy,
+                        );
+                      },
+                      child: Stack(
+                        children: [
+                          Image.memory(
+                            bytes,
+                            fit: BoxFit.contain,
+                            gaplessPlayback: true,
+                            filterQuality: FilterQuality.medium,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
