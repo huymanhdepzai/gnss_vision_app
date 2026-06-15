@@ -420,7 +420,7 @@ class DirectionArrowPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
+    final radius = math.min(size.width, size.height) / 2;
 
     _drawFuturisticGlow(canvas, center, radius);
     _drawCompassRing(canvas, center, radius);
