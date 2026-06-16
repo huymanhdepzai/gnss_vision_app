@@ -1,0 +1,89 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+Chương này trình bày tổng quan về các khái niệm cốt lõi và tiến hành khảo sát các công nghệ liên quan được áp dụng trong hệ thống "GNSS-Vision Navigation Assistant". Nội dung chương sẽ tập trung phân tích sâu vào hệ thống định vị vệ tinh, kỹ thuật thị giác máy tính, mô hình học sâu trong nhận diện vật thể và bài toán hợp nhất đa cảm biến, từ đó làm cơ sở lý thuyết và công nghệ vững chắc cho quá trình phân tích và thiết kế ở các chương tiếp theo.
+
+\section{Hệ thống định vị vệ tinh toàn cầu (GNSS)}
+\label{section:2.1}
+
+\subsection{Khái niệm và nguyên lý hoạt động của GNSS}
+GNSS (Global Navigation Satellite System) là tên gọi chung cho các hệ thống định vị sử dụng mạng lưới vệ tinh nhân tạo để cung cấp thông tin về vị trí không gian ba chiều (kinh độ, vĩ độ, cao độ) và thời gian trên toàn cầu. Các hệ thống GNSS phổ biến hiện nay bao gồm GPS (Mỹ), GLONASS (Nga), Galileo (Châu Âu) và BeiDou (Trung Quốc). 
+
+Thiết bị thu GNSS (được tích hợp trên điện thoại thông minh) hoạt động dựa trên nguyên lý đo khoảng cách từ máy thu đến ít nhất bốn vệ tinh thông qua thời gian truyền tín hiệu vô tuyến. Bằng phương pháp giao hội không gian (trilateration), máy thu có thể giải phương trình toán học để xác định chính xác tọa độ của người dùng trên Trái Đất.
+
+\subsection{Hạn chế của GNSS trong môi trường đô thị}
+Mặc dù GNSS có độ chính xác cao ở môi trường quang đãng, tín hiệu vệ tinh rất dễ bị suy hao hoặc cản trở bởi các yếu tố vật lý. Trong môi trường đô thị (Urban Canyons) với các tòa nhà cao tầng kính phản chiếu, hầm chui hay bóng cây rậm rạp, GNSS đối mặt với hai vấn đề nghiêm trọng:
+\begin{itemize}
+    \item \textbf{Hiện tượng đa đường (Multipath Effect):} Tín hiệu vô tuyến từ vệ tinh đập vào bề mặt các tòa nhà và phản xạ lại trước khi đến máy thu, làm thay đổi thời gian truyền tín hiệu. Điều này gây ra sai số lớn trong việc tính toán khoảng cách, khiến vị trí trên bản đồ bị "nhảy" liên tục hoặc trôi dạt (drift).
+    \item \textbf{Che khuất hoàn toàn tín hiệu (Signal Blockage):} Khi xe đi vào đường hầm hoặc bãi đậu xe ngầm, thiết bị hoàn toàn không thể nhận tín hiệu từ các vệ tinh, dẫn đến mất định vị tuyệt đối.
+\end{itemize}
+Chính vì những điểm yếu chí mạng này, việc phụ thuộc hoàn toàn vào hệ thống GNSS đơn lẻ không còn đáp ứng được yêu cầu về một giải pháp dẫn đường liền mạch và tin cậy cho phương tiện giao thông hiện đại.
+
+\section{Thị giác máy tính và Đo lường chuyển động (Visual Odometry)}
+\label{section:2.2}
+
+Để giải quyết bài toán mất tín hiệu GNSS, hệ thống sử dụng camera của thiết bị di động như một cảm biến độc lập nhằm đo lường chuyển động của xe. Phương pháp này được gọi chung là Đo lường chuyển động bằng thị giác (Visual Odometry - VO).
+
+\subsection{Khái niệm Đo lường chuyển động (Visual Odometry)}
+Visual Odometry là quá trình xác định vị trí và hướng đi của một tác tử (xe cộ, robot) thông qua việc phân tích chuỗi hình ảnh liên tiếp được ghi lại từ camera. Thay vì dựa vào sóng bên ngoài, VO sử dụng chính hình ảnh bề mặt đường đi để tính toán sự dịch chuyển của hệ tọa độ camera qua từng khung hình (frame).
+
+\subsection{Thuật toán Optical Flow (Luồng quang học)}
+Để tính toán Visual Odometry trong thời gian thực trên thiết bị di động, thuật toán Optical Flow là sự lựa chọn tối ưu về mặt chi phí tính toán. Optical Flow tính toán véc-tơ chuyển động (motion vector) của từng điểm ảnh (pixel) hoặc các điểm đặc trưng (feature points) giữa hai khung hình liên tiếp.
+
+Hệ thống trong đề tài sử dụng phương pháp **Lucas-Kanade**, một kỹ thuật Optical Flow thưa (Sparse Optical Flow) phổ biến được triển khai qua thư viện OpenCV. Các bước thực hiện cơ bản bao gồm:
+\begin{enumerate}
+    \item \textbf{Trích xuất điểm đặc trưng (Feature Extraction):} Sử dụng thuật toán Shi-Tomasi (Good Features to Track) để tìm ra các điểm có độ tương phản cao trên mặt đường (như vạch kẻ đường, sỏi, gờ giảm tốc).
+    \item \textbf{Theo dõi điểm (Feature Tracking):} Ở khung hình tiếp theo, thuật toán Lucas-Kanade sẽ tìm kiếm và ghép cặp các điểm này, từ đó tạo ra các véc-tơ dịch chuyển.
+    \item \textbf{Ước lượng chuyển động (Motion Estimation):} Dựa trên sự dịch chuyển trung bình của hàng loạt véc-tơ, hệ thống có thể tính toán được vận tốc tương đối và sự thay đổi hướng di chuyển (Heading) của xe.
+\end{enumerate}
+
+\section{Học sâu (Deep Learning) và YOLOv8 trong bài toán nhận diện}
+\label{section:2.3}
+
+Một vấn đề lớn của thuật toán Optical Flow là nó giả định mọi sự thay đổi trong khung hình đều do sự di chuyển của camera. Tuy nhiên, trong thực tế giao thông, có rất nhiều phương tiện đang chuyển động xung quanh (ô tô phía trước, người đi bộ băng qua đường). Nếu thuật toán bám vào các đối tượng chuyển động này, véc-tơ kết quả sẽ bị sai lệch hoàn toàn.
+
+\subsection{Kiến trúc YOLOv8}
+Để giải quyết bài toán trên, hệ thống tích hợp mô hình phát hiện đối tượng (Object Detection) thời gian thực YOLO (You Only Look Once), cụ thể là phiên bản YOLOv8. Kiến trúc YOLO chia bức ảnh thành một lưới (grid) và dự đoán trực tiếp các hộp giới hạn (bounding boxes) cùng xác suất phân loại đối tượng chỉ trong một lần tính toán (forward pass), mang lại tốc độ vượt trội so với các mô hình hai giai đoạn như Faster R-CNN.
+
+\subsection{Khái niệm Vùng cấm động (Dynamic Forbidden Zones) trong theo dõi môi trường}
+Hệ thống sử dụng mô hình \textbf{YOLOv8n (Nano)} – phiên bản nhẹ nhất được tối ưu hóa bằng TensorFlow Lite để chạy trực tiếp trên điện thoại thông minh. Chức năng chính của mô hình là nhận diện các đối tượng chuyển động tiềm năng (xe tải, xe buýt, ô tô con, xe máy, xe đạp, người đi bộ). 
+
+Sau khi nhận diện, hệ thống tạo ra một mặt nạ (Mask) bao quanh các đối tượng này và định nghĩa chúng là các "Vùng cấm động". Các thuật toán trích xuất điểm (Shi-Tomasi) và theo dõi (Lucas-Kanade) của OpenCV sẽ bị cấm không được lấy các điểm đặc trưng nằm trong vùng này. 
+
+Nhờ sự loại trừ đó, bài toán \textbf{theo dõi khung hình tĩnh (Environment Tracking)} được đảm bảo. Hệ thống sẽ chỉ tập trung trích xuất và bám sát các điểm đặc trưng thuộc về phần tĩnh của không gian xung quanh (như mặt đường, vỉa hè, vạch kẻ đường, lan can cầu, hay biển báo). Sự dịch chuyển của các điểm tĩnh này qua các khung hình phản ánh chính xác chuyển động tịnh tiến và góc xoay của camera (hay xe của người dùng), giúp tính toán Visual Odometry chính xác tuyệt đối mà không bị đánh lừa bởi các xe chạy cắt ngang hay chạy cùng chiều.
+
+\subsection{Theo dõi đối tượng mục tiêu (Object Tracking)}
+Trái ngược với việc theo dõi môi trường tĩnh (để tự định vị), hệ thống còn cung cấp chế độ \textbf{Theo dõi đối tượng mục tiêu (Object Focus Tracking)} – yêu cầu hệ thống tập trung hoàn toàn vào một vật thể chuyển động cụ thể.
+
+Khi một đối tượng (ví dụ: xe đang chạy cùng chiều phía trước) được hệ thống chọn làm mục tiêu, thuật toán sẽ đảo ngược logic hoạt động: hệ thống chỉ trích xuất và bám theo các điểm đặc trưng (features) \textit{nằm ngay bên trong} hộp giới hạn (bounding box) của đối tượng đó. Quá trình theo dõi cụm điểm này qua từng khung hình bằng phương pháp Lucas-Kanade mang lại hai ý nghĩa cực kỳ quan trọng:
+\begin{itemize}
+    \item \textbf{Đo lường khoảng cách và cảnh báo:} Dựa vào chiều của véc-tơ và sự phóng to/thu nhỏ (scale) của cụm điểm đặc trưng, hệ thống ước lượng được khoảng cách tương đối đang thu hẹp hay giãn ra đối với xe phía trước, từ đó đưa ra các cảnh báo khoảng cách an toàn (Collision Warning) nếu xe trước có dấu hiệu phanh gấp.
+    \item \textbf{Tối ưu hóa tài nguyên di động:} Bằng cách gán trọng trách bám sát đối tượng cho thuật toán Optical Flow, hệ thống có thể duy trì việc theo dõi mục tiêu mượt mà ở tốc độ khung hình cao (lên tới 60 FPS). Điều này đồng nghĩa với việc thiết bị không cần phải chạy mô hình mạng nơ-ron YOLOv8 nặng nề trên mọi khung hình (nguyên nhân chính gây quá tải và hao pin trên điện thoại). Thay vào đó, mô hình AI chỉ cần được gọi ngắt quãng vài khung hình một lần để cập nhật lại tọa độ hộp giới hạn, phần thời gian còn lại sẽ do Optical Flow nội suy và xử lý.
+\end{itemize}
+
+\section{Hợp nhất cảm biến (Sensor Fusion) và Bộ lọc Kalman}
+\label{section:2.4}
+
+Việc chỉ sử dụng GNSS hoặc chỉ sử dụng Vision đều có những giới hạn riêng. Sensor Fusion là kỹ thuật kết hợp dữ liệu từ nhiều cảm biến khác nhau để tạo ra một ước lượng duy nhất có độ chính xác và tin cậy cao hơn bất kỳ cảm biến đơn lẻ nào.
+
+Trong hệ thống này, bộ lọc được áp dụng là \textbf{Kalman Filter (KF)}. KF là một thuật toán đệ quy giúp ước lượng trạng thái của một hệ thống động dựa trên một chuỗi các phép đo có chứa nhiễu.
+Hệ thống thực hiện hợp nhất 3 nguồn dữ liệu chính:
+\begin{itemize}
+    \item \textbf{GNSS/GPS:} Cung cấp vị trí tọa độ tuyệt đối nhưng dễ bị nhiễu lớn hoặc đứt quãng.
+    \item \textbf{Camera (Vision):} Cung cấp vận tốc tương đối và thay đổi hướng đi chính xác trong thời gian ngắn, nhưng dễ bị sai số tích lũy (drift) trong thời gian dài.
+    \item \textbf{IMU (Gia tốc kế \& Con quay hồi chuyển):} Cung cấp phản hồi tức thời về sự tăng tốc và góc xoay, giúp làm mượt quỹ đạo chuyển động.
+\end{itemize}
+Bộ lọc Kalman sẽ liên tục đánh giá độ tin cậy (Confidence Weight) của từng cảm biến. Ví dụ: khi hệ thống nhận được tín hiệu GPS có sai số lớn (Accuracy > 15m) hoặc mất hoàn toàn, bộ lọc sẽ tự động hạ trọng số của GPS xuống gần mức 0 và tăng trọng số của Vision + IMU lên để tính toán tọa độ tịnh tiến tiếp theo, tạo ra một trải nghiệm dẫn đường liền mạch.
+
+\section{Các công nghệ nền tảng hỗ trợ}
+\label{section:2.5}
+
+Để hiện thực hóa và triển khai các thuật toán phức tạp trên lên môi trường di động, hệ thống kết hợp một số công nghệ nền tảng và dịch vụ lõi:
+
+\subsection{Kiến trúc Đa luồng trên Flutter (Isolates)}
+Phát triển ứng dụng trên framework Flutter (Dart) yêu cầu sự cẩn trọng về mặt tài nguyên vì ứng dụng mặc định chạy trên một luồng chính (Main Thread). Nếu đặt quá trình xử lý ảnh bằng OpenCV hoặc suy luận AI (TensorFlow Lite) vào luồng này, ứng dụng sẽ bị treo và giảm khung hình nghiêm trọng. Hệ thống giải quyết bằng cơ chế **Isolates** (Worker Threads) - chuyển toàn bộ tác vụ tính toán nặng sang một luồng CPU riêng biệt, trao đổi dữ liệu với giao diện thông qua \texttt{SendPort}/\texttt{ReceivePort}, đảm bảo UI luôn đạt 60 FPS.
+
+\subsection{Dịch vụ Bản đồ Mapbox và Goong API}
+Việc hiển thị bản đồ trực quan (Vector Tiles) được đảm nhiệm bởi **Mapbox Maps SDK**, nền tảng cung cấp giao diện hiển thị đồ họa bản đồ siêu mượt và hỗ trợ mô hình 3D. Tuy nhiên, để tối ưu hóa dữ liệu tìm kiếm điểm đến (POI) và định tuyến giao thông (Routing) phù hợp với đường xá tại Việt Nam, hệ thống đã kết hợp sử dụng **Goong API** – một giải pháp bản đồ nội địa chất lượng cao với cơ sở dữ liệu đường đi chi tiết và tối ưu.
+
+\end{document}

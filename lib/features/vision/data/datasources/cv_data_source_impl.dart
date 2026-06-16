@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:opencv_dart/opencv_dart.dart' as cv;
 import '../../domain/utils/kalman_filter.dart';
 import '../../domain/utils/motion_estimator.dart';
+import '../../domain/entities/frame_result.dart';
 
 class CVDataSourceImpl {
   cv.Mat? _oldGray;
@@ -25,12 +26,37 @@ class CVDataSourceImpl {
   int _frameCounter = 0;
   bool _kalmanInitialized = false;
 
+  TrackingMode _currentMode = TrackingMode.environment;
+  Rect? _activeTarget;
+  String? _relativeWarning;
+
   CVDataSourceImpl({double processNoise = 0.08, double measurementNoise = 1.5})
     : _motionKalman = KalmanFilter2D(
         processNoise: processNoise,
         measurementNoise: measurementNoise,
       ),
       _motionEstimator = MotionEstimator();
+
+  void setTrackingMode(TrackingMode mode) {
+    _currentMode = mode;
+    if (mode == TrackingMode.environment) {
+      _activeTarget = null;
+      _relativeWarning = null;
+    }
+    reset();
+  }
+
+  void lockTargetAt(double x, double y) {
+    if (_currentMode != TrackingMode.objectFocus) return;
+    for (var box in _lastKnownObstacles) {
+      if (box.contains(Offset(x, y))) {
+        _activeTarget = box;
+        _relativeWarning = "Đã khóa mục tiêu. Đang bám theo.";
+        reset();
+        return;
+      }
+    }
+  }
 
   Map<String, dynamic> processFrame(
     cv.Mat frame, {
@@ -54,35 +80,55 @@ class CVDataSourceImpl {
       if (aiObstacles.isNotEmpty) {
         _lastKnownObstacles = List.from(aiObstacles);
         _framesSinceLastYolo = 0;
+        
+        if (_currentMode == TrackingMode.objectFocus && _activeTarget != null) {
+           Rect? bestMatch;
+           double maxIoU = 0.0;
+           for (var box in aiObstacles) {
+             Rect intersection = box.intersect(_activeTarget!);
+             if (intersection.width > 0 && intersection.height > 0) {
+               double areaI = intersection.width * intersection.height;
+               double area1 = box.width * box.height;
+               double area2 = _activeTarget!.width * _activeTarget!.height;
+               double iou = areaI / (area1 + area2 - areaI);
+               if (iou > maxIoU) { maxIoU = iou; bestMatch = box; }
+             }
+           }
+           if (bestMatch != null && maxIoU > 0.3) {
+             if (bestMatch.width > _activeTarget!.width * 1.05) {
+               _relativeWarning = "Khoảng cách đang hẹp lại! Chú ý phanh!";
+             } else if (bestMatch.width < _activeTarget!.width * 0.95) {
+               _relativeWarning = "Mục tiêu đang xa dần.";
+             } else {
+               _relativeWarning = "Đang bám sát mục tiêu.";
+             }
+             _activeTarget = bestMatch;
+           } else {
+             _activeTarget = _activeTarget!.shift(_legacySmoothedVector);
+           }
+        }
       } else {
         _framesSinceLastYolo++;
         if (_framesSinceLastYolo > 20) {
           _lastKnownObstacles.clear();
         }
+        if (_currentMode == TrackingMode.objectFocus && _activeTarget != null) {
+          _activeTarget = _activeTarget!.shift(_legacySmoothedVector);
+        }
       }
 
-      for (var box in _lastKnownObstacles) {
-        if (box.width > frameW * 0.7 || box.height > frameH * 0.7) continue;
+      if (_currentMode == TrackingMode.environment) {
+        for (var box in _lastKnownObstacles) {
+          if (box.width > frameW * 0.7 || box.height > frameH * 0.7) continue;
 
-        double expansion = 0.15;
-        double left = (box.left - box.width * expansion).clamp(
-          0.0,
-          frameW.toDouble(),
-        );
-        double top = (box.top - box.height * expansion).clamp(
-          0.0,
-          frameH.toDouble(),
-        );
-        double right = (box.right + box.width * expansion).clamp(
-          0.0,
-          frameW.toDouble(),
-        );
-        double bottom = (box.bottom + box.height * expansion).clamp(
-          0.0,
-          frameH.toDouble(),
-        );
+          double expansion = 0.15;
+          double left = (box.left - box.width * expansion).clamp(0.0, frameW.toDouble());
+          double top = (box.top - box.height * expansion).clamp(0.0, frameH.toDouble());
+          double right = (box.right + box.width * expansion).clamp(0.0, frameW.toDouble());
+          double bottom = (box.bottom + box.height * expansion).clamp(0.0, frameH.toDouble());
 
-        forbiddenZones.add(Rect.fromLTRB(left, top, right, bottom));
+          forbiddenZones.add(Rect.fromLTRB(left, top, right, bottom));
+        }
       }
 
       List<cv.Point2f> goodNewPoints = [];
@@ -110,10 +156,20 @@ class CVDataSourceImpl {
               double oy = oldPoints[i].y;
 
               bool isInsideForbidden = false;
-              for (var zone in forbiddenZones) {
-                if (zone.contains(Offset(nx, ny))) {
-                  isInsideForbidden = true;
-                  break;
+              if (_currentMode == TrackingMode.environment) {
+                for (var zone in forbiddenZones) {
+                  if (zone.contains(Offset(nx, ny))) {
+                    isInsideForbidden = true;
+                    break;
+                  }
+                }
+              } else if (_currentMode == TrackingMode.objectFocus && _activeTarget != null) {
+                Rect expandedTarget = Rect.fromLTRB(
+                  _activeTarget!.left - 20, _activeTarget!.top - 20, 
+                  _activeTarget!.right + 20, _activeTarget!.bottom + 20
+                );
+                if (!expandedTarget.contains(Offset(nx, ny))) {
+                    isInsideForbidden = true;
                 }
               }
 
@@ -183,26 +239,40 @@ class CVDataSourceImpl {
           goodNewPoints.length < targetPoints ~/ 2) {
         mask = cv.Mat.zeros(frameH, frameW, cv.MatType.CV_8UC1);
 
-        int roiY = (frameH * 0.4).toInt();
-        cv.rectangle(
-          mask,
-          cv.Rect(0, roiY, frameW, frameH - roiY),
-          cv.Scalar.fromRgb(255, 255, 255),
-          thickness: -1,
-        );
-
-        for (var zone in forbiddenZones) {
+        if (_currentMode == TrackingMode.objectFocus && _activeTarget != null) {
           cv.rectangle(
             mask,
             cv.Rect(
-              zone.left.toInt(),
-              zone.top.toInt(),
-              zone.width.toInt(),
-              zone.height.toInt(),
+              _activeTarget!.left.toInt().clamp(0, frameW),
+              _activeTarget!.top.toInt().clamp(0, frameH),
+              _activeTarget!.width.toInt().clamp(0, frameW),
+              _activeTarget!.height.toInt().clamp(0, frameH)
             ),
-            cv.Scalar.fromRgb(0, 0, 0),
+            cv.Scalar.fromRgb(255, 255, 255),
             thickness: -1,
           );
+        } else {
+          int roiY = (frameH * 0.4).toInt();
+          cv.rectangle(
+            mask,
+            cv.Rect(0, roiY, frameW, frameH - roiY),
+            cv.Scalar.fromRgb(255, 255, 255),
+            thickness: -1,
+          );
+
+          for (var zone in forbiddenZones) {
+            cv.rectangle(
+              mask,
+              cv.Rect(
+                zone.left.toInt(),
+                zone.top.toInt(),
+                zone.width.toInt(),
+                zone.height.toInt(),
+              ),
+              cv.Scalar.fromRgb(0, 0, 0),
+              thickness: -1,
+            );
+          }
         }
 
         if (_p0 != null) _p0!.dispose();
@@ -237,6 +307,9 @@ class CVDataSourceImpl {
       'inlierCount': _lastInlierCount,
       'quality': _lastQuality,
       'trackCount': trackedPoints.length,
+      'trackingMode': _currentMode,
+      'trackedBoundingBox': _activeTarget,
+      'relativeWarning': _relativeWarning,
     };
   }
 

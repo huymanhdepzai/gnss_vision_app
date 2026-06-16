@@ -25,6 +25,9 @@ class CameraFlowController extends ChangeNotifier {
   final ValueNotifier<double> headingNotifier = ValueNotifier<double>(0.0);
   final ValueNotifier<double> turnIntensityNotifier = ValueNotifier<double>(0.0);
   final ValueNotifier<double> progressNotifier = ValueNotifier<double>(0.0);
+  final ValueNotifier<Rect?> targetBoxNotifier = ValueNotifier<Rect?>(null);
+  final ValueNotifier<String?> relativeWarningNotifier = ValueNotifier<String?>(null);
+  final ValueNotifier<bool> autoFocusEnabledNotifier = ValueNotifier<bool>(false);
 
   // ================= MODULES =================
   final SensorFusion fusionCore = SensorFusion();
@@ -203,8 +206,13 @@ class CameraFlowController extends ChangeNotifier {
       _runAI(res.imageBytes!, res.imageSize);
     }
 
+    double appliedDx = res.moveVector.dx;
+    if (res.trackingMode != null && res.trackingMode.toString().contains('objectFocus')) {
+      appliedDx = -appliedDx;
+    }
+
     finalFusedHeading = fusionCore.update(
-      visionDx: res.moveVector.dx,
+      visionDx: appliedDx,
       gpsHeading: currentGpsHeading,
       imuAccelY: currentImuAccelY,
       hasValidGps: hasValidGps,
@@ -218,9 +226,44 @@ class CameraFlowController extends ChangeNotifier {
       frameNotifier.value = res.imageBytes;
     }
     headingNotifier.value = finalFusedHeading;
-    turnIntensityNotifier.value = (res.moveVector.dx / 20).clamp(-1.0, 1.0);
+    turnIntensityNotifier.value = (appliedDx / 20).clamp(-1.0, 1.0);
     progressNotifier.value = res.currentFrame;
+    targetBoxNotifier.value = res.targetBox;
+    relativeWarningNotifier.value = res.relativeWarning;
     
+    if (autoFocusEnabledNotifier.value && res.targetBox == null && aiObstaclesNotifier.value.isNotEmpty) {
+      DetectedObject? bestObj;
+      double maxScore = -1.0;
+      final centerX = res.imageSize.width / 2;
+      final centerY = res.imageSize.height / 2;
+
+      for (var obj in aiObstaclesNotifier.value) {
+        if (obj.confidence < 0.35) continue; // Bỏ qua nếu độ tin cậy quá thấp
+
+        double confScore = obj.confidence;
+
+        // Điểm vị trí trung tâm (ưu tiên vật nằm giữa màn hình, đặc biệt là theo trục ngang)
+        double distX = (obj.rect.center.dx - centerX).abs() / centerX;
+        double distY = (obj.rect.center.dy - centerY).abs() / centerY;
+        double centerScore = 1.0 - (distX * 0.7 + distY * 0.3).clamp(0.0, 1.0);
+
+        // Điểm kích thước (xe càng to tức là càng gần)
+        double sizeScore = (obj.rect.width / res.imageSize.width).clamp(0.0, 1.0);
+
+        // Công thức trọng số
+        double finalScore = (confScore * 0.4) + (centerScore * 0.4) + (sizeScore * 0.2);
+
+        if (finalScore > maxScore) {
+          maxScore = finalScore;
+          bestObj = obj;
+        }
+      }
+
+      if (bestObj != null) {
+        setTargetAt(bestObj.rect.center);
+      }
+    }
+
     // Đảm bảo UI cập nhật các thuộc tính khác (imageSize, pointsToDraw, ...)
     notifyListeners();
   }
@@ -241,6 +284,7 @@ class CameraFlowController extends ChangeNotifier {
 
       for (var obj in result) {
         List<dynamic> box = obj['box'];
+        double conf = box.length > 4 ? box[4].toDouble() : 0.0;
         String tag = obj['tag'].toString().trim().toLowerCase();
         if (targetVehicles.contains(tag)) {
           detected.add(
@@ -252,6 +296,7 @@ class CameraFlowController extends ChangeNotifier {
                 box[3].toDouble(),
               ),
               label: tag,
+              confidence: conf,
             ),
           );
           detectedLabels.add(tag);
@@ -353,9 +398,18 @@ class CameraFlowController extends ChangeNotifier {
     _toWorkerPort?.send(IsolateCommand('RESET'));
   }
 
+  void setTargetAt(Offset point) {
+    _toWorkerPort?.send(IsolateCommand('SET_TARGET', point: point));
+  }
+
   void toggleVoice() {
     voiceEnabled = !voiceEnabled;
     voiceFeedback.setEnabled(voiceEnabled);
+    notifyListeners();
+  }
+
+  void toggleAutoFocus() {
+    autoFocusEnabledNotifier.value = !autoFocusEnabledNotifier.value;
     notifyListeners();
   }
 
@@ -456,6 +510,9 @@ class CameraFlowController extends ChangeNotifier {
                 inlierCount: cvRes['inlierCount'] ?? 0,
                 quality: cvRes['quality'] ?? 0.5,
                 trackCount: cvRes['trackCount'] ?? 0,
+                targetBox: cvRes['targetBox'],
+                trackingMode: cvRes['trackingMode'],
+                relativeWarning: cvRes['relativeWarning'],
               ),
             );
 
@@ -478,6 +535,11 @@ class CameraFlowController extends ChangeNotifier {
             break;
           case 'RESET':
             cvCore?.resetTracking();
+            break;
+          case 'SET_TARGET':
+            if (message.point != null) {
+              cvCore?.setTarget(message.point!, obstacles);
+            }
             break;
           case 'STOP':
             isPlaying = false;
@@ -537,6 +599,9 @@ class CameraFlowController extends ChangeNotifier {
           inlierCount: cvRes['inlierCount'] ?? 0,
           quality: cvRes['quality'] ?? 0.5,
           trackCount: cvRes['trackCount'] ?? 0,
+          targetBox: cvRes['targetBox'],
+          trackingMode: cvRes['trackingMode'],
+          relativeWarning: cvRes['relativeWarning'],
         ),
       );
 

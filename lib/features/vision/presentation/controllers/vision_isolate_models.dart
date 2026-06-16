@@ -15,6 +15,8 @@ class IsolateResult {
   final int trackCount;
   final List<String> detectedLabels;
   final Rect? targetBox;
+  final String? relativeWarning;
+  final dynamic trackingMode;
 
   IsolateResult({
     required this.imageBytes,
@@ -29,6 +31,8 @@ class IsolateResult {
     this.trackCount = 0,
     this.detectedLabels = const [],
     this.targetBox,
+    this.relativeWarning,
+    this.trackingMode,
   });
 }
 
@@ -57,5 +61,6 @@ class IsolateCommand {
 class DetectedObject {
   final Rect rect;
   final String label;
-  DetectedObject({required this.rect, required this.label});
+  final double confidence;
+  DetectedObject({required this.rect, required this.label, this.confidence = 0.0});
 }

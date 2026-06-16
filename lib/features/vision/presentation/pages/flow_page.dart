@@ -127,6 +127,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                   _buildDetectionOverlay(isDark),
                   _buildTrackingStatusBanner(topPadding, isDark),
                   _buildStopSignWarning(isDark),
+                  _buildRelativeWarning(isDark),
                   _buildBackButton(topPadding, isDark),
                   if (_controller.isPlaying)
                     _buildBottomDashboard(topPadding, bottomPadding, isDark),
@@ -198,6 +199,57 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             );
           },
         ),
+      ),
+    );
+  }
+
+  Widget _buildRelativeWarning(bool isDark) {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 150,
+      left: 16,
+      right: 16,
+      child: ValueListenableBuilder<String?>(
+        valueListenable: _controller.relativeWarningNotifier,
+        builder: (context, warning, _) {
+          if (warning == null || warning.isEmpty) return const SizedBox.shrink();
+
+          return Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.orangeAccent.withOpacity(isDark ? 0.8 : 0.9),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orangeAccent.withOpacity(0.5),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                  ),
+                ],
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.5),
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.warning_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    warning,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -982,6 +1034,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
         switch (value) {
           case 'pick': _showPickMediaSourceSheet(isDark); break;
           case 'voice': _controller.toggleVoice(); break;
+          case 'autofocus': _controller.toggleAutoFocus(); break;
           case 'debug': setState(() => _isDebugMode = !_isDebugMode); break;
           case 'reset': _controller.resetTracking(); break;
         }
@@ -1001,6 +1054,13 @@ class _FlowScreenV2State extends State<FlowScreenV2>
           "Debug Mode: ${_isDebugMode ? 'Bật' : 'Tắt'}", 
           isDark,
           color: _isDebugMode ? AppTheme.secondaryColor : null,
+        ),
+        _buildPopupItem(
+          'autofocus',
+          _controller.autoFocusEnabledNotifier.value ? Icons.center_focus_strong_rounded : Icons.center_focus_weak_rounded,
+          "Tự động khóa: ${_controller.autoFocusEnabledNotifier.value ? 'Bật' : 'Tắt'}",
+          isDark,
+          color: _controller.autoFocusEnabledNotifier.value ? AppTheme.primaryColor : null,
         ),
         const PopupMenuDivider(),
         _buildPopupItem('reset', Icons.refresh_rounded, "Làm mới theo dõi", isDark),

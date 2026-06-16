@@ -1,0 +1,97 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+\section{Đặt vấn đề}
+\label{section:1.1}
+Trong thời đại số ngày nay, an toàn thông tin đã trở thành một trong những ưu tiên hàng đầu của các tổ chức và cá nhân. Các mối đe dọa trên không gian số ngày càng gia tăng về số lượng, mức độ tinh vi cũng như là khả năng gây thiệt hại. Đặc biệt, các cuộc tấn công zero-day, khai thác những lỗ hổng chưa được biết tới hoặc chưa được vá, cùng với đó là các kỹ thuật tấn công có chủ đích (APTs) đặt ra những thách thức lớn cho các hệ thống phòng thủ truyền thống. Tường lửa, hệ thống phát hiện xâm nhập dựa trên dấu hiệu (signature-based IDS) và các giải pháp bảo mật thông thường sẽ gặp khó khăn trong việc phát hiện và ngăn chặn hiệu quả những loại tấn công này do chúng chưa có trong cơ sở dữ liệu nhận dạng hoặc các quy tắc (rules) được định nghĩa trước.
+
+Thực tế này đòi hỏi cần một hướng tiếp cận chủ động hơn trong việc bảo vệ các hệ thống mạng. Việc phòng thủ không chỉ dừng lại ở việc ngăn chặn các mối đe dọa đã biết mà còn phải có khả năng phát hiện sớm, phân tích và thu thập thông tin về các kỹ thuật tấn công mới. Hệ thống bẫy (honeypot) như là một công cụ hiệu quả cho mục tiêu này. Bằng cách mô phỏng các dịch vụ, ứng dụng hoặc hệ thống có điểm yếu bảo mật, honeypot giúp thu hút kẻ tấn công, cho phép ghi lại hành vi, phương thức và công cụ mà chúng sử dụng. Thông tin thu thập được từ honeypot mang lại giá trị thực tiễn cao, hỗ trợ các nhà nghiên cứu bảo mật và quản trị viên hiểu rõ hơn về các mối đe dọa tiềm ẩn, từ đó cải thiện các biện pháp phòng vệ và chủ động ứng phó với các hình thức tấn công mới trong tương lai.
+
+Để đạt được hiệu quả mong muốn, các tổ chức thường cần triển khai đồng thời nhiều honeypot nhằm tăng khả năng phát hiện và thu thập thông tin về các hoạt động tấn công trên không gian mạng. Việc quản lý một hệ thống honeypot quy mô lớn, đặc biệt khi được triển khai dưới dạng container để tận dụng các ưu điểm về linh hoạt, khả năng mở rộng và cô lập, đặt ra không ít thách thức. Các khó khăn phổ biến bao gồm: quản lý tập trung tài nguyên (Dockerfile, image, container, tập tin Compose), giám sát hoạt động và mức tiêu thụ tài nguyên của từng honeypot, thu thập và phân tích log từ nhiều nguồn, phát hiện dấu hiệu bất thường và tự động hóa cảnh báo khi có sự cố. Hiện nay, việc quản lý honeypot vẫn phụ thuộc nhiều vào thao tác thủ công, tiêu tốn thời gian và nguồn lực, đồng thời tiềm ẩn nguy cơ bỏ sót các dấu hiệu tấn công quan trọng, nhất là các cuộc tấn công khai thác lỗ hổng chưa được công bố. Nếu giải quyết hiệu quả bài toán quản lý honeypot ảo hóa, các tổ chức sẽ có thêm công cụ hỗ trợ hữu ích để tăng cường khả năng phòng thủ chủ động, giảm thiểu rủi ro từ các cuộc tấn công tinh vi, đồng thời phục vụ cho công tác đào tạo và nâng cao nhận thức về an toàn thông tin.
+
+Trong bối cảnh đó, đã có nhiều giải pháp nghiên cứu được phát triển nhằm hỗ trợ triển khai và quản lý honeypot. Một số công cụ mã nguồn mở như Dionaea, Cowrie hay các nền tảng thương mại cung cấp đa dạng các loại honeypot đã được cộng đồng sử dụng rộng rãi. Tuy nhiên, phần lớn các giải pháp hiện có chủ yếu tập trung vào việc xây dựng và vận hành từng honeypot đơn lẻ, mà chưa chú trọng tới một hệ thống quản lý tập trung toàn diện cho môi trường ảo hoá sử dụng container. Các công cụ quản lý container như Docker Desktop, Portainer hay Rancher tuy cung cấp giao diện quản lý tài nguyên tiện dụng, nhưng không được thiết kế chuyên biệt cho mục tiêu quản lý honeypot, nên còn hạn chế trong việc hỗ trợ giám sát sâu, phân tích log tấn công và cảnh báo tự động. Việc mô phỏng các dịch vụ mới hoặc dịch vụ thực tế trên honeypot ảo hoá cũng gặp nhiều trở ngại. Vì vậy, việc phát triển một giải pháp quản lý, có khả năng hỗ trợ toàn bộ quá trình từ triển khai đến giám sát, phân tích và cảnh báo, là điều cần thiết để giúp các tổ chức theo dõi và xử lý kịp thời các mối đe dọa mới chưa được nhận diện.
+\section{Mục tiêu và phạm vi đề tài}
+\label{section:1.2}
+Đề tài này hướng tới mục tiêu chính là nghiên cứu, thiết kế và xây dựng một "Hệ thống quản lý và vận hành giải pháp Honeypot cho chiến lược phòng thủ Cyber Deception", nhằm giải quyết các hạn chế của các giải pháp hiện tại. Hệ thống sẽ tập trung vào việc cung cấp một nền tảng quản lý toàn diện, linh hoạt và dễ sử dụng, cho phép người quản trị có thể dễ dàng triển khai, giám sát và thu thập thông tin từ các honeypot.
+Các chức năng chính của phần mềm dự kiến bao gồm:
+\begin{itemize}
+    \item Quản lý Docker một cách tập trung cho các loại honeypot khác nhau.
+    \item Hỗ trợ triển khai và quản lý các cụm honeypot thông qua Docker Compose.
+    \item Giám sát tài nguyên (CPU, RAM, Network) cùng với trạng thái hoạt động của các container honeypot.
+    \item Tích hợp với hệ thống phát hiện xâm nhập (IDS) như Suricata để theo dõi và phân tích lưu lượng mạng tới các honeypot.
+    \item Sử dụng Falco để giám sát hành vi runtime bên trong container nhằm phát hiện các hành động bất thường hoặc vi phạm chính sách bảo mật (ví dụ: truy cập trái phép file hệ thống, thực thi shell bất thường).
+    \item Thu thập, tổng hợp và lưu trữ log từ các honeypot, Suricata và Falco một cách tập trung.
+    \item Phân tích log và dữ liệu thu thập được bằng Elasticsearch để phát hiện các hành vi đáng ngờ và các dấu hiệu tấn công, kể cả các tấn công vào lỗ hổng chưa biết.
+    \item Cung cấp hệ thống cảnh báo tự động qua email (SMTP) và Telegram khi phát hiện các sự kiện an ninh quan trọng.
+    \item Cho phép quản lý cấu hình hệ thống và thực hiện sao lưu/phục hồi cấu hình.
+    \item Cung cấp giao diện web trực quan cho người quản trị để thực hiện các tác vụ trên.
+\end{itemize}
+Phạm vi của đề tài sẽ tập trung vào việc xây dựng một hệ thống quản lý cho các honeypot được triển khai dưới dạng Docker container. Hệ thống sẽ được phát triển chủ yếu bằng ngôn ngữ Python, sử dụng Docker Engine API để tương tác với Docker. Việc tích hợp sẽ ưu tiên các công cụ mã nguồn mở phổ biến như Suricata và Elasticsearch, Filebeat, Logstash, Falco. Đề tài không đặt mục tiêu phát triển các loại honeypot mới, mà tập trung vào nền tảng quản lý chúng.
+
+\section{Định hướng giải pháp}
+\label{section:1.3}
+% % Từ việc xác định rõ nhiệm vụ cần giải quyết ở phần \ref{section:1.2}, sinh viên đề xuất định hướng giải pháp của mình theo trình tự sau: (i) Sinh viên trước tiên trình bày sẽ giải quyết vấn đề theo định hướng, phương pháp, thuật toán, kỹ thuật, hay công nghệ nào; Tiếp theo, (ii) sinh viên mô tả ngắn gọn giải pháp của mình là gì (khi đi theo định hướng/phương pháp nêu trên); và sau cùng, (iii) sinh viên trình bày đóng góp chính của đồ án là gì, kết quả đạt được là gì.
+% % Sinh viên lưu ý không giải thích hoặc phân tích chi tiết công nghệ/thuật toán trong phần này. Sinh viên chỉ cần nêu tên định hướng công nghệ/thuật toán, mô tả ngắn gọn trong một đến hai câu và giải thích nhanh lý do lựa chọn.
+
+Để đạt được mục tiêu đã trình bày ở mục~\ref{section:1.2}, hệ thống được thiết kế theo kiến trúc client–server. Sơ đồ khái quát luồng dữ liệu và mối liên hệ giữa các khối chức năng được minh họa trong Hình~\ref{fig:so_do_tong_quan_kien_truc_he_thong}.
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{Hinhve/Kien_truc_he_thong.png}
+    \caption{Sơ đồ tổng quan kiến trúc hệ thống}
+    \label{fig:so_do_tong_quan_kien_truc_he_thong}
+\end{figure}
+
+\begin{enumerate}
+    \item [(i)] \textbf{Công nghệ và phương pháp tiếp cận:}
+    Hệ thống sẽ được xây dựng chủ yếu bằng ngôn ngữ lập trình Python bởi tính linh hoạt, cùng với thư viện phong phú và cộng đồng hỗ trợ mạnh mẽ, đặc biệt trong lĩnh vực an ninh mạng và tự động hóa. Công nghệ ảo hóa Docker sẽ là nền tảng để triển khai các honeypot. Công nghệ này sẽ đảm bảo tính di động, cô lập và khả năng mở rộng. Việc tương tác và quản lý các Docker container sẽ thông qua Docker Engine API.
+    Để có thể tăng cường khả năng phát hiện và phân tích log, hệ thống sẽ tích hợp Suricata - một IDS/IPS mã nguồn mở mạnh mẽ với khả năng phát hiện các dấu hiệu xâm nhập tinh vi. Dữ liệu log từ Suricata sẽ được thu thập, xử lý và lưu trữ tập trung thông qua Elastic Search, tạo nền tảng cho việc tìm kiếm, phân tích mẫu hình tấn công và trực quan hóa dữ liệu một cách chi tiết. Hệ thống sẽ áp dụng các kỹ thuật phân tích log nâng cao để phát hiện các hành vi bất thường và dấu hiệu của các cuộc tấn công zero-day. Cơ chế cảnh báo thời gian thực sẽ được triển khai qua giao thức SMTP cho email và API của Telegram, đảm bảo phản ứng kịp thời khi phát hiện các sự kiện an ninh quan trọng. Cơ sở dữ liệu quan hệ sẽ lưu trữ thông tin cấu hình, dữ liệu cảnh báo phục vụ cho quá trình phân tích tương quan giữa các sự kiện.
+    \item [(ii)] \textbf{Mô tả giải pháp:}
+    Giải pháp là một nền tảng quản lý honeypot tập trung, cho phép quản trị viên triển khai và giám sát honeypot ảo hóa. Ngoài luồng dữ liệu Suricata đẩy về Filebeat, Logstash, hệ thống còn sử dụng Falco để thu thập hành vi của container và gửi cảnh báo tức thì về Web App. Dữ liệu log đã chuẩn hóa được đẩy sang Elasticsearch và có thể được trực quan hóa qua Kibana.
+    \item [(iii)] \textbf{Đóng góp chính và kết quả dự kiến:}
+    Đóng góp chính của đồ án là nghiên cứu, thiết kế kiến trúc và phát triển toàn bộ mã nguồn cho một hệ thống quản lý honeypot. Cụ thể, đồ án sẽ tiến hành:
+    \begin{itemize}
+        \item Nghiên cứu và phát triển một kiến trúc phần mềm hoàn thiện cho hệ thống quản lý honeypot tập trung
+        \item Thiết kế và xây dựng mã nguồn các thành phần trong hệ thống, bao gồm module quản lý Docker, module giám sát, module phân tích log và module cảnh báo.
+        \item Tối ưu hóa quá trình thu thập và xử lý dữ liệu từ nhiều nguồn khác nhau (honeypot, Suricata, logs hệ thống) để phát hiện các mẫu hình tấn công phức tạp.
+        \item Xây dựng hệ thống giao diện người dùng trực quan, thân thiện, giúp đơn giản hóa quy trình quản lý và giám sát các honeypot.
+    \end{itemize}
+
+    Việc phát triển một hệ thống tích hợp như trên đòi hỏi không chỉ kiến thức về ảo hoá và quản lý Docker, mà còn cần am hiểu sâu về kiến thức an ninh mạng, hiểu rõ các kỹ thuật tấn công, phân tích log và thiết kế hệ thống phân tán. Đặc biệt, công việc tích hợp và đảm bảo sự hoạt động đồng bộ giữa các thành phần (Docker, Suricata, Falco, Elastic Stack, các cơ chế cảnh báo) là một thách thức lớn mà đồ án sẽ giải quyết.
+
+    So với các giải pháp hiện tại, hệ thống được xây dựng trong đồ án này có lợi thế vượt trội khi được thiết kế đặc biệt cho mục đích quản lý honeypot trong nghiên cứu an ninh, với các tính năng chuyên biệt như phân tích dấu hiệu tấn công zero-day và cảnh báo thông minh. Kết quả cuối cùng là một phần mềm hoàn chỉnh, hoạt động ổn định, không chỉ đáp ứng các chức năng đã đề ra, mà còn có khả năng triển khai trong thực tế để hỗ trợ công tác giám sát và đảm bảo an toàn thông tin.
+
+    Đồ án này không chỉ cung cấp một công cụ hữu ích cho cộng đồng an ninh mạng mà còn đóng góp vào việc nâng cao năng lực phòng thủ chủ động trước các mối đe dọa an ninh ngày càng phức tạp trong kỷ nguyên số.
+\end{enumerate}
+
+\section{Bố cục đồ án}
+\label{section:1.4}
+% % Phần còn lại của báo cáo đồ án tốt nghiệp này được tổ chức như sau.
+% % Chương 2 trình bày về v.v.
+% % Trong Chương 3, em/tôi giới thiệu về v.v.
+% % \textbf{Chú ý:} Sinh viên cần viết mô tả thành đoạn văn đầy đủ về nội dung chương. Tuyệt đối không viết ý hay gạch đầu dòng. Chương 1 không cần mô tả trong phần này.
+% % Ví dụ tham khảo mô tả chương trong phần bố cục đồ án tốt nghiệp: Chương *** trình bày đóng góp chính của đồ án, đó là một nền tảng ABC cho phép khai phá và tích hợp nhiều nguồn dữ liệu, trong đó mỗi nguồn dữ liệu lại có định dạng đặc thù riêng. Nền tảng ABC được phát triển dựa trên khái niệm DEF, là các module ngữ nghĩa trợ giúp người dùng tìm kiếm, tích hợp và hiển thị trực quan dữ liệu theo mô hình cộng tác và mô hình phân tán.
+Phần còn lại của báo cáo đồ án tốt nghiệp này được tổ chức như sau:
+
+Chương 2 - \textbf{Khảo sát} - giới thiệu khái niệm honeypot, cũng như các công cụ quản lý tập trung hiện có, công nghệ ảo hóa Docker, hệ thống phát hiện xâm nhập Suricata, công cụ giám sát Falco và các giải pháp thu thập, phân tích log như bộ công cụ Elastic Stack. Chương này cũng sẽ đi sâu vào việc trình bày các use case của hệ thống, trình bày tổng quan về các chức năng dự kiến, mô tả chi tiết từng chức năng thông qua các biểu đồ ca sử dụng cụ thể, và xác định các yêu cầu phi chức năng quan trọng đối với hệ thống.
+
+Chương 3 - \textbf{Thiết kế hệ thống} - trình bày kiến trúc tổng thể, thiết kế giao diện, thiết kế cơ sở dữ liệu và thiết kế các chức năng chính của hệ thống.
+
+Chương 4 - \textbf{Triển khai và kiểm thử} - mô tả quá trình triển khai hệ thống trên môi trường thực tế, từ việc lựa chọn công nghệ, xây dựng các thành phần ứng dụng đến kiểm thử.
+
+Chương 5 - \textbf{Giải pháp và Đóng góp} - sẽ trình bày những đóng góp và giải pháp kỹ thuật tâm đắc nhất của đồ án.
+
+Chương 6 - \textbf{Kết luận} - tóm tắt các kết quả chính đã đạt được của đồ án, đối chiếu với các mục tiêu đã đặt ra ban đầu. Chương này cũng đưa ra những đánh giá khách quan về những ưu điểm, hạn chế còn tồn tại của hệ thống và đề xuất các hướng nghiên cứu, phát triển tiếp theo để hoàn thiện và mở rộng giải pháp trong tương lai.
+
+% \textbf{Chú ý:} Trong phần nội dung chính, mỗi chương của đồ án nên có phần Tổng quan và Kết chương. Hai phần này đều có định dạng văn bản “Normal”, sinh viên không cần tạo định dạng riêng, ví dụ như không in đậm/in nghiêng, không đóng khung, v.v.
+
+% Trong phần Tổng quan của chương N, sinh viên nên có sự liên kết với chương N-1 rồi trình bày sơ qua lý do có mặt của chương N và sự cần thiết của chương này trong đồ án. Sau đó giới thiệu những vấn đề sẽ trình bày trong chương này là gì, trong các đề mục lớn nào.
+
+% Ví dụ về phần Tổng quan: Chương 3 đã thảo luận về nguồn gốc ra đời, cơ sở lý thuyết và các nhiệm vụ chính của bài toán tích hợp dữ liệu. Chương 4 này sẽ trình bày chi tiết các công cụ tích hợp dữ liệu theo hướng tiếp cận “mashup”. Với mục đích và phạm vi của đề tài, sáu nhóm công cụ tích hợp dữ liệu chính được trình bày bao gồm: (i) nhóm công cụ ABC trong phần 4.1, (ii) nhóm công cụ DEF trong phần 4.2, nhóm công cụ GHK trong phần 4.3, v.v.
+
+% Trong phần Kết chương, sinh viên đưa ra một số kết luận quan trọng của chương. Những vấn đề mở ra trong Tổng quan cần được tóm tắt lại nội dung và cách giải quyết/thực hiện như thế nào. Sinh viên lưu ý không viết Kết chương giống hệt Tổng quan. Sau khi đọc phần Kết chương, người đọc sẽ nắm được sơ bộ nội dung và giải pháp cho các vấn đề đã trình bày trong chương. Trong Kết chương, Sinh viên nên có thêm câu liên kết tới chương tiếp theo.
+
+% Ví dụ về phần Kết chương: Chương này đã phân tích chi tiết sáu nhóm công cụ tích hợp dữ liệu. Nhóm công cụ ABC và DEF thích hợp với những bài toán tích hợp dữ liệu phạm vi nhỏ. Trong khi đó, nhóm công cụ GHK lại chứng tỏ thế mạnh của mình với những bài toán cần độ chính xác cao, v.v. Từ kết quả nghiên cứu và phân tích về sáu nhóm công cụ tích hợp dữ liệu này, tôi đã thực hiện phát triển phần mềm tự động bóc tách và tích hợp dữ liệu sử dụng nhóm công cụ GHK. Phần này được trình bày trong chương tiếp theo – Chương 5.
+
+\end{document}
