@@ -59,6 +59,7 @@ Khi một đối tượng (ví dụ: xe đang chạy cùng chiều phía trướ
 \begin{itemize}
     \item \textbf{Đo lường khoảng cách và cảnh báo:} Dựa vào chiều của véc-tơ và sự phóng to/thu nhỏ (scale) của cụm điểm đặc trưng, hệ thống ước lượng được khoảng cách tương đối đang thu hẹp hay giãn ra đối với xe phía trước, từ đó đưa ra các cảnh báo khoảng cách an toàn (Collision Warning) nếu xe trước có dấu hiệu phanh gấp.
     \item \textbf{Tối ưu hóa tài nguyên di động:} Bằng cách gán trọng trách bám sát đối tượng cho thuật toán Optical Flow, hệ thống có thể duy trì việc theo dõi mục tiêu mượt mà ở tốc độ khung hình cao (lên tới 60 FPS). Điều này đồng nghĩa với việc thiết bị không cần phải chạy mô hình mạng nơ-ron YOLOv8 nặng nề trên mọi khung hình (nguyên nhân chính gây quá tải và hao pin trên điện thoại). Thay vào đó, mô hình AI chỉ cần được gọi ngắt quãng vài khung hình một lần để cập nhật lại tọa độ hộp giới hạn, phần thời gian còn lại sẽ do Optical Flow nội suy và xử lý.
+    \item \textbf{Chống chớp nháy và ổn định nhận diện (Anti-flickering):} Để giải quyết tình trạng mất dấu tạm thời do AI bỏ sót đối tượng trong vài khung hình, hệ thống được thiết lập cơ chế chịu đựng tối đa 3 khung hình (frames) liên tiếp rỗng. Kết hợp cùng việc xử lý hình ảnh ở độ phân giải tối ưu (640px) và nén chất lượng cao, tính năng này giúp hộp giới hạn (Bounding Box) luôn bám sát mục tiêu một cách ổn định nhất.
 \end{itemize}
 
 \section{Hợp nhất cảm biến (Sensor Fusion) và Bộ lọc Kalman}
@@ -85,5 +86,30 @@ Phát triển ứng dụng trên framework Flutter (Dart) yêu cầu sự cẩn 
 
 \subsection{Dịch vụ Bản đồ Mapbox và Goong API}
 Việc hiển thị bản đồ trực quan (Vector Tiles) được đảm nhiệm bởi **Mapbox Maps SDK**, nền tảng cung cấp giao diện hiển thị đồ họa bản đồ siêu mượt và hỗ trợ mô hình 3D. Tuy nhiên, để tối ưu hóa dữ liệu tìm kiếm điểm đến (POI) và định tuyến giao thông (Routing) phù hợp với đường xá tại Việt Nam, hệ thống đã kết hợp sử dụng **Goong API** – một giải pháp bản đồ nội địa chất lượng cao với cơ sở dữ liệu đường đi chi tiết và tối ưu.
+
+\section{Tổng quan các ca sử dụng (Use Case) của hệ thống}
+\label{section:2.6}
+
+Dựa trên các nền tảng công nghệ đã khảo sát, hệ thống "GNSS-Vision Navigation Assistant" được phân tích và thiết kế với hai phân hệ (module) lõi: Phân hệ Bản đồ (Map) và Phân hệ Thị giác máy tính (Vision). Dưới đây là mô tả tổng quát các ca sử dụng chính của hệ thống.
+
+\subsection{Phân hệ Bản đồ (Map Module)}
+Tác nhân chính (Người lái xe) có thể tương tác với các chức năng bản đồ cơ bản:
+\begin{itemize}
+    \item \textbf{Tìm kiếm địa điểm:} Tra cứu các điểm đến (POI) hoặc địa chỉ cụ thể thông qua dịch vụ Goong API.
+    \item \textbf{Lập lộ trình (Routing):} Yêu cầu hệ thống tính toán tuyến đường tối ưu nhất từ vị trí hiện tại đến điểm đích.
+    \item \textbf{Xem bản đồ 3D \& Lệnh rẽ:} Hiển thị giao diện điều hướng trực quan với các chỉ dẫn rẽ chi tiết (Turn-by-turn Navigation). Các thông tin tọa độ tuyệt đối được lấy từ cảm biến GPS/IMU của thiết bị.
+\end{itemize}
+
+\subsection{Phân hệ Thị giác máy tính (Vision Module)}
+Đây là phân hệ cốt lõi làm nên sự khác biệt của hệ thống, cho phép người dùng kích hoạt Camera để hỗ trợ điều hướng:
+\begin{itemize}
+    \item \textbf{Điều hướng dựa vào môi trường (Environment Tracking):} Chức năng mở rộng mặc định khi bật Camera. Hệ thống quét các điểm tĩnh trên đường để ước lượng chuyển động, đồng thời lấy dữ liệu từ YOLO để che đi (masking) các vật thể động, sau đó kết hợp với GPS qua Sensor Fusion.
+    \item \textbf{Bám theo phương tiện phía trước (Leader Following):} Một chức năng mở rộng khác cho phép người dùng chạm vào một chiếc xe phía trước để hệ thống khóa mục tiêu. Quá trình theo dõi luồng quang học (Optical Flow) sẽ được tập trung hoàn toàn vào Bounding Box của chiếc xe này. Trong chế độ này, hệ thống áp dụng cơ chế tự động \textbf{đảo ngược hệ quy chiếu}: nếu xe mục tiêu trôi sang phải màn hình, hệ thống sẽ chỉ dẫn rẽ phải để bám sát quỹ đạo.
+    \item \textbf{Nhận cảnh báo khoảng cách an toàn:} Chức năng được bao hàm (includes) mặc định khi bám theo phương tiện. Hệ thống tính toán sự biến thiên diện tích của mục tiêu; nếu mục tiêu to ra nhanh chóng (khoảng cách thu hẹp), cảnh báo sẽ được phát ra.
+    \item \textbf{Tự động khóa mục tiêu (Auto-Focus):} Chức năng nâng cao cho phép hệ thống tự động tìm và bám theo mục tiêu tối ưu nhất thay vì yêu cầu người dùng chạm thủ công. Hệ thống áp dụng thuật toán \textit{Heuristic Scoring} đánh giá dựa trên độ tin cậy của AI (40\%), vị trí trung tâm (40\%), và kích thước vật thể (20\%). Khi vật thể đang theo dõi bị che khuất hoặc vượt ra khỏi màn hình trên 50\%, hệ thống sẽ tự động hủy khóa và tự chọn mục tiêu mới nếu chế độ này đang bật.
+    \item \textbf{Nghe cảnh báo bằng giọng nói:} Bật/tắt các cảnh báo bằng âm thanh, đọc tên phương tiện cản đường hoặc thông báo chuyển hướng.
+\end{itemize}
+
+Sự liên kết chặt chẽ giữa tương tác người dùng, các mô hình học sâu (YOLOv8) và các cảm biến phần cứng (GPS, IMU, Camera) đã tạo ra một kiến trúc hệ thống trợ lý điều hướng mạnh mẽ, có khả năng bù đắp hoàn hảo các giới hạn của GNSS truyền thống.
 
 \end{document}

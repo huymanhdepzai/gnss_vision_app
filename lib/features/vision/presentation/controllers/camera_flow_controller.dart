@@ -260,7 +260,7 @@ class CameraFlowController extends ChangeNotifier {
       }
 
       if (bestObj != null) {
-        setTargetAt(bestObj.rect.center);
+        setTarget(bestObj.rect.center.dx, bestObj.rect.center.dy);
       }
     }
 
@@ -311,7 +311,8 @@ class CameraFlowController extends ChangeNotifier {
         _toWorkerPort?.send(IsolateCommand('AI_UPDATE', aiObstacles: aiObstacles));
       } else {
         _consecutiveEmptyAiRuns++;
-        if (_consecutiveEmptyAiRuns >= 1 && aiObstaclesNotifier.value.isNotEmpty) {
+        // Tăng giới hạn chịu đựng lên 3 lần AI rỗng liên tiếp mới xóa box
+        if (_consecutiveEmptyAiRuns >= 3 && aiObstaclesNotifier.value.isNotEmpty) {
           aiObstaclesNotifier.value = [];
           _toWorkerPort?.send(IsolateCommand('AI_UPDATE', aiObstacles: []));
         }
@@ -398,8 +399,8 @@ class CameraFlowController extends ChangeNotifier {
     _toWorkerPort?.send(IsolateCommand('RESET'));
   }
 
-  void setTargetAt(Offset point) {
-    _toWorkerPort?.send(IsolateCommand('SET_TARGET', point: point));
+  void setTarget(double x, double y) {
+    _toWorkerPort?.send(IsolateCommand('SET_TARGET', point: Offset(x, y)));
   }
 
   void toggleVoice() {
@@ -479,9 +480,9 @@ class CameraFlowController extends ChangeNotifier {
             // Khởi tạo Mat từ Plane Y (Grayscale)
             cv.Mat frame = cv.Mat.fromList(frameH, frameW, cv.MatType.CV_8UC1, message.imageData!);
             
-            // Resize xuống 240w để hiệu năng ổn định
-            double scale = 240.0 / frameW;
-            cv.Mat smallGray = cv.resize(frame, (240, (frameH * scale).toInt()));
+            // Tăng độ phân giải lên 640px để hình ảnh rõ nét hơn (gốc là 240px)
+            double scale = 640.0 / frameW;
+            cv.Mat smallGray = cv.resize(frame, (640, (frameH * scale).toInt()));
             frame.dispose();
 
             // Convert sang BGR để CVCore xử lý đồng bộ
@@ -493,7 +494,12 @@ class CameraFlowController extends ChangeNotifier {
               aiObstacles: obstacles,
             );
 
-            var (ok, encoded) = cv.imencode(".jpg", smallBGR);
+            // Tăng chất lượng nén JPEG lên 75 (gốc là 50)
+            var (ok, encoded) = cv.imencode(
+              ".jpg",
+              smallBGR,
+              params: cv.VecI32.fromList([cv.IMWRITE_JPEG_QUALITY, 75]),
+            );
 
             mainSendPort.send(
               IsolateResult(
@@ -569,8 +575,9 @@ class CameraFlowController extends ChangeNotifier {
       var (ret, frame) = cap.read();
       if (!ret || frame.isEmpty) break;
 
-      double scale = 240.0 / frame.cols;
-      cv.Mat smallFrame = cv.resize(frame, (240, (frame.rows * scale).toInt()));
+      // Tăng độ phân giải lên 640px để hình ảnh rõ nét hơn (gốc là 240px)
+      double scale = 640.0 / frame.cols;
+      cv.Mat smallFrame = cv.resize(frame, (640, (frame.rows * scale).toInt()));
       frame.dispose();
 
       Map<String, dynamic> cvRes = cvCore.processFrame(
@@ -578,10 +585,11 @@ class CameraFlowController extends ChangeNotifier {
         aiObstacles: getObstacles(),
       );
 
+      // Tăng chất lượng nén JPEG lên 75 (gốc là 50)
       var (ok, encoded) = cv.imencode(
         ".jpg",
         smallFrame,
-        params: cv.VecI32.fromList([cv.IMWRITE_JPEG_QUALITY, 50]),
+        params: cv.VecI32.fromList([cv.IMWRITE_JPEG_QUALITY, 75]),
       );
 
       sendPort.send(

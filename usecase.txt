@@ -1,0 +1,71 @@
+# DANH SÁCH USECASE TỔNG QUÁT VÀ ĐẶC TẢ CHI TIẾT
+## DỰ ÁN: GNSS-Vision Navigation Assistant (Hệ thống hỗ trợ dẫn đường thông minh)
+
+Dựa trên cấu trúc source code thực tế trong thư mục `lib/features` (Clean Architecture, BLoC, OpenCV, Flutter Earth Globe, Sensor Fusion), dưới đây là tài liệu đặc tả các UseCase tổng quát, phản ánh chính xác các chức năng ĐÃ ĐƯỢC LÀM.
+
+---
+
+### TỔNG HỢP CÁC USECASE CHÍNH:
+1. UC01: Đăng nhập và Xác thực (Auth)
+2. UC02: Xem bản đồ và Tìm kiếm địa điểm (Map)
+3. UC03: Dẫn đường và Điều hướng (Navigation)
+4. UC04: Trợ lý tầm nhìn - Nhận diện và Ước lượng chuyển động (Vision & Sensor Fusion)
+5. UC05: Giám sát và Phân tích tín hiệu vệ tinh GNSS (GNSS 3D Globe)
+6. UC06: Quản lý hành trình và Đồng bộ đám mây (Trip Manager)
+7. UC07: Trợ lý ảo & Điều khiển bằng giọng nói (Voice/Chat Assistant)
+8. UC08: Gửi phản hồi hệ thống (Feedback)
+
+---
+
+### ĐẶC TẢ CHI TIẾT TỪNG USECASE
+
+#### 1. Tên UseCase: UC01 - Đăng nhập và Xác thực
+*   **Tác nhân:** Người dùng
+*   **Mô tả:** Người dùng xác thực vào ứng dụng để truy cập các chức năng cá nhân hóa (như quản lý chuyến đi trên Firestore/Google Drive).
+*   **Thực trạng code:** Đã có module `auth` bao gồm UI và logic xác thực (hiện diện trong `lib/features/auth`).
+
+#### 2. Tên UseCase: UC02 - Xem bản đồ và Tìm kiếm địa điểm
+*   **Tác nhân:** Người dùng
+*   **Mô tả:** Tương tác với bản đồ tĩnh/động, xem cảnh ban ngày/ban đêm (day/night scene), tìm kiếm địa điểm thông qua thanh tìm kiếm và hiển thị thông tin địa điểm.
+*   **Thực trạng code:** Module `map` đã cài đặt `map_search_bar.dart`, `map_place_sheet.dart`, `day_night_scene.dart`, `static_map_widget.dart`, `map_floating_buttons.dart`.
+
+#### 3. Tên UseCase: UC03 - Dẫn đường và Điều hướng
+*   **Tác nhân:** Người dùng
+*   **Mô tả:** Hệ thống cung cấp lộ trình điều hướng từ vị trí hiện tại đến đích. Có panel điều hướng, hiển thị thông tin rẽ (Turn-by-turn) và tiến trình chuyến đi.
+*   **Thực trạng code:** Module `map` đã cài đặt `navigation_controller.dart`, `map_navigation_panel.dart`, `map_navigation_top_bar.dart`.
+
+#### 4. Tên UseCase: UC04 - Trợ lý tầm nhìn - Nhận diện và Tracking đa chế độ (Vision & Sensor Fusion)
+*   **Tác nhân:** Người dùng
+*   **Mô tả:** Sử dụng luồng Camera kết hợp Computer Vision để nhận diện chướng ngại vật, tracking theo môi trường để đo góc quay, và tracking tập trung mục tiêu (Object Focus) để theo dõi và duy trì khoảng cách. Kết hợp dữ liệu với cảm biến IMU và GPS qua bộ lọc Kalman để nội suy hướng đi chính xác (Heading) một cách liên tục.
+*   **Thực trạng code đã triển khai:**
+    *   **Hai cơ chế Tracking linh hoạt (Computer Vision - OpenCV):** Module `cv_core.dart` và `feature_tracker.dart` áp dụng thuật toán Lucas-Kanade Optical Flow để phân giải thành 2 chế độ (TrackingMode):
+        1. **Tracking theo Môi trường (Environment Mode):** Là chế độ mặc định, thuật toán chủ yếu tracking các điểm tĩnh dưới mặt đường. Các vật thể động (được YOLOv8 nhận diện) sẽ bị mask lại (tạo thành Dynamic Forbidden Zones) để tránh gây sai số. Vector chuyển động từ môi trường tĩnh sẽ đại diện cho góc rẽ/di chuyển thực tế của thiết bị, đưa vào Visual Odometry bù đắp khi mất GPS.
+        2. **Tracking theo Vật thể (Object Focus Mode):** Được kích hoạt khi người dùng chạm vào một xe trên màn hình hoặc bật Auto-Focus. Hệ thống giới hạn việc tracking và Optical Flow CHỈ trong phạm vi `bounding box` (targetBox) của vật thể đó. Hệ thống không chỉ tính toán sự thay đổi diện tích (IoU) để đưa ra các cảnh báo khoảng cách ("Khoảng cách đang hẹp lại! Chú ý phanh!"), mà CÒN đảo ngược dấu của vector (`-appliedDx` trong `camera_flow_controller.dart`) và tiếp tục truyền vào `Sensor Fusion` để tính toán hướng rẽ. Nhờ sự quy đổi tương đối này, tính năng điều hướng (ego-motion) vẫn hoạt động chính xác và liên tục ngay cả khi camera không còn nhìn chằm chằm vào mặt đường.
+    *   **Nhận diện chướng ngại vật (YOLOv8):** Chạy liên tục (với Worker Isolate tách biệt luồng UI) để phát hiện xe/người. Cung cấp toạ độ vùng cấm (Obstacles) cho thuật toán Tracking môi trường. Đếm số lượng hiển thị trên UI và phát âm thanh cảnh báo thông qua Text-to-Speech (`VoiceFeedbackService`).
+    *   **Sensor Fusion (Hợp nhất cảm biến):** Module `sensor_fusion.dart` dùng `KalmanFilterAngle` kết hợp `visionDx` (được cung cấp liền mạch từ cả 2 chế độ Tracking), `gpsHeading` (hướng GPS), và `imuAccelY` (gia tốc kế) để lọc ra góc quay thực tế `_fusedHeading` siêu mượt mà.
+    *   **Giao diện PiP & FlowPainter:** Màn hình `navigation_vision_page.dart` hỗ trợ Picture-in-Picture. Thành phần `FlowPainter` trực tiếp vẽ lên màn hình các điểm đang được tracking, hộp khóa mục tiêu (`targetBox`), các đường kẻ vector di chuyển, cũng như hiển thị thông báo nguy hiểm (`relativeWarning`) để người dùng dễ quan sát nhất.
+
+#### 5. Tên UseCase: UC05 - Giám sát và Phân tích tín hiệu vệ tinh GNSS (GNSS 3D Globe)
+*   **Tác nhân:** Người dùng
+*   **Mô tả:** Trực quan hóa dữ liệu tín hiệu vệ tinh nguyên bản (Raw GNSS) theo thời gian thực dưới dạng Quả địa cầu 3D. Cho phép xuất dữ liệu thô ra file CSV.
+*   **Thực trạng code đã triển khai:**
+    *   **Lắng nghe Dữ liệu thô (Raw GNSS):** `satellite_page.dart` kết nối với Native layer qua `EventChannel('gnss_status_channel')` để nhận dữ liệu SVID, Elevation, Azimuth, SNR và Constellation (GPS, GLONASS, GALILEO, BEIDOU...).
+    *   **Trực quan hóa 3D:** Sử dụng `FlutterEarthGlobe` để render mô hình Trái Đất 3D có thể tương tác. Hiển thị vị trí người dùng và vẽ các đường nối (Point Connections) từ thiết bị đến các vệ tinh đang được sử dụng để chốt vị trí (usedInFix).
+    *   **Đánh giá chất lượng tín hiệu:** Tự động phân loại chất lượng tín hiệu (Xuất sắc, Tốt, Trung bình, Yếu) dựa trên chỉ số SNR trung bình và đếm số lượng vệ tinh khả dụng cho từng hệ thống.
+    *   **Lưu trữ và Xuất dữ liệu:** Hỗ trợ tính năng Export Raw Data ra định dạng CSV lưu vào bộ nhớ thiết bị. Người dùng có thể xem lại danh sách file đã xuất qua `satellite_export_list_page.dart` và xem chi tiết qua `satellite_detail_page.dart`.
+    *   **Dữ liệu mô phỏng (Mock Data Fallback):** Hệ thống có tính năng tự động chuyển sang dữ liệu giả lập (mock satellites) nếu không nhận được tín hiệu thật hoặc người dùng chưa cấp quyền.
+
+#### 6. Tên UseCase: UC06 - Quản lý hành trình và Đồng bộ đám mây
+*   **Tác nhân:** Người dùng
+*   **Mô tả:** Ghi chép, lưu trữ và đồng bộ thông tin chuyến đi (Trip) và các file đa phương tiện đính kèm.
+*   **Thực trạng code:** Module `trip` hoàn thiện với `create_trip.dart`, `delete_trip.dart`, `get_all_trips.dart`. Dữ liệu được lưu trữ qua `trip_local_data_source.dart`, đồng thời hỗ trợ đồng bộ qua `firestore_data_source.dart` và `google_drive_data_source.dart`. Có cấu trúc dữ liệu cho phương tiện media (`media_file.dart`). Giao diện quản lý bao gồm `trip_manager_page.dart` và `trip_detail_page.dart`.
+
+#### 7. Tên UseCase: UC07 - Trợ lý ảo & Điều khiển bằng giọng nói
+*   **Tác nhân:** Người dùng
+*   **Mô tả:** Điều khiển ứng dụng hoặc hỏi đáp thông qua giọng nói hoặc cửa sổ chat nổi.
+*   **Thực trạng code:** Có module `voice` (`voice_command.dart`, `voice_controller.dart`) để xử lý điều khiển bằng giọng nói. Màn hình điều hướng bản đồ cũng tích hợp `chat_assistant_overlay.dart` để tương tác trợ lý ảo trực tiếp trên màn hình.
+
+#### 8. Tên UseCase: UC08 - Gửi phản hồi hệ thống
+*   **Tác nhân:** Người dùng
+*   **Mô tả:** Gửi phản hồi, đánh giá ứng dụng về cho đội ngũ phát triển.
+*   **Thực trạng code:** Có sẵn module `feedback` trong thư mục `lib/features/feedback`.

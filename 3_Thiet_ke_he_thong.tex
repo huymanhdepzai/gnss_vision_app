@@ -1,0 +1,629 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+Chương này trình bày kiến trúc và thiết kế chi tiết của hệ thống quản lý honeypot. Nội dung bao gồm mô hình phần mềm (MVC) đảm bảo khả năng mở rộng và bảo trì; thiết kế chức năng thông qua các biểu đồ hoạt động, thiết kế các gói phần mềm bảo đảm tính mô-đun; và thiết kế cơ sở dữ liệu phục vụ lưu trữ và quản lý dữ liệu toàn hệ thống.
+
+\section{Thiết kế kiến trúc}
+\subsection{Lựa chọn kiến trúc phần mềm}
+Hệ thống quản lý honeypot được xây dựng dựa trên kiến trúc MVC (Model-View-Controller). Lựa chọn này được thực hiện dựa trên các yếu tố sau:
+
+\textbf{Tách biệt rõ ràng:} Kiến trúc MVC cho phép tách biệt giữa dữ liệu (Model), giao diện người dùng (View), và logic điều khiển (Controller) một cách rõ ràng. Điều này giúp hệ thống dễ bảo trì, mở rộng và kiểm thử.
+
+\textbf{Khả năng tái sử dụng:} Các thành phần trong MVC có thể được phát triển và kiểm thử độc lập, cho phép tái sử dụng code hiệu quả.
+
+\textbf{Phù hợp với ứng dụng web:} MVC là mô hình lý tưởng cho ứng dụng web quản lý phức tạp như hệ thống honeypot, nơi cần xử lý nhiều loại dữ liệu và giao diện người dùng đa dạng.
+
+
+\subsection{Thiết kế tổng quan}
+Hệ thống được phát triển theo kiến trúc MVC với sự phân tách rõ ràng về chức năng. Ba tầng chính bao gồm:
+
+\textbf{Tầng Dữ liệu (Model):}
+\begin{itemize}
+    \item \textbf{Các thực thể(entity):} Gồm User, Compose, Alert, ... định nghĩa cấu trúc dữ liệu và quan hệ trong cơ sở dữ liệu quan hệ.
+    \item \textbf{Kết nối cơ sở dữ liệu:} Sử dụng SQLAlchemy ORM để ánh xạ giữa đối tượng Python và bảng dữ liệu SQLite, cung cấp lớp trừu tượng cho thao tác đọc–ghi.
+\end{itemize}
+
+\textbf{Tầng Giao diện (View):}
+\begin{itemize}
+    \item \textbf{Mẫu giao diện (Template):} Render trang HTML động bằng công cụ Jinja2, cấu trúc thư mục theo từng module chức năng.
+    \item \textbf{Tài nguyên tĩnh:} Bao gồm tệp CSS, JavaScript, hình ảnh và các tài nguyên tĩnh khác phục vụ hiển thị giao diện.
+    \item \textbf{Khung giao diện:} Ứng dụng Bootstrap 5 bảo đảm giao diện đẹp và nhất quán 
+\end{itemize}
+
+\textbf{Tầng Điều khiển (Controller):}
+\begin{itemize}
+    \item \textbf{Bộ xử lý yêu cầu:} Các hàm/ lớp điều khiển tiếp nhận HTTP request, kiểm tra dữ liệu đầu vào, phối hợp luồng xử lý giữa Model và View.
+    \item \textbf{Quản lý tuyến (Route):} Tổ chức đường dẫn URL bằng Flask Blueprint, giúp chia tách theo chức năng và dễ bảo trì.
+    \item \textbf{Logic nghiệp vụ:} Thực hiện quy trình nghiệp vụ và giao tiếp với hệ thống bên ngoài (Docker API, Elasticsearch, v.v.).
+\end{itemize}
+
+Kiến trúc này bảo đảm mỗi tầng chịu trách nhiệm riêng biệt và tương tác với nhau thông qua các giao diện được định nghĩa rõ ràng
+
+\section{Thiết kế hoạt động chức năng}
+
+Hệ thống quản lý honeypot bao gồm nhiều hoạt động chức năng khác nhau, mỗi hoạt động được thiết kế để thực hiện một nhiệm vụ cụ thể trong quá trình quản lý honeypot. Dưới đây là minh hoạ cho 2 hoạt động quan trọng trong hệ thống:
+
+
+\subsection{Thiết kế hoạt động cho Use Case tìm kiếm image trên Docker Hub}
+Hoạt động này cho phép quản trị viên tìm kiếm các image công khai trên Docker Hub để phục vụ cho việc triển khai các dịch vụ hoặc thử nghiệm. Hình \ref{fig:bieu_do_hoat_dong_tim_kiem_image} dưới đây mô tả các bước thực hiện chức năng này.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{Hinhve/bieu_do_hoat_dong_tim_kiem_image.pdf}
+    \caption{Biểu đồ hoạt động cho Use Case tìm kiếm image trên Docker Hub}
+    \label{fig:bieu_do_hoat_dong_tim_kiem_image}
+\end{figure}
+
+Biểu đồ thể hiện quy trình người dùng tìm kiếm image từ Docker Hub. Sau khi nhập từ khóa, hệ thống gửi yêu cầu đến Docker Hub API để lấy danh sách image phù hợp. 
+
+\subsection{Thiết kế hoạt động cho Use Case tải về image từ Docker Hub}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{Hinhve/bieu_do_hoat_dong_tai_ve_image.pdf}
+    \caption{Biểu đồ hoạt động cho Use Case tải về image từ Docker Hub}
+    \label{fig:bieu_do_hoat_dong_tai_ve_image}
+\end{figure}
+
+Biểu đồ hoạt động ở Hình \ref{fig:bieu_do_hoat_dong_tai_ve_image} mô tả quy trình quản trị viên tải về image đã chọn từ Docker Hub về hệ thống. Sau khi tìm kiếm, người dùng chọn image muốn dùng và xác nhận tải về. Hệ thống thực hiện pull image qua Docker Engine và hiển thị tiến trình. Sau khi tải xong, image sẵn sàng để triển khai container.
+
+\subsection{Thiết kế hoạt động cho Use Case build image từ Dockerfile}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Hinhve/bieu_do_hoat_dong_build_image.pdf}
+    \caption{Biểu đồ hoạt động cho Use Case build image từ Dockerfile}
+    \label{fig:bieu_do_hoat_dong_build_image}
+\end{figure}
+
+Biểu đồ Hình \ref{fig:bieu_do_hoat_dong_build_image} ở trên mô tả chức năng hỗ trợ quản trị viên tạo Docker image từ một Dockerfile cụ thể. Quản trị viên truy cập giao diện tạo image, chọn Dockerfile, điền thông tin tag và xác nhận build. Hệ thống chuyển yêu cầu đến Docker Engine để thực hiện quá trình dựng image. Trong lúc build, tiến trình và log được hiển thị theo thời gian thực để theo dõi. Sau khi hoàn tất, image mới được lưu trữ và hiển thị trong danh sách image của hệ thống.
+
+\subsection{Thiết kế hoạt động cho Use Case giám sát lưu lượng mạng}
+Biểu đồ hoạt động tại Hình \ref{fig:bieu_do_hoat_dong_giam_sat_luu_luong_mang} mô tả quy trình giám sát lưu lượng mạng của quản trị viên thông qua giao diện hệ thống. Sau khi đăng nhập, người dùng truy cập trang giám sát, nơi hiển thị dashboard dữ liệu được thu thập và phân tích từ các gói tin mạng của honeypot. Tại đây, quản trị viên có thể thực hiện lọc, tìm kiếm và truy xuất chi tiết các sự kiện mạng để phục vụ phân tích hành vi tấn công.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{Hinhve/bieu_do_hoat_dong_giam_sat_luu_luong_mang.pdf} 
+    \caption{Biểu đồ hoạt động cho Use case giám sát lưu lượng mạng}
+    \label{fig:bieu_do_hoat_dong_giam_sat_luu_luong_mang}
+\end{figure}
+
+
+\subsection{Thiết kế hoạt động cho Use Case tạo Docker Compose}
+
+Biểu đồ ở hình \ref{fig:bieu_do_hoat_dong_tao_compose} dưới đây mô tả quy trình quản trị viên tạo và quản lý các tệp cấu hình Docker Compose để triển khai các dịch vụ honeypot.. Quản trị viên truy cập giao diện tạo Compose, điền thông tin như tên dịch vụ, image, port, volume,… và xác nhận tạo hoặc quản trị viên có thể tải lên file ZIP trực tiếp. Hệ thống kiểm tra hợp lệ tệp cấu hình, sau đó lưu vào cơ sở dữ liệu. Nếu hợp lệ, Docker Compose file được tạo và sẵn sàng cho khởi chạy container. 
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Hinhve/bieu_do_hoat_dong_tao_compose.pdf} 
+    \caption{Biểu đồ hoạt động cho Use Case tạo Docker Compose}
+    \label{fig:bieu_do_hoat_dong_tao_compose}
+\end{figure}
+
+
+\section{Thiết kế chi tiết gói}
+
+Mỗi gói trong hệ thống được thiết kế để đảm nhiệm một vai trò cụ thể, đảm bảo khả năng mở rộng và dễ bảo trì trong quá trình phát triển.
+
+Hệ thống được tổ chức thành các module, trong đó mỗi module bao gồm các gói con và các lớp thực hiện những chức năng riêng biệt. Cách phân tách này giúp tăng tính linh hoạt và hỗ trợ việc bảo trì cũng như mở rộng các thành phần của hệ thống một cách hiệu quả.
+
+Biểu đồ Hình \ref{fig:bieu_do_phu_thuoc_goi} dưới đây mô tả kiến trúc phụ thuộc giữa các gói trong hệ thống. Gói Controller xử lý yêu cầu và gọi tới Service để thực thi nghiệp vụ. Các Service tương tác với Model để thao tác dữ liệu, đồng thời Controller cũng kết nối với View để hiển thị giao diện. Mô hình này tuân theo kiến trúc phân lớp MVC kết hợp với lớp Service, giúp hệ thống rõ ràng và dễ bảo trì. Trong một số trường hợp với các routing đơn giản, Controller có thể tương tác trực tiếp với Model để truy vấn nhanh chóng. Tuy nhiên, để đảm bảo tính tái sử dụng và tách biệt logic, luồng xử lý chính vẫn ưu tiên thông qua lớp Service.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Hinhve/bieu_do_phu_thuoc_goi.pdf}
+    \caption{Biểu đồ phụ thuộc gói}
+    \label{fig:bieu_do_phu_thuoc_goi}
+\end{figure}
+
+Để làm rõ vai trò của từng thành phần trong kiến trúc, dưới đây là đặc tả chi tiết các gói trong hệ thống:
+
+\begin{itemize}
+    \item \textbf{Gói View}: Chứa các template HTML (sử dụng Jinja2) và tài nguyên tĩnh (như CSS, JavaScript, hình ảnh), đảm nhiệm việc xây dựng và hiển thị giao diện người dùng. Dữ liệu từ Controller sẽ được truyền vào các template để tạo ra các trang HTML động.
+
+    \item \textbf{Gói Controller}: Chứa các lớp Controller, đóng vai trò là cầu nối giữa người dùng và hệ thống. Các Controller nhận yêu cầu từ client, phân tích, và sau đó gọi đến các lớp Service tương ứng để thực thi logic nghiệp vụ. Sau khi Service xử lý, Controller nhận lại dữ liệu và chuyển tiếp đến View để hiển thị cho người dùng. Ví dụ, AuthController quản lý các quy trình xác thực trong khi UserController và UserMgtController xử lý các yêu cầu liên quan đến quản lý thông tin người dùng cá nhân và quản trị người dùng hệ thống. Các Controller cốt lõi như ComposeController, ContainerController, DockerfileController, và ImageController xử lý các yêu cầu trong việc quản lý Honeypot, từ việc tạo, xem, đến khởi chạy và xóa. BackupController thực hiện việc sao lưu/phục hồi. MonitoringController, LogController, và AlertController để cung cấp giao diện giám sát và quản lý cảnh báo. Cuối cùng, SystemConfigController cho phép quản trị viên điều chỉnh các thiết lập chung của hệ thống thông qua giao diện.
+
+    \item \textbf{Gói Service}: Đây là lớp chứa toàn bộ logic nghiệp vụ cốt lõi, đóng vai trò là các dịch vụ thực thi cho các yêu cầu mà Controller điều phối tương ứng. Mỗi service triển khai các quy trình xử lý phức tạp, tương tác với Model và các hệ thống bên ngoài. Việc tách biệt lớp Service giúp tăng cường khả năng tái sử dụng mã nguồn, loại bỏ sự trùng lặp và đảm bảo logic nghiệp vụ được áp dụng một cách nhất quán. Ví dụ, DockerService được đồng thời ContainerController và ComposeController sử dụng để quản lý Honeypot, hoặc được MonitoringService gọi để lấy các thông tin.
+
+    \item \textbf{Gói Model}: Đại diện cho cấu trúc dữ liệu của ứng dụng. Gói này chứa các lớp ánh xạ tới các bảng trong cơ sở dữ liệu (thường được triển khai bằng ORM - Object-Relational Mapping). Các lớp này định nghĩa các thuộc tính và mối quan hệ của dữ liệu, cung cấp các phương thức để truy vấn, tạo, cập nhật và xóa (CRUD) bản ghi. Các Service và Controller sử dụng các lớp trong gói này để thao tác dữ liệu
+\end{itemize}
+
+\renewcommand{\arraystretch}{1.4}
+
+Do hệ thống có số lượng lớp và module khá lớn, trong phạm vi phần này chỉ tập trung trình bày gói chức năng Alert, DockerFile, Log và Compose cùng một số lớp tiêu biểu thuộc gói nhằm minh họa cách tổ chức và thiết kế chức năng của hệ thống.
+
+\subsection{Thiết kế chi tiết gói Alert}
+
+Hình~\ref{fig:alert-package-diagram} dưới đây thể hiện sơ đồ tổng quan của module Alert, bao gồm các lớp chính như: AlertController, AlertService, AlertModel và phần View. Trong đó, các phương thức trong lớp AlertController được kết nối trực tiếp đến các chức năng tương ứng trong AlertService thông qua các mũi tên liền nét. Lớp AlertService đóng vai trò trung gian xử lý logic và giao tiếp với tầng dữ liệu thông qua AlertModel. Đồng thời, một số phương thức trong AlertController trả về các trang giao diện HTML như list.html, details.html, create.html,... thuộc phần View thông qua mũi tên nét đứt
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{Latex/Hinhve/alert-package-diagram.pdf}
+    \caption{Sơ đồ gói chức năng Alert}
+    \label{fig:alert-package-diagram}
+\end{figure}
+
+Các bảng dưới đây trình bày chi tiết các phương thức chính được triển khai trong lớp AlertController và lớp AlertService thuộc module Alert.
+
+\textbf{Bảng chức năng lớp Alert Controller}
+
+Lớp Alert Controller, chịu trách nhiệm xử lý các yêu cầu liên quan đến quản lý cảnh báo trong hệ thống. Bảng sau liệt kê các hàm chính của lớp này:
+
+\begin{longtable}{|p{5cm}|p{9cm}|}
+\hline
+\textbf{Hàm} & \textbf{Chức năng} \\ \hline
+\endfirsthead
+
+\hline
+\textbf{Hàm} & \textbf{Chức năng} \\ \hline
+\endhead
+
+list\_alerts & Lấy danh sách các cảnh báo, hỗ trợ lọc, tìm kiếm \\ \hline
+view\_alert & Lấy chi tiết cảnh báo \\ \hline
+update\_alert\_status & Cập nhật trạng thái cảnh báo \\ \hline
+delete\_alert & Xóa cảnh báo \\ \hline
+send\_alert\_notification & Gửi thông báo cảnh báo qua các kênh như Telegram, Email \\ \hline
+alert\_settings & Lấy hoặc cập nhật cấu hình cảnh báo \\ \hline
+create\_alert & Tạo cảnh báo thủ công \\ \hline
+ingest\_alert & Nhận cảnh báo từ các hệ thống Log bên ngoài (ví dụ: Logstash, Suricata) \\ \hline
+falco\_alert & Nhận cảnh báo từ Falco \\ \hline
+
+\caption{Bảng chức năng lớp Alert Controller} \label{table:alert-controller} \\
+\end{longtable}
+
+\vspace{0.5cm}
+
+\textbf{Bảng chức năng lớp Alert Service}
+
+Lớp Alert Service chịu trách nhiệm xử lý các nghiệp vụ chính liên quan đến quản lý cảnh báo trong hệ thống. Bảng sau mô tả các phương thức quan trọng của lớp này:
+
+\begin{longtable}{|p{5cm}|p{9cm}|}
+\hline
+\textbf{Phương thức} & \textbf{Chức năng} \\ \hline
+\endfirsthead
+
+\hline
+\textbf{Phương thức} & \textbf{Chức năng} \\ \hline
+\endhead
+
+get\_alerts & Lấy danh sách cảnh báo với các bộ lọc, tìm kiếm và phân trang \\ \hline
+get\_alert & Lấy chi tiết cảnh báo theo mã định danh \\ \hline
+create\_alert & Tạo mới một cảnh báo \\ \hline
+update\_alert\_status & Cập nhật trạng thái của cảnh báo \\ \hline
+set\_alert\_viewed & Đánh dấu cảnh báo là đã xem đối với người dùng cụ thể \\ \hline
+send\_alert\_notification & Gửi thông báo cảnh báo tới các kênh và người nhận được chỉ định \\ \hline
+save\_alert\_settings & Lưu hoặc cập nhật cấu hình liên quan đến cảnh báo \\ \hline
+get\_alert\_settings & Lấy cấu hình cảnh báo hiện tại \\ \hline
+
+\caption{Bảng chức năng lớp Alert Service} \label{table:alert-service} \\
+\end{longtable}
+
+\subsection{Thiết kế chi tiết gói Dockerfile}
+
+Hình~\ref{fig:dockerfile-package-diagram} dưới đây thể hiện sơ đồ tổng quan của module Dockerfile, bao gồm các lớp chính như: DockerfileController, DockerfileService, DockerfileModel và phần View. Trong đó, các phương thức trong lớp DockerfileController được kết nối trực tiếp đến các chức năng tương ứng trong DockerfileService thông qua các mũi tên liền nét. Lớp DockerfileService đóng vai trò trung gian xử lý logic và giao tiếp với tầng dữ liệu thông qua DockerfileModel. Đồng thời, một số phương thức trong DockerfileController trả về các trang giao diện HTML như list.html, create.html, view.html, và edit.html thuộc phần View thông qua mũi tên nét đứt.
+
+\begin{figure}[H]
+    \centering
+    % Hãy chắc chắn rằng bạn đã xuất biểu đồ Dockerfile ra file PDF và đặt đúng đường dẫn
+    \includegraphics[width=1\textwidth]{Latex/Hinhve/dockerfile-package-diagram.pdf}
+    \caption{Sơ đồ gói chức năng Dockerfile}
+    \label{fig:dockerfile-package-diagram}
+\end{figure}
+
+Các bảng dưới đây trình bày chi tiết các phương thức chính được triển khai trong lớp DockerfileController và lớp DockerfileService thuộc module Dockerfile.
+
+\textbf{Bảng chức năng lớp Dockerfile Controller}
+
+Lớp Dockerfile Controller, chịu trách nhiệm xử lý các yêu cầu liên quan đến quản lý Dockerfile trong hệ thống. Bảng sau liệt kê các hàm chính của lớp này:
+
+\begin{longtable}{|p{5cm}|p{9cm}|}
+\hline
+\textbf{Hàm} & \textbf{Chức năng} \\ \hline
+\endfirsthead
+
+\hline
+\textbf{Hàm} & \textbf{Chức năng} \\ \hline
+\endhead
+
+list\_dockerfiles & Lấy danh sách các Dockerfile. \\ \hline
+create\_dockerfile & Tạo một Dockerfile mới. \\ \hline
+view\_dockerfile & Xem chi tiết một Dockerfile. \\ \hline
+edit\_dockerfile & Chỉnh sửa nội dung của một Dockerfile. \\ \hline
+build\_image & Build một image Docker từ nội dung của Dockerfile đã lưu trong cơ sở dữ liệu. \\ \hline
+build\_image\_stream & Build image và truyền trực tiếp log của quá trình build về cho client. \\ \hline
+delete\_dockerfile & Xóa một Dockerfile khỏi cơ sở dữ liệu. \\ \hline
+
+\caption{Bảng chức năng lớp Dockerfile Controller} \label{table:dockerfile-controller} \\
+\end{longtable}
+
+\vspace{0.5cm}
+
+\textbf{Bảng chức năng lớp Dockerfile Service}
+
+Lớp Dockerfile Service chịu trách nhiệm xử lý các nghiệp vụ chính liên quan đến quản lý Dockerfile. Bảng sau mô tả các phương thức quan trọng của lớp này:
+
+\begin{longtable}{|p{6cm}|p{8cm}|}
+\hline
+\textbf{Phương thức} & \textbf{Chức năng} \\ \hline
+\endfirsthead
+
+\hline
+\textbf{Phương thức} & \textbf{Chức năng} \\ \hline
+\endhead
+
+get\_dockerfiles & Lấy danh sách Dockerfile. \\ \hline
+get\_dockerfile & Lấy chi tiết một Dockerfile. \\ \hline
+create\_dockerfile & Tạo mới một Dockerfile trong cơ sở dữ liệu. \\ \hline
+update\_dockerfile & Cập nhật nội dung của một Dockerfile trong cơ sở dữ liệu. \\ \hline
+delete\_dockerfile & Xóa một bản ghi Dockerfile khỏi cơ sở dữ liệu. \\ \hline
+build\_image\_from\_dockerfile & Build một image. \\ \hline
+get\_templates & Lấy danh sách các mẫu Dockerfile tĩnh có sẵn. \\ \hline
+
+\caption{Bảng chức năng lớp Dockerfile Service} \label{table:dockerfile-service} \\
+\end{longtable}
+
+\subsection{Thiết kế chi tiết gói Log}
+
+Hình~\ref{fig:log-package-diagram} dưới đây thể hiện sơ đồ tổng quan của module Log, bao gồm các lớp chính như: LogController, LogService, và phần View. Khác với các module khác, tầng dữ liệu của module giao tiếp trực tiếp với Elasticsearch để lưu trữ và truy vấn log. Mục đích của gói Log này dùng để phục vụ chức năng cho truy vấn giám sát lưu lượng mạng
+
+Trong đó, các phương thức trong lớp LogController được kết nối trực tiếp đến các chức năng tương ứng trong LogService thông qua các mũi tên liền nét. Lớp LogService đóng vai trò trung gian xử lý logic, xây dựng các câu truy vấn phức tạp và giao tiếp với Elasticsearch. Phương thức list\_flows trong Controller trả về trang giao diện flows.html thuộc phần View thông qua mũi tên nét đứt.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{Latex/Hinhve/log-package-diagram.pdf}
+    \caption{Sơ đồ gói chức năng Log}
+    \label{fig:log-package-diagram}
+\end{figure}
+
+Các bảng dưới đây trình bày chi tiết các phương thức chính được triển khai trong lớp LogController và lớp LogService thuộc module Log.
+
+\textbf{Bảng chức năng lớp Log Controller}
+
+Lớp Log Controller, chịu trách nhiệm xử lý các yêu cầu liên quan đến việc truy vấn và hiển thị log lưu lượng mạng. Bảng sau liệt kê các hàm chính của lớp này:
+
+\begin{longtable}{|p{5cm}|p{9cm}|}
+\hline
+\textbf{Hàm} & \textbf{Chức năng} \\ \hline
+\endfirsthead
+
+\hline
+\textbf{Hàm} & \textbf{Chức năng} \\ \hline
+\endhead
+
+list\_flows & Hiển thị trang xem lưu lượng mạng. Hỗ trợ lọc và tìm kiếm log theo nhiều tiêu chí như IP, port, flow ID và khoảng thời gian. \\ \hline
+flow\_events & Cung cấp chi tiết các sự kiện của một luồng (flow) cụ thể. \\ \hline
+
+\caption{Bảng chức năng lớp Log Controller} \label{table:log-controller} \\
+\end{longtable}
+
+\vspace{0.5cm}
+
+\textbf{Bảng chức năng lớp Log Service}
+
+Lớp Log Service chịu trách nhiệm xử lý các nghiệp vụ chính liên quan đến việc truy vấn và phân tích log từ Elasticsearch. Bảng sau mô tả các phương thức quan trọng của lớp này:
+
+\begin{longtable}{|p{5cm}|p{9cm}|}
+\hline
+\textbf{Phương thức} & \textbf{Chức năng} \\ \hline
+\endfirsthead
+
+\hline
+\textbf{Phương thức} & \textbf{Chức năng} \\ \hline
+\endhead
+
+get\_flow\_list & Truy vấn Elasticsearch để lấy danh sách các luồng mạng, áp dụng các bộ lọc và từ khóa tìm kiếm do người dùng cung cấp. \\ \hline
+get\_flow\_detail & Lấy toàn bộ các sự kiện liên quan đến một flow ID từ Elasticsearch. \\ \hline
+
+\caption{Bảng chức năng lớp Log Service} \label{table:log-service} \\
+\end{longtable}
+
+\subsection{Thiết kế chi tiết gói Compose}
+Hình~\ref{fig:compose-package-diagram} dưới đây thể hiện sơ đồ tổng quan của module Compose. Lớp ComposeController không chỉ tương tác trực tiếp với ComposeModel để quản lý dữ liệu (tên, mô tả) mà còn gọi đến các dịch vụ hệ thống bên ngoài như Docker Engine và Git, File System để triển khai, lưu trữ và quản lý các tệp cấu hình.
+
+Trong sơ đồ, các mũi tên liền nét thể hiện luồng gọi hàm hoặc tương tác trực tiếp. ComposeController gọi đến ComposeModel cho các tác vụ cơ sở dữ liệu, gọi đến các dịch vụ bên ngoài để triển khai và quản lý phiên bản, và trả về các trang giao diện HTML thuộc phần View thông qua các mũi tên nét đứt.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{Latex/Hinhve/compose-package-diagram.pdf}
+\caption{Sơ đồ gói chức năng Compose}
+\label{fig:compose-package-diagram}
+\end{figure}
+
+Bảng dưới đây trình bày chi tiết các phương thức chính được triển khai trong lớp ComposeController.
+
+\textbf{Bảng chức năng lớp ComposeController}
+
+Lớp ComposeController chịu trách nhiệm xử lý toàn bộ các yêu cầu liên quan đến việc quản lý, triển khai và vận hành các cấu hình Docker Compose.
+
+\begin{longtable}{|p{5cm}|p{9cm}|}
+\hline
+\textbf{Hàm} & \textbf{Chức năng} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Hàm} & \textbf{Chức năng} \\
+\hline
+\endhead
+
+list\_composes & Liệt kê tất cả các cấu hình compose đã được tạo và lưu trong cơ sở dữ liệu. \\
+\hline
+create\_compose & Tạo một cấu hình compose mới. \\
+\hline
+upload\_compose\_zip & Xử lý việc tải lên tệp ZIP, giải nén và lưu trữ các tệp cấu hình vào hệ thống tệp, đồng thời tạo bản ghi trong cơ sở dữ liệu. \\
+\hline
+view\_compose & Hiển thị trang chi tiết của một cấu hình compose, đọc và hiển thị nội dung tệp compose.yml. \\
+\hline
+edit\_compose & Cho phép chỉnh sửa dữ liệu của compose và cung cấp giao diện quản lý tệp. \\
+\hline
+save\_file\_in\_compose & Lưu nội dung của một tệp cụ thể trong thư mục của compose. \\
+\hline
+delete\_compose & Xóa một cấu hình compose khỏi cơ sở dữ liệu. \\
+\hline
+deploy\_compose & Thực thi lệnh triển khai các dịch vụ. \\
+\hline
+compose\_down & Thực thi lệnh dừng và xóa các container của một compose. \\
+\hline
+create\_snapshot & Tạo một bản ghi nhanh của trạng thái hiện tại các tệp cấu hình. \\
+\hline
+revert\_snapshot & Khôi phục lại trạng thái của các tệp cấu hình về một snapshot. \\
+\hline
+
+\caption{Bảng chức năng lớp ComposeController}
+\label{table:compose-controller}
+\end{longtable}
+
+
+\section{Thiết kế giao diện}
+
+Do số lượng màn hình giao diện trong hệ thống tương đối nhiều, phần này sẽ tập trung mô tả các giao diện chính và thường xuyên được sử dụng trong hệ thống giám sát Honeypot, tập trung vào những thành phần quan trọng nhất.
+
+\textbf{Thông tin màn hình ứng dụng}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|l|l|}
+        \hline
+        \textbf{Thuộc tính} & \textbf{Giá trị} \\
+        \hline
+        Độ phân giải & 1920x1080 \\
+        Kích thước & Phù hợp với kích thước màn hình Desktop \\
+        Màu chủ đạo & Xanh dương, trắng (RGB, CMYK) \\
+        Ngôn ngữ & Tiếng Anh \\
+        Cửa sổ bật lên & Giữa màn hình \\
+        \hline
+    \end{tabular}
+    \caption{Bảng thông tin giao diện màn hình}
+    \label{tab:thong_tin_giao_dien}
+\end{table}
+
+\subsection{Thiết kế giao diện đăng nhập}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\textwidth]{Hinhve/auth_login.png}
+    \caption{Màn hình đăng nhập}
+    \label{fig:auth_login}
+\end{figure}
+
+Màn hình đăng nhập được thiết kế tối giản, với logo của hệ thống, với hai trường nhập liệu cho Username và Password với các biểu tượng trực quan bên trong ô nhập liệu. Nút Sign In thiết kế với màu xanh chủ đạo. Hệ thống cung cấp tùy chọn Create Account để có thể tạo tải khoản mới.
+
+\subsection{Thiết kế giao diện Dashboard}
+Sau khi đăng nhập, giao diện chính của hệ thống hiển thị các thành phần giám sát bao gồm lưu lượng mạng hiển thị vị trí địa lý của các nguồn tấn công và nguồn kết nối tới. Các dữ liệu thống kê cung cấp số liệu nhanh về tổng số cảnh báo, các IP tấn công nhiều nhất và trạng thái của các Docker container. Hai biểu đồ ở dưới cùng phân tích mức độ nghiêm trọng và xu hướng cảnh báo theo thời gian, giúp quản trị viên nhanh chóng phát hiện các dấu hiệu bất thường. Bố cục được thiết kế một cách trực quan, tập trung vào việc cung cấp thông tin tổng quan về tình trạng của hệ thống. Hình \ref{fig:main_layout_after_login} dưới đây minh hoạ giao diện Dashboard
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{Hinhve/main_layout_after_login.png}
+    \caption{Giao diện Dashboard sau khi đăng nhập}
+    \label{fig:main_layout_after_login}
+\end{figure}
+
+\subsection{Thiết kế giao diện danh sách cảnh báo}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{Hinhve/list_alerts.png}
+    \caption{Giao diện danh sách cảnh báo}
+    \label{fig:list_alerts}
+\end{figure}
+
+Màn hình danh sách cảnh báo cung cấp một danh sách tất cả các sự kiện cảnh báo được hệ thống ghi nhận. Giao diện cho phép người dùng theo dõi theo thời gian, mức độ, trạng thái và nguồn phát sinh. Các nút hành động ở cuối mỗi hàng cho phép người dùng xem chi tiết, đánh dấu đã xử lý, hoặc xóa cảnh báo.
+
+\subsection{Thiết kế giao diện xem lưu lượng mạng}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{Hinhve/network_traffic_viewer.png}
+    \caption{Thiết kế giao diện xem lưu lượng mạng}
+    \label{fig:network_traffic_viewer}
+\end{figure}
+Giao diện xem lưu lượng mạng là một công cụ phân tích mạng sâu, cho phép quản trị viên giám sát và điều tra các luồng dữ liệu ra vào hệ thống honeypot. Khu vực Filters cung cấp các tùy chọn lọc chi tiết như là lọc theo địa chỉ IP, cổng nguồn/đích, và khoảng thời gian. Kết quả được hiển thị trong danh sách Network Flows. Khi chọn một luồng cụ thể, khung Flow Details sẽ hiển thị thông tin chi tiết của flow đó.
+
+\subsection{Thiết kế giao diện hồ sơ người dùng}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{Hinhve/user_profile.png}
+    \caption{Bố cục giao diện hồ sơ người dùng}
+    \label{fig:user_profile}
+\end{figure}
+Giao diện hồ sơ người dùng hiển thị thông tin cá nhân, cho phép quản trị viên chỉnh sửa thông tin cá nhân như là Email, hoặc đổi mật khẩu.
+
+\subsection{Thiết kế giao diện thông báo}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Hinhve/float_notification.png}
+    \caption{Thiết kế giao diện thông báo Web App}
+    \label{fig:float_notification}
+\end{figure}
+Thông báo sẽ hiển thị ở đầu của mỗi giao diện, thông báo thành công sẽ có màu xanh và thất bại sẽ có màu đỏ.
+
+
+\section{Thiết kế cơ sở dữ liệu}
+Hệ thống sử dụng SQLite làm cơ sở dữ liệu chính với SQLAlchemy ORM để quản lý dữ liệu application metadata. Elasticsearch được sử dụng song song để lưu trữ logs. Bảng \ref{fig:thiet_ke_co_so_du_lieu} dưới đây mô tả cấu trúc cơ sở dữ liệu của hệ thống honeypot management.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{Hinhve/Database.png}
+    \caption{Thiết kế cơ sở dữ liệu}
+    \label{fig:thiet_ke_co_so_du_lieu}
+\end{figure}
+
+Cơ sở dữ liệu của hệ thống được xây dựng dưới dạng SQL, bao gồm 7 bảng, tương ứng với 7 Entity trong hệ thống. 
+
+\begin{table}[H]
+\centering
+\label{tab:danh_sach_bang}
+\begin{tabular}{|c|l|l|}
+\hline
+\textbf{STT} & \textbf{Tên bảng}            & \textbf{Mô tả}                                \\ \hline
+1            & users                        & Lưu thông tin tài khoản người dùng            \\ \hline
+2            & backups                      & Lưu thông tin các bản sao lưu hệ thống        \\ \hline
+3            & alerts                       & Lưu thông tin các cảnh báo an ninh            \\ \hline
+4            & composes                     & Lưu thông tin các tệp Docker Compose          \\ \hline
+5            & dockerfiles                  & Lưu nội dung các tệp Dockerfile               \\ \hline
+6            & honeypot\_strings            & Lưu các chuỗi giả mạo phục vụ honeypot        \\ \hline
+7            & system\_configs              & Lưu cấu hình hệ thống                         \\ \hline
+\end{tabular}
+\caption{Mô tả các bảng dữ liệu trong cơ sở dữ liệu}
+\end{table}
+
+\subsection{Bảng Users}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|l|l|l|}
+\hline
+\textbf{STT} & \textbf{Tên trường}   & \textbf{Kiểu dữ liệu} & \textbf{Mô tả}                              \\ \hline
+1            & id                    & int                  & Khóa chính\\ \hline
+2            & username              & varchar(50)          & Tên đăng nhập của người dùng, duy nhất      \\ \hline
+3            & password\_hash        & varchar(255)         & Mật khẩu đã mã hóa của người dùng           \\ \hline
+4            & email                 & varchar(100)         & Địa chỉ email của người dùng, duy nhất      \\ \hline
+5            & role                  & varchar(20)          & Vai trò của người dùng \\ \hline
+6            & status                & varchar(20)          & Trạng thái hoạt động \\ \hline
+7            & created\_at           & datetime             & Thời điểm tài khoản được tạo                \\ \hline
+8            & updated\_at           & datetime             & Thời điểm thông tin tài khoản được cập nhật \\ \hline
+\end{tabular}
+\caption{Bảng Users}
+\label{tab:users}
+\end{table}
+
+Bảng~\ref{tab:users} lưu trữ thông tin tài khoản của người dùng trong hệ thống. Bảng này phục vụ cho các chức năng xác thực đăng nhập, quản lý trạng thái hoạt động của người dùng. Mỗi tài khoản được xác định duy nhất thông qua trường username và email, đồng thời được phân loại theo vai trò và trạng thái để đảm bảo kiểm soát truy cập phù hợp.
+
+\subsection{Bảng Backups}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|l|l|l|}
+\hline
+\textbf{STT} & \textbf{Tên trường}   & \textbf{Kiểu dữ liệu} & \textbf{Mô tả}                              \\ \hline
+1            & id                    & int                  & Khóa chính          \\ \hline
+2            & backup\_name          & varchar(100)         & Tên bản sao lưu                              \\ \hline
+3            & backup\_path          & varchar(255)         & Đường dẫn lưu trữ bản sao lưu                 \\ \hline
+4            & description           & text                 & Mô tả chi tiết về bản sao lưu                \\ \hline
+5            & user\_id              & int                  & Khóa ngoại, tham chiếu đến bảng Users        \\ \hline
+6            & created\_at           & datetime             & Thời điểm bản sao lưu được tạo               \\ \hline
+\end{tabular}
+\caption{Bảng Backups}
+\label{tab:backups}
+\end{table}
+
+Bảng~\ref{tab:backups} lưu thông tin các bản sao lưu hệ thống do người dùng thực hiện. Bản ghi trong bảng này cho phép quản trị khôi phục lại trạng thái dữ liệu tại các thời điểm nhất định, hỗ trợ đảm bảo an toàn và phục hồi dữ liệu khi có sự cố.
+
+\subsection{Bảng Alerts}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|l|l|l|}
+\hline
+\textbf{STT} & \textbf{Tên trường}   & \textbf{Kiểu dữ liệu} & \textbf{Mô tả}                              \\ \hline
+1            & id                    & int                  & Khóa chính \\ \hline
+2            & title                 & varchar(255)         & Tiêu đề của cảnh báo                        \\ \hline
+3            & description           & text                 & Mô tả chi tiết về cảnh báo                  \\ \hline
+4            & severity              & varchar(50)          & Mức độ nghiêm trọng của cảnh báo            \\ \hline
+5            & status                & varchar(50)          & Trạng thái xử lý của cảnh báo               \\ \hline
+6            & source                & varchar(50)          & Nguồn sinh ra cảnh báo                      \\ \hline
+7            & params                & json                 & Thông tin bổ sung dưới dạng JSON            \\ \hline
+8            & created\_at           & datetime             & Thời điểm tạo cảnh báo                      \\ \hline
+9           & updated\_at           & datetime             & Thời điểm cập nhật gần nhất của cảnh báo    \\ \hline
+\end{tabular}
+\caption{Bảng Alerts}
+\label{tab:alerts}
+\end{table}
+
+Bảng~\ref{tab:alerts} lưu trữ các cảnh báo an ninh được sinh ra trong quá trình giám sát hệ thống. Thông tin trong bảng này giúp quản trị viên nắm bắt và xử lý kịp thời các sự kiện bất thường hoặc nguy cơ tấn công.
+
+\subsection{Bảng Composes}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|l|l|l|}
+\hline
+\textbf{STT} & \textbf{Tên trường}   & \textbf{Kiểu dữ liệu} & \textbf{Mô tả}                              \\ \hline
+1            & id                    & int                  & Khóa chính\\ \hline
+2            & compose\_name         & varchar(100)         & Tên Docker Compose                      \\ \hline
+3            & description           & text                 & Mô tả Docker Compose                    \\ \hline
+4            & is\_active            & boolean              & Trạng thái kích hoạt của Compose            \\ \hline
+5            & created\_at           & datetime             & Thời điểm tạo                               \\ \hline
+6            & updated\_at           & datetime             & Thời điểm cập nhật gần nhất                 \\ \hline
+\end{tabular}
+\caption{Bảng Composes}
+\label{tab:composes}
+\end{table}
+
+Bảng~\ref{tab:composes} lưu trữ thông tin về các tệp Docker Compose được quản lý trong hệ thống. Mỗi bản ghi trong bảng này đại diện cho một cấu hình Compose, phục vụ việc triển khai và quản lý các container trong hệ thống.
+
+\subsection{Bảng Dockerfiles}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|l|l|l|}
+\hline
+\textbf{STT} & \textbf{Tên trường}   & \textbf{Kiểu dữ liệu} & \textbf{Mô tả}                              \\ \hline
+1            & id                    & int                  & Khóa chính                   \\ \hline
+2            & content               & text                 & Nội dung tệp Dockerfile                     \\ \hline
+3            & created\_at           & datetime             & Thời điểm tạo                               \\ \hline
+4            & updated\_at           & datetime             & Thời điểm cập nhật gần nhất                 \\ \hline
+\end{tabular}
+\caption{Bảng Dockerfiles}
+\label{tab:dockerfiles}
+\end{table}
+
+Bảng~\ref{tab:dockerfiles} lưu trữ nội dung các tệp Dockerfile phục vụ cho việc xây dựng các image Docker. Các bản ghi trong bảng này giúp quản lý phiên bản và nội dung các Dockerfile một cách tập trung.
+
+\subsection{Bảng Honeypot Strings}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|l|l|l|}
+\hline
+\textbf{STT} & \textbf{Tên trường}   & \textbf{Kiểu dữ liệu} & \textbf{Mô tả}                              \\ \hline
+1            & id                    & int                  & Khóa chính                                  \\ \hline
+2            & name                  & varchar(100)         & Tên chuỗi  \\ \hline
+3            & string\_content       & text                 & Nội dung chuỗi                      \\ \hline
+4            & alert\_severity       & varchar(50)          & Mức độ cảnh báo của chuỗi        \\ \hline
+5            & created\_at           & datetime             & Thời điểm tạo                               \\ \hline
+6            & updated\_at           & datetime             & Thời điểm cập nhật gần nhất                 \\ \hline
+\end{tabular}
+\caption{Bảng Honeypot Strings}
+\label{tab:honeypot_strings}
+\end{table}
+
+Bảng~\ref{tab:honeypot_strings} lưu trữ các chuỗi ký tự do người dùng định nghĩa nhằm phục vụ cho việc phát hiện các hành vi tấn công vào hệ thống. Khi các chuỗi này được phát hiện trong log, hệ thống có thể sinh ra cảnh báo và ghi nhận các hành vi đáng ngờ.
+
+\subsection{Bảng System Configs}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|l|l|l|}
+\hline
+\textbf{STT} & \textbf{Tên trường}   & \textbf{Kiểu dữ liệu} & \textbf{Mô tả}                              \\ \hline
+1            & id                    & int                  & Khóa chính               \\ \hline
+2            & config\_key           & varchar(100)         & Khóa cấu hình                               \\ \hline
+3            & config\_value         & text                 & Giá trị cấu hình                            \\ \hline
+4            & created\_at           & datetime             & Thời điểm tạo                               \\ \hline
+5            & updated\_at           & datetime             & Thời điểm cập nhật gần nhất                 \\ \hline
+\end{tabular}
+\caption{Bảng System Configs}
+\label{tab:system_configs}
+\end{table}
+
+Bảng~\ref{tab:system_configs} lưu trữ các cấu hình hệ thống có thể được thay đổi hoặc cập nhật theo yêu cầu của quản trị viên. Thông tin trong bảng này ảnh hưởng trực tiếp đến các thông số vận hành và hành vi của toàn hệ thống.
+
+\end{document}

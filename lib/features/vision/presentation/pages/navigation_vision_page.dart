@@ -361,7 +361,10 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
         children: [
           GestureDetector(
             onTapDown: (details) {
-              _flowController.setTargetAt(details.localPosition);
+              _flowController.setTarget(
+                details.localPosition.dx,
+                details.localPosition.dy,
+              );
             },
             child: CameraPreview(_flowController.cameraController!),
           ),
@@ -402,7 +405,10 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
               height: _flowController.imageSize.height,
               child: GestureDetector(
                 onTapDown: (details) {
-                  _flowController.setTargetAt(details.localPosition);
+                  _flowController.setTarget(
+                    details.localPosition.dx,
+                    details.localPosition.dy,
+                  );
                 },
                 child: Stack(
                   children: [

@@ -16,6 +16,7 @@ Hệ thống hỗ trợ dẫn đường thông minh tích hợp đa cảm biến
 *   **Visual Odometry (Optical Flow):** Sử dụng thuật toán **Lucas-Kanade** (qua OpenCV C++) để theo dõi các điểm đặc trưng (Features) trên mặt đường. Hệ thống tính toán vector di chuyển để bù đắp sai số hướng khi tín hiệu GPS bị nhiễu.
 *   **Nhận diện vật thể YOLOv8:** Tích hợp mô hình YOLOv8n chạy trên TFLite để nhận diện thời gian thực các đối tượng (ô tô, xe máy, người đi bộ...).
 *   **Vùng cấm động (Dynamic Forbidden Zones):** Tự động loại bỏ các điểm đặc trưng chuyển động khỏi thuật toán Optical Flow, đảm bảo chỉ tính toán dựa trên các vật thể tĩnh.
+*   **Tối ưu hóa và Chống chớp nháy:** Xử lý luồng ảnh ở độ phân giải tối ưu (640px) và tích hợp cơ chế chống mất dấu (chịu đựng 3 khung hình rỗng liên tiếp) nhằm chống hiện tượng chớp nháy mục tiêu.
 
 ### 3. Bộ lọc Hợp nhất Cảm biến (Sensor Fusion)
 *   **Kalman Filter & Adaptive Weighting:** Thuật toán tự động điều chỉnh trọng số tin cậy. Khi độ chính xác GPS thấp, hệ thống sẽ ưu tiên dữ liệu từ Vision và IMU.
