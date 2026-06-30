@@ -258,7 +258,7 @@ class LoginPage extends StatelessWidget {
               children: [
                 _buildPolicySection('1. Chấp thuận', 'Bằng việc sử dụng GNSS Vision, bạn đồng ý tuân thủ các điều khoản này.'),
                 _buildPolicySection('2. Trách nhiệm', 'Ứng dụng cung cấp hỗ trợ dẫn đường. Người dùng phải chịu trách nhiệm an toàn khi tham gia giao thông.'),
-                _buildPolicySection('3. Bản quyền', 'Mọi nội dung, thuật toán và thiết kế thuộc sở hữu của GNSS Vision Team.'),
+                _buildPolicySection('3. Bản quyền', 'Mọi nội dung, thuật toán và thiết kế thuộc sở hữu của Nguyễn Huy Mạnh.'),
                 _buildPolicySection('4. Giới hạn', 'Chúng tôi không chịu trách nhiệm cho các thiệt hại do sai lệch tín hiệu GPS hoặc sử dụng sai cách.'),
               ],
             ),

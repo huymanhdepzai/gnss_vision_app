@@ -25,6 +25,9 @@ class VideoFlowController extends ChangeNotifier {
   final ValueNotifier<double> headingNotifier = ValueNotifier<double>(0.0);
   final ValueNotifier<double> turnIntensityNotifier = ValueNotifier<double>(0.0);
   final ValueNotifier<double> progressNotifier = ValueNotifier<double>(0.0);
+  final ValueNotifier<Rect?> targetBoxNotifier = ValueNotifier<Rect?>(null);
+  final ValueNotifier<String?> relativeWarningNotifier = ValueNotifier<String?>(null);
+  final ValueNotifier<bool> autoFocusEnabledNotifier = ValueNotifier<bool>(false);
 
   // ================= MODULES =================
   final SensorFusion fusionCore = SensorFusion();
@@ -133,11 +136,11 @@ class VideoFlowController extends ChangeNotifier {
         if (message['type'] == 'METADATA') {
           totalFrames = message['totalFrames'];
           fps = message['fps'];
-          notifyListeners();
+          if (!_isDisposed) notifyListeners();
         } else if (message['type'] == 'ERROR') {
           debugPrint("Worker Isolate Error: ${message['message']}");
           isPlaying = false;
-          notifyListeners();
+          if (!_isDisposed) notifyListeners();
         }
       }
     });
@@ -194,17 +197,23 @@ class VideoFlowController extends ChangeNotifier {
   int _consecutiveEmptyAiRuns = 0;
 
   void _handleFrameResult(IsolateResult res) async {
+    if (_isDisposed) return;
     _frameCounter++;
     pointsToDraw = res.points;
     imageSize = res.imageSize;
 
-    // AI chạy cực nhanh: Mỗi 2 frame để bám sát video nhất có thể
+    // Chạy AI mỗi 2 frame để đảm bảo không lọt mất vật thể
     if (_frameCounter % 2 == 0 && res.imageBytes != null && !_isAiBusy) {
       _runAI(res.imageBytes!, res.imageSize);
     }
 
+    double appliedDx = res.moveVector.dx;
+    if (res.trackingMode != null && res.trackingMode.toString().contains('objectFocus')) {
+      appliedDx = -appliedDx;
+    }
+
     finalFusedHeading = fusionCore.update(
-      visionDx: res.moveVector.dx,
+      visionDx: appliedDx,
       gpsHeading: currentGpsHeading,
       imuAccelY: currentImuAccelY,
       hasValidGps: hasValidGps,
@@ -218,14 +227,52 @@ class VideoFlowController extends ChangeNotifier {
       frameNotifier.value = res.imageBytes;
     }
     headingNotifier.value = finalFusedHeading;
-    turnIntensityNotifier.value = (res.moveVector.dx / 20).clamp(-1.0, 1.0);
+    turnIntensityNotifier.value = (appliedDx / 20).clamp(-1.0, 1.0);
     progressNotifier.value = res.currentFrame;
+    targetBoxNotifier.value = res.targetBox;
+    relativeWarningNotifier.value = res.relativeWarning;
     
+    if (autoFocusEnabledNotifier.value && res.targetBox == null && aiObstaclesNotifier.value.isNotEmpty) {
+      DetectedObject? bestObj;
+      double maxScore = -1.0;
+      final centerX = res.imageSize.width / 2;
+      final centerY = res.imageSize.height / 2;
+
+      for (var obj in aiObstaclesNotifier.value) {
+        if (obj.confidence < 0.35) continue; // Bỏ qua nếu độ tin cậy quá thấp
+
+        double confScore = obj.confidence;
+
+        // Điểm vị trí trung tâm (ưu tiên vật nằm giữa màn hình, đặc biệt là theo trục ngang)
+        double distX = (obj.rect.center.dx - centerX).abs() / centerX;
+        double distY = (obj.rect.center.dy - centerY).abs() / centerY;
+        double centerScore = 1.0 - (distX * 0.7 + distY * 0.3).clamp(0.0, 1.0);
+
+        // Điểm kích thước (xe càng to tức là càng gần)
+        double sizeScore = (obj.rect.width / res.imageSize.width).clamp(0.0, 1.0);
+
+        // Công thức trọng số
+        double finalScore = (confScore * 0.4) + (centerScore * 0.4) + (sizeScore * 0.2);
+
+        if (finalScore > maxScore) {
+          maxScore = finalScore;
+          bestObj = obj;
+        }
+      }
+
+      if (bestObj != null) {
+        setTarget(bestObj.rect.center.dx, bestObj.rect.center.dy);
+      }
+    }
+
     // Đảm bảo UI cập nhật các thuộc tính khác (imageSize, pointsToDraw, ...)
-    notifyListeners();
+    if (!_isDisposed) {
+      notifyListeners();
+    }
   }
 
   Future<void> _runAI(Uint8List bytes, Size size) async {
+    if (_isDisposed) return;
     _isAiBusy = true;
     try {
       final result = await vision.yoloOnImage(
@@ -236,11 +283,14 @@ class VideoFlowController extends ChangeNotifier {
         confThreshold: 0.25,
       );
 
+      if (_isDisposed) return;
+
       List<DetectedObject> detected = [];
       List<String> detectedLabels = [];
 
       for (var obj in result) {
         List<dynamic> box = obj['box'];
+        double conf = box.length > 4 ? box[4].toDouble() : 0.0;
         String tag = obj['tag'].toString().trim().toLowerCase();
         if (targetVehicles.contains(tag)) {
           detected.add(
@@ -252,6 +302,7 @@ class VideoFlowController extends ChangeNotifier {
                 box[3].toDouble(),
               ),
               label: tag,
+              confidence: conf,
             ),
           );
           detectedLabels.add(tag);
@@ -266,7 +317,8 @@ class VideoFlowController extends ChangeNotifier {
         _toWorkerPort?.send(IsolateCommand('AI_UPDATE', aiObstacles: aiObstacles));
       } else {
         _consecutiveEmptyAiRuns++;
-        if (_consecutiveEmptyAiRuns >= 1 && aiObstaclesNotifier.value.isNotEmpty) {
+        // Tăng giới hạn chịu đựng lên 3 lần AI rỗng liên tiếp mới xóa box
+        if (_consecutiveEmptyAiRuns >= 3 && aiObstaclesNotifier.value.isNotEmpty) {
           aiObstaclesNotifier.value = [];
           _toWorkerPort?.send(IsolateCommand('AI_UPDATE', aiObstacles: []));
         }
@@ -346,9 +398,19 @@ class VideoFlowController extends ChangeNotifier {
     _toWorkerPort?.send(IsolateCommand('RESET'));
   }
 
+  void setTarget(double x, double y) {
+    if (isUsingCamera) return;
+    _toWorkerPort?.send(IsolateCommand('SET_TARGET', point: Offset(x, y)));
+  }
+
   void toggleVoice() {
     voiceEnabled = !voiceEnabled;
     voiceFeedback.setEnabled(voiceEnabled);
+    notifyListeners();
+  }
+
+  void toggleAutoFocus() {
+    autoFocusEnabledNotifier.value = !autoFocusEnabledNotifier.value;
     notifyListeners();
   }
 
@@ -360,16 +422,34 @@ class VideoFlowController extends ChangeNotifier {
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  bool _isDisposed = false;
+
   @override
   void dispose() {
+    _isDisposed = true;
     _toWorkerPort?.send(IsolateCommand('STOP'));
     _fromWorkerPort.close();
-    _workerIsolate?.kill();
-    vision.closeYoloModel();
+    _workerIsolate?.kill(priority: Isolate.immediate);
     gpsSubscription?.cancel();
     imuSubscription?.cancel();
     voiceFeedback.dispose();
+    
+    _safeDisposeVision();
     super.dispose();
+  }
+
+  Future<void> _safeDisposeVision() async {
+    // Chờ AI xử lý xong (tối đa 2s) trước khi close model để tránh crash native
+    int waitMs = 0;
+    while (_isAiBusy && waitMs < 2000) {
+      await Future.delayed(const Duration(milliseconds: 50));
+      waitMs += 50;
+    }
+    try {
+      await vision.closeYoloModel();
+    } catch (e) {
+      debugPrint("Lỗi khi đóng YOLO model: $e");
+    }
   }
 
   // ================= WORKER ISOLATE (HÀM TÁCH BIỆT) =================
@@ -447,6 +527,11 @@ class VideoFlowController extends ChangeNotifier {
           case 'RESET':
             cvCore?.resetTracking();
             break;
+          case 'SET_TARGET':
+            if (message.point != null) {
+              cvCore?.setTarget(message.point!, obstacles);
+            }
+            break;
           case 'STOP':
             isPlaying = false;
             isCamera = false;
@@ -475,8 +560,9 @@ class VideoFlowController extends ChangeNotifier {
       var (ret, frame) = cap.read();
       if (!ret || frame.isEmpty) break;
 
-      double scale = 240.0 / frame.cols;
-      cv.Mat smallFrame = cv.resize(frame, (240, (frame.rows * scale).toInt()));
+      // Tăng độ phân giải lên 640px để hình ảnh rõ nét hơn (gốc là 240px)
+      double scale = 640.0 / frame.cols;
+      cv.Mat smallFrame = cv.resize(frame, (640, (frame.rows * scale).toInt()));
       frame.dispose();
 
       Map<String, dynamic> cvRes = cvCore.processFrame(
@@ -484,10 +570,11 @@ class VideoFlowController extends ChangeNotifier {
         aiObstacles: getObstacles(),
       );
 
+      // Tăng chất lượng nén JPEG lên 75 (gốc là 50)
       var (ok, encoded) = cv.imencode(
         ".jpg",
         smallFrame,
-        params: cv.VecI32.fromList([cv.IMWRITE_JPEG_QUALITY, 50]),
+        params: cv.VecI32.fromList([cv.IMWRITE_JPEG_QUALITY, 75]),
       );
 
       sendPort.send(
@@ -505,6 +592,9 @@ class VideoFlowController extends ChangeNotifier {
           inlierCount: cvRes['inlierCount'] ?? 0,
           quality: cvRes['quality'] ?? 0.5,
           trackCount: cvRes['trackCount'] ?? 0,
+          targetBox: cvRes['targetBox'],
+          trackingMode: cvRes['trackingMode'],
+          relativeWarning: cvRes['relativeWarning'],
         ),
       );
 
@@ -518,8 +608,8 @@ class VideoFlowController extends ChangeNotifier {
       if (wait > 0) {
         await Future.delayed(Duration(milliseconds: wait));
       } else {
-        cap.set(cv.CAP_PROP_POS_FRAMES, (cap.get(cv.CAP_PROP_POS_FRAMES) ?? 0) + 1);
-        await Future.delayed(const Duration(milliseconds: 2));
+        cap.grab(); // Fast forward 1 frame without decoding
+        await Future.delayed(const Duration(milliseconds: 1));
       }
     }
   }

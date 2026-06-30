@@ -1,0 +1,216 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+Chương này trình bày kiến trúc và thiết kế chi tiết của Hệ thống hỗ trợ dẫn đường GNSS-Vision. Nội dung bao gồm mô hình phần mềm Clean Architecture đảm bảo khả năng mở rộng; thiết kế chức năng; thiết kế các gói phần mềm bảo đảm tính mô-đun; và thiết kế cơ sở dữ liệu phục vụ lưu trữ chuyến đi và giám sát hệ thống.
+
+\section{Thiết kế kiến trúc}
+\subsection{Lựa chọn kiến trúc phần mềm}
+Hệ thống được xây dựng dựa trên kiến trúc Clean Architecture kết hợp với mẫu thiết kế quản lý trạng thái BLoC (Business Logic Component). Lựa chọn này được thực hiện dựa trên các yếu tố sau:
+
+\textbf{Tách biệt mối quan tâm (Separation of Concerns):} Clean Architecture phân chia hệ thống thành các tầng độc lập (Data, Domain, Presentation). Điều này giúp giao diện người dùng không bị ràng buộc trực tiếp vào logic nghiệp vụ hay nguồn lấy dữ liệu.
+
+\textbf{Khả năng tái sử dụng và Bảo trì:} Mã nguồn dễ dàng nâng cấp, kiểm thử độc lập hoặc thay thế (ví dụ chuyển đổi từ Local DB sang Cloud Database) mà không ảnh hưởng tới các thành phần cốt lõi của hệ thống.
+
+\textbf{Phù hợp với ứng dụng di động đa luồng phức tạp:} Ứng dụng yêu cầu xử lý liên tục luồng Video từ Camera, chạy mô hình AI (YOLOv8), tính toán Computer Vision và đọc dữ liệu cảm biến (GNSS/IMU) theo thời gian thực. Kiến trúc này giúp tổ chức các Isolate (luồng xử lý song song) một cách minh bạch, kết hợp BLoC để cập nhật giao diện mà không làm đứng (block) luồng chính (Main UI Thread).
+
+
+\subsection{Thiết kế tổng quan}
+Cấu trúc mã nguồn của hệ thống tuân theo mô hình Feature-Based Clean Architecture. Với mỗi tính năng (`vision`, `map`, `trip`, `auth`...), hệ thống sẽ có 3 tầng chính:
+
+\textbf{Tầng Dữ liệu (Data Layer):}
+\begin{itemize}
+    \item \textbf{Data Sources:} Nơi kết nối, truy xuất và thao tác trực tiếp với cơ sở dữ liệu (Local SQLite), API từ xa (Firebase Firestore, Google Drive API, Goong Map API), hoặc giao tiếp với Native Code (thông qua EventChannels để lấy dữ liệu tín hiệu vệ tinh GNSS Raw).
+    \item \textbf{Models:} Chứa cấu trúc dữ liệu JSON thô trả về từ nguồn dữ liệu.
+    \item \textbf{Repositories (Impl):} Cài đặt các interface từ tầng Domain, chịu trách nhiệm nhận dữ liệu từ Data Sources, chuyển đổi Models thành các Entities nghiệp vụ.
+\end{itemize}
+
+\textbf{Tầng Nghiệp vụ (Domain Layer):}
+\begin{itemize}
+    \item \textbf{Entities:} Chứa các đối tượng nghiệp vụ cốt lõi không thay đổi của ứng dụng như `Trip`, `MediaFile`, `SatelliteData`, `FrameResult`.
+    \item \textbf{Use Cases:} Đóng gói từng logic nghiệp vụ cụ thể (ví dụ: `ProcessFrame`, `DetectObstacles`, `CreateTrip`), định nghĩa rõ ràng các tác vụ đơn lẻ mà hệ thống có thể thực hiện.
+    \item \textbf{Repository Interfaces:} Các abstract class định nghĩa hợp đồng giao tiếp giữa Domain và Data, đảm bảo nguyên lý phụ thuộc ngược (Dependency Inversion).
+    \item \textbf{Utils:} Các thành phần lõi xử lý thuật toán phức tạp như `cv_core.dart`, `kalman_filter.dart`, `feature_tracker.dart`.
+\end{itemize}
+
+\textbf{Tầng Trình diễn (Presentation Layer):}
+\begin{itemize}
+    \item \textbf{Pages / Widgets (View):} Khung hiển thị dữ liệu lên màn hình bằng thư viện Flutter (ví dụ: `NavigationVisionPage`, `SatellitePage`).
+    \item \textbf{BLoC / Controllers:} Quản lý trạng thái, lắng nghe tương tác người dùng, gọi Use Cases và phát ra trạng thái (State) tương ứng để UI cập nhật theo thời gian thực. (Ví dụ: `CameraFlowController`, `TripController`).
+\end{itemize}
+
+
+\section{Thiết kế hoạt động chức năng}
+
+Hệ thống hỗ trợ dẫn đường GNSS-Vision bao gồm nhiều hoạt động chức năng quan trọng. Dưới đây mô tả hoạt động của 2 quy trình cốt lõi nhất:
+
+\subsection{Thiết kế hoạt động cho Use Case dẫn đường thông minh (Vision Navigation)}
+Quy trình này mô tả cách người dùng bắt đầu một chuyến đi với sự hỗ trợ của Camera và AI. 
+\begin{enumerate}
+    \item Người dùng nhập điểm đến trên bản đồ.
+    \item Hệ thống gọi API (Goong/Google) để lấy dữ liệu lộ trình.
+    \item Ứng dụng chuyển sang màn hình NavigationVision, đồng thời khởi động Camera và bật luồng Isolate AI.
+    \item Hệ thống liên tục nhận diện chướng ngại vật (YOLOv8) và tính toán góc rẽ (Optical Flow + Sensor Fusion).
+    \item Dựa trên tính toán, giao diện cập nhật liên tục mũi tên chỉ đường và cảnh báo va chạm lên màn hình.
+\end{enumerate}
+
+\subsection{Thiết kế hoạt động cho Use Case lưu và đồng bộ hành trình (Trip Management)}
+Quy trình này mô tả việc tự động lưu chuyến đi và tải dữ liệu video lên Cloud.
+\begin{enumerate}
+    \item Khi người dùng kết thúc chuyến đi, hệ thống dừng ghi hình và lưu tọa độ/quãng đường vào SQLite.
+    \item Trình quản lý chuyến đi (TripController) kiểm tra kết nối mạng của thiết bị.
+    \item Nếu có kết nối, hệ thống tự động đẩy siêu dữ liệu lên Firestore và upload video Dashcam lên Google Drive.
+    \item Cập nhật trạng thái "Đã đồng bộ" (is\_synced = true) trên giao diện quản lý.
+\end{enumerate}
+
+
+\section{Thiết kế chi tiết gói (Packages)}
+
+Hệ thống phân chia thư mục theo từng tính năng (Feature-driven) bao gồm: `auth`, `map`, `trip`, `vision`, `voice`, `feedback`. Dưới đây trình bày chi tiết gói thiết kế của 2 module cốt lõi là Vision và Trip.
+
+\subsection{Thiết kế chi tiết gói Vision (Thị giác máy tính và Sensor Fusion)}
+Gói `vision` là trái tim của hệ thống dẫn đường không cần GPS, chịu trách nhiệm phân tích luồng Video Camera, nhận diện chướng ngại vật bằng AI và tích hợp thuật toán Sensor Fusion. Quá trình xử lý phức tạp này được thiết kế chạy trên một Isolate (Worker Thread) độc lập thông qua `CameraFlowController` nhằm bảo đảm luồng UI chính (Main Thread) luôn mượt mà.
+
+Các thuật toán và kỹ thuật cốt lõi được áp dụng bao gồm:
+\begin{itemize}
+    \item \textbf{Thuật toán Lucas-Kanade Optical Flow (qua OpenCV):} Được cài đặt trong `cv_core.dart`. Thuật toán này phân tích sự dịch chuyển của các luồng điểm ảnh (pixel) giữa các khung hình liên tiếp để tìm ra vector tịnh tiến (Motion Vector). Nó đóng vai trò nội suy góc quay của thiết bị (Ego-motion / Visual Odometry) khi chạy ở chế độ \textit{Environment Mode}. Khi chuyển sang \textit{Object Focus Mode}, thuật toán chỉ bám vào đối tượng được chỉ định và đo đạc sự thu hẹp khoảng cách (IoU) để cảnh báo đâm va.
+    \item \textbf{Grid-based Feature Tracking (Lưới bám điểm):} Để thuật toán Optical Flow không bị hội tụ vào một khu vực (do các điểm Good Features to Track thường tập trung ở những chỗ độ tương phản cao), lớp `feature_tracker.dart` chia màn hình thành một ma trận lưới (Grid). Mỗi ô vuông trong lưới duy trì độc lập một số lượng điểm `TrackedPoint` tối thiểu, bảo đảm sự ổn định của vector ngay cả khi xe di chuyển ở tốc độ cao hoặc môi trường mặt đường ít chi tiết.
+    \item \textbf{RANSAC (Random Sample Consensus):} Được sử dụng bên trong `motion_estimator.dart` để tinh lọc kết quả nhận được từ Optical Flow. RANSAC liên tục loại bỏ các vector di chuyển lệch pha (outliers - do nhiễu bóng râm, rung lắc camera) và chỉ giữ lại các điểm đồng thuận (inliers) để tính ra hướng đi chung cuối cùng với độ tin cậy cao nhất.
+    \item \textbf{Nhận diện vật thể YOLOv8 (FlutterVision):} Mô hình AI liên tục phát hiện các chướng ngại vật (xe cộ, người đi bộ). Tọa độ của các đối tượng này cung cấp dữ liệu đầu vào cho `cv_core.dart` tạo thành các `Dynamic Forbidden Zones` (Vùng cấm động). Bằng cách dùng mặt nạ che khuất các vật thể di chuyển này, hệ thống sẽ không lấy nhầm vector của các xe khác đang chạy để làm dữ liệu hướng rẽ cho xe mình.
+    \item \textbf{Kalman Filter \& Sensor Fusion:} Các vector tịnh tiến (VisionDx) dù đã lọc RANSAC nhưng vẫn tồn tại độ rung lắc. Lớp `sensor_fusion.dart` áp dụng thuật toán bộ lọc `KalmanFilterAngle` kết hợp VisionDx với dữ liệu GPS (Heading) và cảm biến gia tốc kế (IMU). Lợi ích lớn nhất của Kalman Filter là tự động gán trọng số thông minh: khi vào hầm mất GPS, trọng số VisionDx sẽ tăng lên để bù đắp, cho ra một góc xoay mượt mà (`finalFusedHeading`) và không bao giờ bị đứt quãng.
+\end{itemize}
+
+\textbf{Quy trình kết nối các thuật toán (Data Flow Pipeline):}
+Sức mạnh của hệ thống nằm ở việc xâu chuỗi các thuật toán này thành một luồng xử lý (pipeline) thời gian thực không có độ trễ:
+\begin{enumerate}
+    \item \textbf{Input:} Luồng video từ Camera được trích xuất liên tục thành từng khung hình (Frame).
+    \item \textbf{Filtering (YOLOv8):} Khung hình được quét qua AI để nhận diện xe cộ. Toạ độ các xe này được gửi cho thuật toán Optical Flow làm đầu vào để tạo mặt nạ (Mask), cô lập và loại trừ các vùng ảnh chứa vật thể đang di chuyển.
+    \item \textbf{Tracking (Optical Flow + Grid):} Optical Flow phân tích các điểm ảnh tĩnh còn lại (được rải đều thông qua ma trận Grid) so với khung hình trước đó để tính toán hướng dịch chuyển của mặt đường.
+    \item \textbf{Outlier Removal (RANSAC):} Các vector dịch chuyển thu được tiếp tục đưa qua thuật toán RANSAC để loại bỏ hoàn toàn các điểm nhiễu lệch pha. Trả về một Vector Tịnh tiến (VisionDx) duy nhất đại diện cho góc xoay thực tế của xe.
+    \item \textbf{Fusion (Kalman Filter):} Cuối cùng, VisionDx được bơm vào bộ lọc Kalman để hoà trộn với tín hiệu GPS (Heading) và gia tốc kế (IMU), cho ra kết quả góc rẽ (`finalFusedHeading`) siêu chính xác để cập nhật mượt mà lên Bản đồ điều hướng.
+\end{enumerate}
+
+Về phần Trình diễn (Presentation), kết quả từ chuỗi thuật toán trên sẽ được gửi trả về `NavigationVisionPage` để vẽ đè lên Camera thông qua `FlowPainter`, tạo ra các hiệu ứng hình ảnh lưới tracking và vector dẫn đường như trong các hệ thống ADAS (Hệ thống hỗ trợ lái xe nâng cao).
+
+\subsection{Thiết kế chi tiết gói Trip (Quản lý hành trình)}
+Gói `trip` chịu trách nhiệm lưu trữ tự động các chuyến đi, quản lý video Dashcam và cơ chế đồng bộ lên Cloud.
+
+\begin{itemize}
+    \item \textbf{Tầng Presentation:}
+    \begin{itemize}
+        \item \textbf{Controllers:} `TripController`, `TripBloc` quản lý luồng dữ liệu chuyến đi, phản hồi tiến trình tải lên.
+        \item \textbf{Pages:} `TripManagerPage` (hiển thị danh sách lịch sử hành trình), `TripDetailPage` (xem chi tiết tọa độ và video).
+    \end{itemize}
+    
+    \item \textbf{Tầng Domain:}
+    \begin{itemize}
+        \item \textbf{Entities:} `Trip` (Hành trình), `MediaFile` (Tệp đính kèm).
+        \item \textbf{Use Cases:} `CreateTrip`, `GetAllTrips`, `DeleteTrip`.
+    \end{itemize}
+    
+    \item \textbf{Tầng Data:} Cài đặt kho dữ liệu đa nguồn thông qua `TripRepositoryImpl`. Kết nối với 3 DataSources: `TripLocalDataSource` (Lưu trữ offline SQLite), `FirestoreDataSource` (Đồng bộ siêu dữ liệu chuyến đi), và `GoogleDriveDataSource` (Tải lên và quản lý lưu trữ video/hình ảnh).
+\end{itemize}
+
+\subsection{Thiết kế chi tiết gói Map (Bản đồ và Điều hướng)}
+Gói `map` xử lý chức năng hiển thị bản đồ tĩnh/động, tìm kiếm địa điểm và cung cấp luồng dẫn đường (Turn-by-turn navigation).
+\begin{itemize}
+    \item \textbf{Tầng Presentation:}
+    \begin{itemize}
+        \item \textbf{Controllers/BLoC:} `MapHomeController` (chỉ đạo trạng thái bản đồ), `MapHomeBloc`, `NavigationController` (quản lý lộ trình dẫn đường).
+        \item \textbf{Pages:} `MapHomePage`, `SettingsPage`.
+        \item \textbf{Widgets:} `MapSearchBar`, `MapPlaceSheet`, `DayNightScene` (giao diện sáng/tối), `StaticMapWidget`, `MapNavigationPanel`, `MapNavigationTopBar`, `ChatAssistantOverlay`.
+    \end{itemize}
+    \item \textbf{Tầng Domain:} Các Use Cases: `GetStaticMapRoute` để lấy dữ liệu đường đi.
+\end{itemize}
+
+
+
+
+\section{Thiết kế giao diện}
+
+Bảng dưới đây mô tả các thuộc tính tiêu chuẩn chung cho giao diện của ứng dụng trên thiết bị di động:
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|l|l|}
+        \hline
+        \textbf{Thuộc tính} & \textbf{Giá trị} \\
+        \hline
+        Nền tảng & Android / iOS (Ứng dụng di động) \\
+        Độ phân giải tối ưu & Tương thích kích thước màn hình điện thoại phổ thông \\
+        Màu chủ đạo & Xanh, Trắng, Đen (Hỗ trợ Dark Mode tự động) \\
+        Ngôn ngữ & Tiếng Việt / Tiếng Anh \\
+        Bố cục chính & Toàn màn hình (Full screen) với các thanh công cụ nổi (Floating) \\
+        \hline
+    \end{tabular}
+    \caption{Bảng thông tin giao diện màn hình}
+    \label{tab:thong_tin_giao_dien}
+\end{table}
+
+\subsection{Thiết kế giao diện Bản đồ chính (Map Home)}
+Giao diện hiển thị bản đồ trực quan với thanh tìm kiếm địa điểm ở trên cùng. Tích hợp thanh menu (Drawer) để truy cập nhanh các tính năng khác như Quản lý hành trình, Quản lý vệ tinh. Màn hình cung cấp nút bấm để người dùng định vị bản thân (Center Map) và bắt đầu tìm đường.
+
+\subsection{Thiết kế giao diện Dẫn đường (Navigation Vision)}
+Đây là màn hình quan trọng nhất của hệ thống. Giao diện được chia bố cục dạng Picture-in-Picture hoặc chia đôi (Split View): Màn hình chính hiển thị luồng Camera theo thời gian thực có vẽ đè các lưới Tracking, Vector và Bounding Box (ADAS). Phía trên có thẻ cảnh báo (Turn Instruction Card) hiển thị chỉ dẫn rẽ to, rõ ràng. Một góc màn hình sẽ hiển thị bản đồ nhỏ (Mini-map) với lộ trình tổng quan.
+
+\subsection{Thiết kế giao diện Quản lý Hành trình (Trip Manager)}
+Màn hình này hiển thị danh sách các chuyến đi đã thực hiện dưới dạng thẻ (Card), bao gồm thời gian, quãng đường, địa điểm bắt đầu/kết thúc và trạng thái đồng bộ (biểu tượng Cloud). Khi bấm vào một thẻ, hệ thống chuyển sang màn hình Chi tiết chuyến đi (Trip Detail) cho phép người dùng xem lại bản đồ lộ trình đã đi và phát lại (Playback) đoạn video Dashcam đã lưu cục bộ hoặc phát từ Cloud.
+
+\subsection{Thiết kế giao diện Phân tích Vệ tinh (Satellite Analysis)}
+Giao diện kỹ thuật hiển thị trực quan không gian 3D quả địa cầu và quỹ đạo của các vệ tinh đang bay quanh trái đất dựa trên dữ liệu GNSS thu thập được. Giúp người dùng hoặc kỹ sư kiểm tra trạng thái tín hiệu (C/N0), vị trí vệ tinh để đánh giá mức độ tin cậy của GPS tại thời điểm hiện tại.
+
+
+\section{Thiết kế cơ sở dữ liệu}
+Hệ thống sử dụng cơ sở dữ liệu cục bộ (Local DB) kết hợp với Firebase Firestore. Dưới đây là thiết kế các bảng chính liên quan đến tính năng quản lý chuyến đi và phân tích hệ thống:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|l|l|}
+\hline
+\textbf{STT} & \textbf{Tên bảng/Collection}  & \textbf{Mô tả}                                \\ \hline
+1            & users                        & Lưu thông tin tài khoản người dùng (Firebase Auth) \\ \hline
+2            & trips                        & Lưu thông tin lịch sử các chuyến đi           \\ \hline
+3            & media\_files                 & Lưu thông tin các tệp video/hình ảnh Dashcam  \\ \hline
+\end{tabular}
+\caption{Mô tả các thực thể dữ liệu chính}
+\end{table}
+
+\subsection{Bảng Trips}
+Bảng `trips` lưu trữ thông tin không gian và thời gian của mỗi hành trình mà người dùng thực hiện.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|l|l|l|}
+\hline
+\textbf{STT} & \textbf{Tên trường}   & \textbf{Kiểu dữ liệu} & \textbf{Mô tả}                              \\ \hline
+1            & id                    & String               & Khóa chính định danh chuyến đi (UUID) \\ \hline
+2            & user\_id              & String               & Mã định danh người dùng sở hữu \\ \hline
+3            & start\_time           & DateTime             & Thời điểm bắt đầu chuyến đi \\ \hline
+4            & end\_time             & DateTime             & Thời điểm kết thúc chuyến đi \\ \hline
+5            & start\_location       & String               & Tọa độ / Địa chỉ điểm xuất phát \\ \hline
+6            & end\_location         & String               & Tọa độ / Địa chỉ điểm đến \\ \hline
+7            & distance              & double               & Tổng quãng đường di chuyển (km) \\ \hline
+8            & is\_synced            & boolean              & Trạng thái đã đồng bộ Cloud hay chưa \\ \hline
+9            & created\_at           & DateTime             & Thời điểm tạo bản ghi \\ \hline
+\end{tabular}
+\caption{Cấu trúc bảng Trips (Hành trình)}
+\end{table}
+
+\subsection{Bảng Media\_Files}
+Bảng `media_files` quản lý các tệp phương tiện (video camera hành trình, ảnh chụp) sinh ra trong một chuyến đi cụ thể.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|l|l|l|}
+\hline
+\textbf{STT} & \textbf{Tên trường}   & \textbf{Kiểu dữ liệu} & \textbf{Mô tả}                              \\ \hline
+1            & id                    & String               & Khóa chính định danh tệp (UUID) \\ \hline
+2            & trip\_id              & String               & Khóa ngoại, tham chiếu đến bảng Trips \\ \hline
+3            & file\_path            & String               & Đường dẫn lưu trữ cục bộ trên thiết bị \\ \hline
+4            & cloud\_url            & String               & URL truy cập trên Google Drive sau khi Upload \\ \hline
+5            & file\_type            & String               & Loại phương tiện (ví dụ: 'video', 'image') \\ \hline
+6            & created\_at           & DateTime             & Thời điểm tạo tệp \\ \hline
+\end{tabular}
+\caption{Cấu trúc bảng Media\_Files (Tệp đa phương tiện)}
+\end{table}
+
+\end{document}

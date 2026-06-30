@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui';
 import 'package:equatable/equatable.dart';
+import '../../domain/entities/frame_result.dart';
 
 class ObstacleModel extends Equatable {
   final Rect boundingBox;
@@ -69,6 +70,9 @@ class FrameResultModel extends Equatable {
   final double heading;
   final double speed;
   final Size imageSize;
+  final TrackingMode trackingMode;
+  final Rect? trackedBoundingBox;
+  final String? relativeWarning;
 
   const FrameResultModel({
     this.imageBytes,
@@ -78,6 +82,9 @@ class FrameResultModel extends Equatable {
     required this.heading,
     required this.speed,
     required this.imageSize,
+    this.trackingMode = TrackingMode.environment,
+    this.trackedBoundingBox,
+    this.relativeWarning,
   });
 
   @override
@@ -88,5 +95,8 @@ class FrameResultModel extends Equatable {
     heading,
     speed,
     imageSize,
+    trackingMode,
+    trackedBoundingBox,
+    relativeWarning,
   ];
 }

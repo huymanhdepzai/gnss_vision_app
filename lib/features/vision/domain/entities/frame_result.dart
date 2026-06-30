@@ -3,6 +3,8 @@ import 'package:equatable/equatable.dart';
 import 'motion_vector.dart';
 import 'obstacle.dart';
 
+enum TrackingMode { environment, objectFocus }
+
 class FrameResult extends Equatable {
   final List<Offset> trackedPoints;
   final MotionVector motionVector;
@@ -13,6 +15,9 @@ class FrameResult extends Equatable {
   final bool isModelLoaded;
   final bool voiceEnabled;
   final Duration timestamp;
+  final TrackingMode trackingMode;
+  final Rect? trackedBoundingBox;
+  final String? relativeWarning;
 
   const FrameResult({
     required this.trackedPoints,
@@ -24,6 +29,9 @@ class FrameResult extends Equatable {
     required this.isModelLoaded,
     required this.voiceEnabled,
     required this.timestamp,
+    this.trackingMode = TrackingMode.environment,
+    this.trackedBoundingBox,
+    this.relativeWarning,
   });
 
   FrameResult copyWith({
@@ -36,6 +44,9 @@ class FrameResult extends Equatable {
     bool? isModelLoaded,
     bool? voiceEnabled,
     Duration? timestamp,
+    TrackingMode? trackingMode,
+    Rect? trackedBoundingBox,
+    String? relativeWarning,
   }) {
     return FrameResult(
       trackedPoints: trackedPoints ?? this.trackedPoints,
@@ -47,6 +58,9 @@ class FrameResult extends Equatable {
       isModelLoaded: isModelLoaded ?? this.isModelLoaded,
       voiceEnabled: voiceEnabled ?? this.voiceEnabled,
       timestamp: timestamp ?? this.timestamp,
+      trackingMode: trackingMode ?? this.trackingMode,
+      trackedBoundingBox: trackedBoundingBox ?? this.trackedBoundingBox,
+      relativeWarning: relativeWarning ?? this.relativeWarning,
     );
   }
 
@@ -61,5 +75,8 @@ class FrameResult extends Equatable {
     isModelLoaded,
     voiceEnabled,
     timestamp,
+    trackingMode,
+    trackedBoundingBox,
+    relativeWarning,
   ];
 }

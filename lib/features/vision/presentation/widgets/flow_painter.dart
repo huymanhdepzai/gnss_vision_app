@@ -11,6 +11,7 @@ class FlowPainter extends CustomPainter {
   final bool isDebugMode;
   final double? confidence;
   final Offset? moveVector;
+  final Rect? targetBox;
 
   FlowPainter({
     required this.points,
@@ -20,6 +21,7 @@ class FlowPainter extends CustomPainter {
     this.isDebugMode = false,
     this.confidence,
     this.moveVector,
+    this.targetBox,
   });
 
   @override
@@ -50,6 +52,7 @@ class FlowPainter extends CustomPainter {
     _drawDebugGrid(canvas, size, scaleX, scaleY, offsetX, offsetY);
     _drawObstacles(canvas, size, scaleX, scaleY, offsetX, offsetY);
     _drawTrackingPoints(canvas, size, scaleX, scaleY, offsetX, offsetY);
+    _drawTargetBox(canvas, size, scaleX, scaleY, offsetX, offsetY);
     _drawMotionVector(canvas, size, scaleX, scaleY, offsetX, offsetY);
     _drawConfidenceIndicator(canvas, size);
   }
@@ -242,6 +245,83 @@ class FlowPainter extends CustomPainter {
     }
   }
 
+  void _drawTargetBox(
+    Canvas canvas,
+    Size size,
+    double scaleX,
+    double scaleY,
+    double dx,
+    double dy,
+  ) {
+    if (targetBox == null) return;
+
+    Rect scaledBox = Rect.fromLTRB(
+      targetBox!.left * scaleX + dx,
+      targetBox!.top * scaleY + dy,
+      targetBox!.right * scaleX + dx,
+      targetBox!.bottom * scaleY + dy,
+    );
+
+    // Glow Effect
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(scaledBox, const Radius.circular(8)),
+      Paint()
+        ..color = Colors.greenAccent.withOpacity(0.6)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+    );
+
+    // Border
+    final borderPaint = Paint()
+      ..color = Colors.greenAccent
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0;
+    canvas.drawRRect(RRect.fromRectAndRadius(scaledBox, const Radius.circular(8)), borderPaint);
+
+    // Corner emphasis
+    final cornerPaint = Paint()
+      ..color = Colors.greenAccent
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+
+    final len = (scaledBox.width * 0.2).clamp(10.0, 30.0);
+    
+    // Top-Left
+    canvas.drawLine(Offset(scaledBox.left, scaledBox.top + len), Offset(scaledBox.left, scaledBox.top), cornerPaint);
+    canvas.drawLine(Offset(scaledBox.left, scaledBox.top), Offset(scaledBox.left + len, scaledBox.top), cornerPaint);
+    
+    // Top-Right
+    canvas.drawLine(Offset(scaledBox.right - len, scaledBox.top), Offset(scaledBox.right, scaledBox.top), cornerPaint);
+    canvas.drawLine(Offset(scaledBox.right, scaledBox.top), Offset(scaledBox.right, scaledBox.top + len), cornerPaint);
+    
+    // Bottom-Left
+    canvas.drawLine(Offset(scaledBox.left, scaledBox.bottom - len), Offset(scaledBox.left, scaledBox.bottom), cornerPaint);
+    canvas.drawLine(Offset(scaledBox.left, scaledBox.bottom), Offset(scaledBox.left + len, scaledBox.bottom), cornerPaint);
+    
+    // Bottom-Right
+    canvas.drawLine(Offset(scaledBox.right - len, scaledBox.bottom), Offset(scaledBox.right, scaledBox.bottom), cornerPaint);
+    canvas.drawLine(Offset(scaledBox.right, scaledBox.bottom), Offset(scaledBox.right, scaledBox.bottom - len), cornerPaint);
+
+    // Label TARGET LOCKED
+    final textPainter = TextPainter(
+      text: const TextSpan(
+        text: ' ĐÃ CHỌN ',
+        style: TextStyle(
+          color: Colors.black,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          backgroundColor: Colors.greenAccent,
+          letterSpacing: 1.2,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(canvas, Offset(scaledBox.center.dx - textPainter.width / 2, scaledBox.top - textPainter.height - 5));
+  }
+
   void _drawMotionVector(
     Canvas canvas,
     Size size,
@@ -340,13 +420,72 @@ class DirectionArrowPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
+    final radius = math.min(size.width, size.height) / 2;
 
     _drawFuturisticGlow(canvas, center, radius);
+    _drawCompassRing(canvas, center, radius);
     _drawMainArrow(canvas, center, radius);
     if (showPath && turnIntensity.abs() > 0.05) {
       _drawDynamicPath(canvas, center, radius);
     }
+  }
+
+  void _drawCompassRing(Canvas canvas, Offset center, double radius) {
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    
+    // Outer subtle ring
+    canvas.drawCircle(Offset.zero, radius, Paint()..color = Colors.white.withOpacity(0.1)..style = PaintingStyle.stroke..strokeWidth = 1);
+    
+    // Draw 36 ticks for a 360-degree compass
+    for (int i = 0; i < 36; i++) {
+      final isMajor = i % 9 == 0;
+      final tickLength = isMajor ? 12.0 : 6.0;
+      final tickPaint = Paint()
+        ..color = isMajor ? accentColor : Colors.white.withOpacity(0.4)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = isMajor ? 3 : 1.5;
+
+      canvas.drawLine(
+        Offset(0, -radius),
+        Offset(0, -radius + tickLength),
+        tickPaint,
+      );
+      
+      // Draw N, E, S, W labels
+      if (isMajor) {
+        final text = i == 0 ? "N" : i == 9 ? "E" : i == 18 ? "S" : "W";
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: text,
+            style: TextStyle(
+              color: i == 0 ? Colors.orangeAccent : Colors.white.withOpacity(0.8),
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        );
+        textPainter.layout();
+        // Prevent text from rotating upside down by saving canvas
+        canvas.save();
+        canvas.translate(0, -radius + 20);
+        // The text is already upright because we only rotate the canvas around the center to position the tick,
+        // wait, if we rotate the canvas to draw the tick, the text will be rotated!
+        // To draw upright text, we need to undo the rotation, or just draw it!
+        // Since it's a dynamic compass, text rotating with the tick is fine for a cohesive look.
+        canvas.translate(-textPainter.width / 2, -textPainter.height / 2);
+        textPainter.paint(canvas, Offset.zero);
+        canvas.restore();
+      }
+      
+      canvas.rotate(10 * math.pi / 180);
+    }
+    
+    // Inner solid ring
+    canvas.drawCircle(Offset.zero, radius * 0.65, Paint()..color = Colors.white.withOpacity(0.05)..style = PaintingStyle.stroke..strokeWidth = 2);
+
+    canvas.restore();
   }
 
   void _drawFuturisticGlow(Canvas canvas, Offset center, double radius) {
@@ -367,12 +506,20 @@ class DirectionArrowPainter extends CustomPainter {
     final arrowSize = radius * 0.8;
     final arrowWidth = arrowSize * 0.4;
 
-    // Bold, sleek arrow shape
+    // Bold, sleek arrow shape (Compass Needle)
     arrowPath.moveTo(0, -arrowSize);
-    arrowPath.lineTo(arrowWidth, arrowSize * 0.2);
-    arrowPath.lineTo(0, 0); // Inner notch
-    arrowPath.lineTo(-arrowWidth, arrowSize * 0.2);
+    arrowPath.lineTo(arrowWidth, arrowSize * 0.4);
+    arrowPath.lineTo(0, arrowSize * 0.1); // Inner notch
+    arrowPath.lineTo(-arrowWidth, arrowSize * 0.4);
     arrowPath.close();
+
+    // Draw a small tail for the compass needle
+    final tailPath = Path();
+    tailPath.moveTo(0, arrowSize * 0.8);
+    tailPath.lineTo(arrowWidth * 0.4, arrowSize * 0.2);
+    tailPath.lineTo(0, arrowSize * 0.1);
+    tailPath.lineTo(-arrowWidth * 0.4, arrowSize * 0.2);
+    tailPath.close();
 
     canvas.save();
     canvas.translate(center.dx, center.dy);
@@ -398,41 +545,86 @@ class DirectionArrowPainter extends CustomPainter {
 
     // Strong Border
     final borderPaint = Paint()
-      ..color = Colors.white.withOpacity(0.8)
+      ..color = Colors.white.withOpacity(0.9)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round;
+      ..strokeWidth = 2
+      ..strokeJoin = StrokeJoin.round;
     canvas.drawPath(arrowPath, borderPaint);
+
+    // Draw Tail
+    final tailPaint = Paint()..color = Colors.white.withOpacity(0.4);
+    canvas.drawPath(tailPath, tailPaint);
+    canvas.drawPath(tailPath, borderPaint);
+    
+    // Center pivot dot
+    canvas.drawCircle(Offset(0, arrowSize * 0.1), 4, Paint()..color = Colors.white);
 
     canvas.restore();
   }
 
   void _drawDynamicPath(Canvas canvas, Offset center, double radius) {
-    final pathPaint = Paint()
-      ..color = turnIntensity.abs() > 0.4 ? Colors.orangeAccent : accentColor
+    if (turnIntensity.abs() < 0.1) return;
+
+    // FIX: turnIntensity > 0 means features move right -> camera turns LEFT.
+    final isLeft = turnIntensity > 0;
+    final color = turnIntensity.abs() > 0.4 ? Colors.orangeAccent : accentColor;
+    final chevronPaint = Paint()
+      ..color = color
       ..style = PaintingStyle.stroke
       ..strokeWidth = 6
       ..strokeCap = StrokeCap.round;
 
-    final arcRect = Rect.fromCircle(center: center, radius: radius * 0.6);
-    final sweepAngle = (turnIntensity * 90) * math.pi / 180;
-    
-    // Draw a bold arc representing the turn direction
-    canvas.drawArc(
-      arcRect,
-      -math.pi / 2,
-      sweepAngle,
-      false,
-      pathPaint..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+
+    // Draw 3 chevrons
+    for (int i = 0; i < 3; i++) {
+      final chevronPath = Path();
+      double offset = isLeft ? -radius * 0.5 - (i * 18) : radius * 0.5 + (i * 18);
+      
+      chevronPath.moveTo(offset + (isLeft ? 12 : -12), -15);
+      chevronPath.lineTo(offset, 0);
+      chevronPath.lineTo(offset + (isLeft ? 12 : -12), 15);
+
+      // Fade out outer chevrons
+      chevronPaint.color = color.withOpacity(1.0 - (i * 0.25));
+      
+      // Glow
+      canvas.drawPath(
+        chevronPath, 
+        Paint()
+          ..color = color.withOpacity(0.5 - (i * 0.15))
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 10
+          ..strokeCap = StrokeCap.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8)
+      );
+      
+      canvas.drawPath(chevronPath, chevronPaint);
+    }
+
+    // Draw Text "RẼ TRÁI" / "RẼ PHẢI"
+    final text = isLeft ? "RẼ TRÁI" : "RẼ PHẢI";
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontSize: 16,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 2.0,
+          shadows: [
+            Shadow(color: color.withOpacity(0.5), blurRadius: 8),
+          ],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
     );
-    
-    canvas.drawArc(
-      arcRect,
-      -math.pi / 2,
-      sweepAngle,
-      false,
-      pathPaint..maskFilter = null,
-    );
+    textPainter.layout();
+    double textX = isLeft ? -radius * 0.5 - 60 - textPainter.width / 2 : radius * 0.5 + 60 - textPainter.width / 2;
+    textPainter.paint(canvas, Offset(textX, -textPainter.height / 2 - 30));
+
+    canvas.restore();
   }
 
   @override

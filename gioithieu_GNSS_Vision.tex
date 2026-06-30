@@ -1,0 +1,160 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+\section{Đặt vấn đề}
+\label{section:1.1}
+Trong môi trường đô thị hiện đại, các ứng dụng dẫn đường trên thiết bị di động đóng vai trò vô cùng quan trọng đối với phương tiện tham gia giao thông. Tuy nhiên, các hệ thống này phần lớn dựa vào tín hiệu từ Hệ thống định vị toàn cầu (GNSS/GPS), vốn gặp nhiều hạn chế nghiêm trọng. Tại các khu vực đô thị phức tạp với mật độ tòa nhà cao tầng dày đặc, hầm chui hay tán cây rậm rạp, hiện tượng hiệu ứng đa đường (multipath effect) và việc bị che khuất hoàn toàn tín hiệu vệ tinh diễn ra thường xuyên. Điều này dẫn đến tình trạng sai lệch vị trí nghiêm trọng, hướng đi không ổn định hoặc mất kết nối định vị, gây ra không ít khó khăn và nguy hiểm tiềm tàng cho người lái xe.
+
+Sự phụ thuộc đơn lẻ vào GNSS không còn đáp ứng được yêu cầu về độ chính xác và tính liên tục trong định vị hiện đại. Thực tế này đòi hỏi một hướng tiếp cận mới, tận dụng tối đa sức mạnh phần cứng của thiết bị di động. Hiện nay, điện thoại thông minh đều được trang bị hệ thống camera độ phân giải cao cùng các cảm biến quán tính (IMU) nhạy bén. Tuy nhiên, nguồn dữ liệu dồi dào từ các cảm biến này lại chưa được khai thác triệt để trong các bài toán dẫn đường thông thường. 
+
+Do đó, việc nghiên cứu và xây dựng một hệ thống dẫn đường thông minh tích hợp dữ liệu từ nhiều nguồn cảm biến (Multi-sensor Fusion) là vô cùng cần thiết. Bằng cách kết hợp GNSS, IMU và đặc biệt là ứng dụng Thị giác máy tính (Computer Vision) thông qua camera, hệ thống có khả năng tự động bù đắp các sai số định vị, nhận thức môi trường xung quanh, từ đó duy trì khả năng điều hướng mượt mà và chính xác ngay cả khi tín hiệu GPS gặp sự cố. Nếu giải quyết hiệu quả bài toán hợp nhất cảm biến này, người dùng sẽ có được một trải nghiệm dẫn đường tin cậy và an toàn hơn đáng kể.
+
+Mặc dù có nhiều nghiên cứu về Thị giác máy tính và hợp nhất cảm biến, việc đưa các công nghệ này (như mô hình AI, xử lý ảnh phức tạp) hoạt động mượt mà trên thiết bị di động có tài nguyên giới hạn lại là một thách thức lớn. Các giải pháp bản đồ truyền thống chưa được tối ưu hóa để kết hợp song song với phân tích hình ảnh thời gian thực. Vì vậy, việc phát triển một ứng dụng dẫn đường toàn diện, có khả năng xử lý đồng thời phân tích không gian từ camera và định vị vệ tinh trên thiết bị di động là mục tiêu thực tiễn và cấp thiết.
+
+\section{Mục tiêu và phạm vi đề tài}
+\label{section:1.2}
+Đề tài này hướng tới mục tiêu chính là nghiên cứu, thiết kế và xây dựng một "Hệ thống hỗ trợ dẫn đường thông minh tích hợp đa cảm biến (GNSS-Vision Navigation Assistant)", nhằm khắc phục các điểm yếu của hệ thống định vị truyền thống. Hệ thống sẽ tập trung vào việc cung cấp giải pháp điều hướng chính xác, liên tục và trực quan cho người dùng trong môi trường đô thị.
+
+Các chức năng và mục tiêu cụ thể của hệ thống bao gồm:
+\begin{itemize}
+    \item Xây dựng ứng dụng dẫn đường đa nền tảng trên thiết bị di động với giao diện bản đồ 3D tương tác.
+    \item Tích hợp dữ liệu từ hệ thống định vị vệ tinh (GNSS) và cảm biến quán tính (IMU) để theo dõi chuyển động.
+    \item Ứng dụng kỹ thuật Thị giác máy tính (cụ thể là thuật toán Optical Flow) thông qua camera để ước lượng hướng và tốc độ di chuyển (Visual Odometry).
+    \item Tích hợp mô hình Deep Learning để nhận diện các phương tiện giao thông (ô tô, xe máy, người đi bộ...), từ đó tạo ra "vùng cấm động" nhằm loại bỏ nhiễu cho thuật toán Thị giác máy tính.
+    \item Xây dựng bộ lọc hợp nhất cảm biến (Sensor Fusion) có khả năng tự động điều chỉnh trọng số tin cậy giữa GPS, Vision và IMU dựa trên chất lượng tín hiệu.
+    \item Cung cấp chế độ dẫn đường Thực tế tăng cường (AR Navigation) để tăng tính trực quan.
+    \item Tối ưu hóa hiệu năng xử lý đa luồng trên thiết bị di động, đảm bảo ứng dụng hoạt động mượt mà (real-time) mà không tiêu tốn quá mức tài nguyên pin và phần cứng.
+\end{itemize}
+
+Phạm vi của đề tài sẽ tập trung vào việc phát triển ứng dụng di động bằng framework Flutter, thử nghiệm chủ yếu trên nền tảng Android. Hệ thống sử dụng Mapbox Maps SDK kết hợp Goong API cho dữ liệu bản đồ và định tuyến tại Việt Nam. Phân hệ Thị giác máy tính sử dụng OpenCV C++ và mô hình YOLOv8n chạy trên môi trường TensorFlow Lite. Môi trường thử nghiệm và đánh giá hệ thống được giới hạn trong các tuyến đường đô thị có tình trạng tín hiệu GPS từ tốt đến kém hoặc mất hoàn toàn.
+
+\section{Định hướng giải pháp}
+\label{section:1.3}
+
+Để đạt được mục tiêu đã trình bày ở mục~\ref{section:1.2}, hệ thống được thiết kế dựa trên kiến trúc hợp nhất đa cảm biến với khả năng xử lý song song trên thiết bị di động. 
+
+\begin{enumerate}
+    \item [(i)] \textbf{Công nghệ và phương pháp tiếp cận:}
+    Hệ thống sẽ được xây dựng trên nền tảng framework Flutter nhằm đảm bảo tính linh hoạt, hỗ trợ phát triển đa nền tảng với hiệu năng cao. Để giải quyết bài toán bù đắp sai số định vị, hệ thống tiếp cận theo hướng Hợp nhất cảm biến (Sensor Fusion). Điểm nhấn của phương pháp là việc sử dụng Thị giác máy tính, cụ thể là thuật toán Optical Flow (Lucas-Kanade) qua thư viện OpenCV để đo lường chuyển động (Visual Odometry) từ mặt đường. Nhằm ngăn chặn thuật toán phân tích sai do các phương tiện đang di chuyển, mạng neural YOLOv8 được ứng dụng để phát hiện và loại trừ các "vùng cấm động". Dữ liệu bản đồ được kết xuất bằng Mapbox kết hợp API tối ưu cục bộ từ Goong. Để duy trì hiệu năng, toàn bộ kiến trúc xử lý được phân tách thành các luồng (Isolates) độc lập, đảm bảo giao diện không bị gián đoạn bởi các tác vụ tính toán nặng.
+    
+    \item [(ii)] \textbf{Mô tả giải pháp:}
+    Giải pháp là một ứng dụng di động tích hợp bản đồ 3D và camera theo thời gian thực. Hệ thống liên tục thu thập tọa độ từ chip GNSS. Khi phát hiện độ chính xác của GPS giảm sút qua một ngưỡng nhất định, một Bộ lọc trọng số thích ứng (Adaptive Weighting Filter) sẽ tự động kích hoạt, lấy dữ liệu vận tốc và hướng di chuyển từ mô đun xử lý hình ảnh (Vision Module) kết hợp với cảm biến quán tính (IMU) để duy trì lộ trình một cách mượt mà và chính xác, thay thế tạm thời vai trò của GPS.
+
+    \item [(iii)] \textbf{Đóng góp chính và kết quả dự kiến:}
+    Đóng góp chính của đồ án là việc hiện thực hóa thành công một hệ thống dẫn đường kết hợp AI và Thị giác máy tính hoạt động hoàn toàn trên thiết bị di động (edge computing). Cụ thể, đồ án sẽ:
+    \begin{itemize}
+        \item Xây dựng kiến trúc đa luồng hiệu quả (Flutter Isolates) để chạy song song bản đồ vector, thuật toán nhận diện vật thể YOLOv8 và phân tích hình ảnh OpenCV mà không gây tắc nghẽn hệ thống.
+        \item Đề xuất và triển khai giải pháp kết hợp "Dynamic Forbidden Zones" (vùng cấm động) bằng AI để tăng độ chính xác đáng kể cho thuật toán Visual Odometry trong điều kiện giao thông phức tạp.
+        \item Phát triển bộ lọc đánh giá độ tin cậy của cảm biến, cho phép chuyển đổi mượt mà giữa dữ liệu GPS và dữ liệu từ Camera.
+        \item Cung cấp một giao diện AR Navigation thân thiện, giúp trực quan hóa quy trình dẫn đường.
+    \end{itemize}
+
+    Việc phát triển hệ thống này đòi hỏi khả năng tích hợp sâu giữa lập trình ứng dụng di động (Dart), lập trình C++ (OpenCV FFI), và vận hành mô hình học máy (TFLite). Đồng thời, việc tối ưu hóa quản lý bộ nhớ và khung hình (framerate) là một thách thức kỹ thuật quan trọng.
+
+    So với các ứng dụng bản đồ thông thường, giải pháp trong đồ án này mang lại lợi thế vượt trội khi có thể "sống sót" trong các vùng mù GPS (như đường hầm), tận dụng sức mạnh tính toán nội tại của điện thoại thay vì phụ thuộc hoàn toàn vào tín hiệu bên ngoài. Kết quả cuối cùng là một phần mềm có độ trễ thấp, hoạt động ổn định và sẵn sàng ứng dụng vào thực tế.
+\end{enumerate}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    >=Stealth,
+    node distance=1.5cm and 2cm,
+    layer_box/.style={draw, thick, rounded corners, inner sep=10pt, fill=blue!5},
+    block/.style={draw, rectangle, rounded corners, minimum width=2.5cm, minimum height=1cm, align=center, fill=white, font=\footnotesize},
+    sensor/.style={draw, ellipse, minimum width=2cm, minimum height=0.8cm, align=center, fill=orange!20, font=\footnotesize},
+    service/.style={draw, cylinder, shape border rotate=90, aspect=0.25, minimum width=2cm, minimum height=1cm, align=center, fill=green!20, font=\footnotesize}
+]
+
+% 1. SENSORS LAYER
+\node[sensor] (cam) {Camera};
+\node[sensor, right=0.5cm of cam] (gps) {GNSS/GPS};
+\node[sensor, right=0.5cm of gps] (imu) {IMU};
+\node[sensor, right=0.5cm of imu] (mic) {Microphone};
+
+\begin{scope}[on background layer]
+    \node[layer_box, fit=(cam) (gps) (imu) (mic), label={[font=\bfseries]above:Hardware \& Sensors}] (sensor_layer) {};
+\end{scope}
+
+% 2. FLUTTER APP (CLEAN ARCHITECTURE) LAYER
+% DATA
+\node[block, below=2cm of cam] (ffi) {C++ FFI \\ (OpenCV)};
+\node[block, right=0.5cm of ffi] (local) {Local Data \\ (SQLite/Isar)};
+\node[block, right=0.5cm of local] (api) {Network \\ Repositories};
+
+\begin{scope}[on background layer]
+    \node[layer_box, fit=(ffi) (local) (api), fill=yellow!10, label={[font=\bfseries]left:Data Layer}] (data_layer) {};
+\end{scope}
+
+% DOMAIN
+\node[block, below=1.5cm of ffi] (cv) {Optical Flow \\ \& YOLOv8};
+\node[block, right=0.5cm of cv] (fusion) {Sensor Fusion \\ (Kalman)};
+\node[block, right=0.5cm of fusion] (core) {Routing \& \\ Trip Manager};
+
+\begin{scope}[on background layer]
+    \node[layer_box, fit=(cv) (fusion) (core), fill=yellow!10, label={[font=\bfseries]left:Domain Layer}] (domain_layer) {};
+\end{scope}
+
+% PRESENTATION
+\node[block, below=1.5cm of fusion] (bloc) {BLoC / State Management};
+\node[block, below=1cm of bloc] (ui) {Flutter UI (Map, 3D Globe, Camera)};
+
+\begin{scope}[on background layer]
+    \node[layer_box, fit=(bloc) (ui), fill=yellow!10, label={[font=\bfseries]left:Presentation Layer}] (pres_layer) {};
+\end{scope}
+
+% App Boundary
+\begin{scope}[on background layer]
+    \node[draw, thick, dashed, inner sep=15pt, fit=(data_layer) (domain_layer) (pres_layer), label={[font=\bfseries, text=blue!70!black]above:Flutter Mobile Application}] (app_layer) {};
+\end{scope}
+
+% 3. EXTERNAL SERVICES LAYER
+\node[service, right=3cm of core] (firebase) {Firebase \& \\ GDrive};
+\node[service, above=0.5cm of firebase] (map) {Mapbox \& \\ Goong API};
+\node[service, below=0.5cm of firebase] (tele) {Telegram \\ Bot API};
+
+\begin{scope}[on background layer]
+    \node[layer_box, fit=(map) (firebase) (tele), fill=green!5, label={[font=\bfseries]above:Cloud Services}] (cloud_layer) {};
+\end{scope}
+
+% ARROWS
+\draw[->] (cam) -- (ffi);
+\draw[->] (gps) -- (fusion);
+\draw[->] (imu) -- (fusion);
+\draw[->] (mic) -- (core);
+
+\draw[<->] (ffi) -- (cv);
+\draw[<->] (local) -- (fusion);
+\draw[<->] (local) -- (core);
+\draw[<->] (api) -- (core);
+
+\draw[<->] (cv) -- (bloc);
+\draw[<->] (fusion) -- (bloc);
+\draw[<->] (core) -- (bloc);
+
+\draw[<->] (bloc) -- (ui);
+
+\draw[<->] (api) edge[out=0, in=180] (map);
+\draw[<->] (api) edge[out=0, in=180] (firebase);
+\draw[<->] (api) edge[out=0, in=180] (tele);
+
+\end{tikzpicture}
+\caption{Sơ đồ tổng quan kiến trúc hệ thống GNSS-Vision Navigation}
+\label{fig:system_architecture}
+\end{figure}
+
+\section{Bố cục đồ án}
+\label{section:1.4}
+
+Phần còn lại của báo cáo đồ án tốt nghiệp này được tổ chức như sau:
+
+Chương 2 - \textbf{Cơ sở lý thuyết} - trình bày tổng quan về hệ thống định vị GNSS, các hạn chế trong môi trường đô thị. Chương này cũng đi sâu vào cơ sở lý thuyết của Thị giác máy tính (thuật toán Optical Flow), mạng nơ-ron tích chập (mô hình YOLOv8) và lý thuyết về Hợp nhất cảm biến (Sensor Fusion).
+
+Chương 3 - \textbf{Phân tích và Thiết kế hệ thống} - trình bày kiến trúc tổng thể của hệ thống, thiết kế các phân hệ chức năng lõi bao gồm: Module Bản đồ, Module Thị giác máy tính và Bộ lọc dữ liệu. Chương này cũng mô tả các luồng dữ liệu chính và thiết kế giao diện người dùng.
+
+Chương 4 - \textbf{Triển khai và Tối ưu hóa} - mô tả chi tiết quá trình cài đặt môi trường, tích hợp các công cụ (Flutter, OpenCV FFI, TFLite). Đặc biệt, chương này tập trung phân tích các giải pháp tối ưu hóa hiệu năng phần cứng trên thiết bị di động như kiến trúc Đa luồng (Isolates) và quản lý bộ nhớ.
+
+Chương 5 - \textbf{Kiểm thử và Đánh giá} - trình bày các kịch bản thử nghiệm trong điều kiện thực tế (tín hiệu GPS tốt và kém). Đưa ra các phân tích định lượng về độ chính xác của hệ thống, mức độ tiêu thụ tài nguyên và so sánh với phương pháp truyền thống.
+
+Chương 6 - \textbf{Kết luận} - tóm tắt những kết quả đã đạt được, đánh giá các điểm mạnh và những mặt còn hạn chế của giải pháp, đồng thời đề xuất những hướng phát triển trong tương lai để nâng cao chất lượng của ứng dụng.
+
+\end{document}

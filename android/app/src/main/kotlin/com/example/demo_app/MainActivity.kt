@@ -1,4 +1,4 @@
-package com.example.demo_app
+package com.hmanh.gnssvision
 
 import android.Manifest
 import android.content.pm.PackageManager

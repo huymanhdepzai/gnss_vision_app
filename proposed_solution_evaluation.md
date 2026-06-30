@@ -46,7 +46,28 @@
 
 ---
 
-## 4. Kết Luận & Định Hướng Viết Code
+## 4. Phân Tích Tính "Đúng/Sai" Của Kết Quả Điều Hướng Khi Bám Đối Tượng
+
+Về bản chất, việc chuyển sang track một vật thể đang di chuyển làm thay đổi hoàn toàn ý nghĩa của dữ liệu đầu ra:
+
+### A. Về mặt Định vị Tuyệt đối (Visual Odometry) -> KẾT QUẢ SAI
+Nếu tiếp tục dùng dữ liệu dịch chuyển của mục tiêu để đưa vào các công thức SLAM/Odometry tính toán chuyển động của chính xe mình (Ego-motion), kết quả sẽ **sai hoàn toàn**:
+* **Ảo giác đứng yên:** Nếu xe của bạn và xe phía trước chạy cùng một vận tốc, hệ thống điều hướng sẽ báo cáo xe bạn đang đứng yên.
+* **Đi lùi:** Nếu xe phía trước tăng tốc, hệ thống có thể hiểu nhầm là xe bạn đang lùi lại.
+* **Sai lệch quỹ đạo:** Các chuyển động lách né của xe phía trước sẽ bị tính nhầm thành chuyển động ngang của chính xe bạn.
+
+### B. Về mặt Bám đuôi (Adaptive Cruise Control / Leader Following) -> KẾT QUẢ ĐÚNG
+Nếu chuyển đổi mục tiêu bài toán sang "Tôi phải đi như thế nào để an toàn so với xe phía trước?", thông tin cung cấp lại **cực kỳ chính xác và hữu ích**:
+* **Chính xác về Khoảng cách (TTC - Time to Collision):** Dựa vào sự phình to/thu nhỏ của Bounding Box, hệ thống biết được khoảng cách tương đối đang thu hẹp hay giãn ra để đưa ra cảnh báo phanh/tăng tốc.
+* **Chính xác về Hướng đi tương đối (Relative Bearing):** Sự dịch chuyển tâm của Box sang trái/phải giúp hệ thống biết cần phải đánh lái như thế nào để tiếp tục bám theo quỹ đạo của "Leader".
+
+### C. Nguy cơ tiềm ẩn và Cách khắc phục
+* **Rủi ro:** Xe "Leader" đổi hướng đột ngột (rẽ vào hẻm) hoặc đi ngược chiều. Nếu mù quáng đi theo, kết quả điều hướng sẽ dẫn người dùng vào nguy hiểm.
+* **Giải pháp:** Cần thay đổi cách báo cáo thông tin (Feedback) cho người dùng. Ở chế độ này, hệ thống không nên báo cáo định vị tuyệt đối (ví dụ: "Bạn đang ở tọa độ X") mà nên chuyển sang báo cáo tương đối (ví dụ: "Đang bám theo xe phía trước", "Chú ý phanh"). Kết hợp với cơ chế **User-in-the-loop** (đã đề cập ở phần 1) để người dùng có thể can thiệp ngay lập tức khi phát hiện "Leader" đi sai đường.
+
+---
+
+## 5. Kết Luận & Định Hướng Viết Code
 
 Giải pháp này hoàn toàn khả thi và mang tính thực tiễn cao. Nó chuyển bài toán từ **Visual Odometry (tính toán tọa độ tuyệt đối)** sang **Target Following (Bám theo mục tiêu)** khi gặp điều kiện bất lợi.
 

@@ -274,6 +274,21 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
           },
           isSmallDevice: isSmallDevice,
         ),
+        const SizedBox(height: 12),
+        ValueListenableBuilder<bool>(
+          valueListenable: _flowController.autoFocusEnabledNotifier,
+          builder: (context, autoFocusEnabled, _) {
+            return _buildControlButton(
+              icon: autoFocusEnabled ? Icons.center_focus_strong_rounded : Icons.center_focus_weak_rounded,
+              isActive: autoFocusEnabled,
+              activeColor: AppTheme.primaryColor,
+              onTap: () {
+                _flowController.toggleAutoFocus();
+              },
+              isSmallDevice: isSmallDevice,
+            );
+          },
+        ),
       ],
     );
   }
@@ -344,20 +359,34 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
       return Stack(
         fit: StackFit.expand,
         children: [
-          CameraPreview(_flowController.cameraController!),
-          ValueListenableBuilder(
-            valueListenable: _flowController.headingNotifier,
-            builder: (context, heading, _) {
-              return CustomPaint(
-                painter: FlowPainter(
-                  points: _flowController.pointsToDraw,
-                  imageSize: _flowController.imageSize,
-                  staticRois: _flowController.staticRois,
-                  aiObstacles: _flowController.aiObstaclesNotifier.value,
-                  isDebugMode: _isDebugMode,
-                  confidence: null,
-                  moveVector: null,
-                ),
+          GestureDetector(
+            onTapDown: (details) {
+              _flowController.setTarget(
+                details.localPosition.dx,
+                details.localPosition.dy,
+              );
+            },
+            child: CameraPreview(_flowController.cameraController!),
+          ),
+          ValueListenableBuilder<Rect?>(
+            valueListenable: _flowController.targetBoxNotifier,
+            builder: (context, targetBox, _) {
+              return ValueListenableBuilder(
+                valueListenable: _flowController.headingNotifier,
+                builder: (context, heading, _) {
+                  return CustomPaint(
+                    painter: FlowPainter(
+                      points: _flowController.pointsToDraw,
+                      imageSize: _flowController.imageSize,
+                      staticRois: _flowController.staticRois,
+                      aiObstacles: _flowController.aiObstaclesNotifier.value,
+                      isDebugMode: _isDebugMode,
+                      confidence: null,
+                      moveVector: null,
+                      targetBox: targetBox,
+                    ),
+                  );
+                },
               );
             },
           ),
@@ -374,31 +403,45 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
             child: SizedBox(
               width: _flowController.imageSize.width,
               height: _flowController.imageSize.height,
-              child: Stack(
-                children: [
-                  Image.memory(
-                    bytes,
-                    fit: BoxFit.cover,
-                    gaplessPlayback: true,
-                    filterQuality: FilterQuality.medium,
-                  ),
-                  ValueListenableBuilder(
-                    valueListenable: _flowController.headingNotifier,
-                    builder: (context, heading, _) {
-                      return CustomPaint(
-                        painter: FlowPainter(
-                          points: _flowController.pointsToDraw,
-                          imageSize: _flowController.imageSize,
-                          staticRois: _flowController.staticRois,
-                          aiObstacles: _flowController.aiObstaclesNotifier.value,
-                          isDebugMode: _isDebugMode,
-                          confidence: null,
-                          moveVector: null,
-                        ),
-                      );
-                    },
-                  ),
-                ],
+              child: GestureDetector(
+                onTapDown: (details) {
+                  _flowController.setTarget(
+                    details.localPosition.dx,
+                    details.localPosition.dy,
+                  );
+                },
+                child: Stack(
+                  children: [
+                    Image.memory(
+                      bytes,
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                      filterQuality: FilterQuality.medium,
+                    ),
+                    ValueListenableBuilder<Rect?>(
+                      valueListenable: _flowController.targetBoxNotifier,
+                      builder: (context, targetBox, _) {
+                        return ValueListenableBuilder(
+                          valueListenable: _flowController.headingNotifier,
+                          builder: (context, heading, _) {
+                            return CustomPaint(
+                              painter: FlowPainter(
+                                points: _flowController.pointsToDraw,
+                                imageSize: _flowController.imageSize,
+                                staticRois: _flowController.staticRois,
+                                aiObstacles: _flowController.aiObstaclesNotifier.value,
+                                isDebugMode: _isDebugMode,
+                                confidence: null,
+                                moveVector: null,
+                                targetBox: targetBox,
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -580,6 +623,30 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
               child: _buildPiPExpandedInfo(isDark, isSmallDevice),
             ),
           ),
+        Positioned(
+          top: 6,
+          left: 0,
+          right: 0,
+          child: ValueListenableBuilder<String?>(
+            valueListenable: _flowController.relativeWarningNotifier,
+            builder: (context, warning, _) {
+              if (warning == null || warning.isEmpty) return const SizedBox.shrink();
+              return Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withOpacity(0.8),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    warning,
+                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ],
     );
   }

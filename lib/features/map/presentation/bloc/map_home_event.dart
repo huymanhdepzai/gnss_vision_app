@@ -48,6 +48,10 @@ class MapHomeResetToExplore extends MapHomeEvent {
   const MapHomeResetToExplore();
 }
 
+class MapHomeReturnToPlaceDetail extends MapHomeEvent {
+  const MapHomeReturnToPlaceDetail();
+}
+
 class MapHomeClearSearch extends MapHomeEvent {
   const MapHomeClearSearch();
 }

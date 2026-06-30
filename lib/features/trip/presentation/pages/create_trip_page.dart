@@ -8,6 +8,7 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:provider/provider.dart';
+import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 
 import '../../../../core/app_theme.dart';
 import '../../../../core/providers/theme_provider.dart';
@@ -29,13 +30,12 @@ class _CreateTripScreenState extends State<CreateTripScreen>
     with TickerProviderStateMixin {
   MapboxMap? _mapboxMap;
   CircleAnnotationManager? _circleAnnotationManager;
+  PolylineAnnotationManager? _polylineAnnotationManager;
 
   final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _searchController = TextEditingController();
-  Timer? _debounce;
-  List<dynamic> _searchResults = [];
-  bool _isSearching = false;
 
+  bool _isFormExpanded = true;
+  bool _is3DMode = false;
   SelectionMode _selectionMode = SelectionMode.none;
   String _startAddress = '';
   String _endAddress = '';
@@ -120,6 +120,8 @@ class _CreateTripScreenState extends State<CreateTripScreen>
   void _onStyleLoaded(StyleLoadedEventData data) async {
     _circleAnnotationManager = await _mapboxMap?.annotations
         .createCircleAnnotationManager();
+    _polylineAnnotationManager = await _mapboxMap?.annotations
+        .createPolylineAnnotationManager();
 
     if (_isLocationLoaded) {
       _updateCamera(_currentLocation, 14.0);
@@ -135,8 +137,22 @@ class _CreateTripScreenState extends State<CreateTripScreen>
       CameraOptions(
         center: Point(coordinates: position).toJson(),
         zoom: zoom,
+        pitch: _is3DMode ? 60.0 : 0.0,
       ),
     );
+  }
+
+  void _toggleMapMode() {
+    setState(() {
+      _is3DMode = !_is3DMode;
+    });
+    _mapboxMap?.setCamera(
+      CameraOptions(
+        pitch: _is3DMode ? 60.0 : 0.0,
+        bearing: _is3DMode ? 45.0 : 0.0,
+      ),
+    );
+    HapticFeedback.lightImpact();
   }
 
   void _handleMapTap(ScreenCoordinate coordinate) async {
@@ -217,95 +233,95 @@ class _CreateTripScreenState extends State<CreateTripScreen>
             _distance = jsonResponse['routes'][0]['legs'][0]['distance']['text'];
           });
         }
+        
+        final overviewPolyline = jsonResponse['routes'][0]['overview_polyline']['points'];
+        if (overviewPolyline != null) {
+          _drawRoute(overviewPolyline);
+        }
       }
     } catch (e) {
       debugPrint("Lỗi lấy thông tin đường: $e");
     }
   }
 
-  void _onSearchChanged(String query) {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      if (query.isNotEmpty) {
-        _searchPlaces(query);
-      } else {
-        if (mounted) setState(() => _searchResults = []);
-      }
-    });
-  }
+  Future<void> _drawRoute(String encodedPolyline) async {
+    if (_polylineAnnotationManager == null) return;
+    
+    await _polylineAnnotationManager?.deleteAll();
+    
+    PolylinePoints polylinePoints = PolylinePoints();
+    List<PointLatLng> decodedPoints = polylinePoints.decodePolyline(encodedPolyline);
+    
+    List<Position> coordinates = decodedPoints
+        .map((p) => Position(p.longitude, p.latitude))
+        .toList();
 
-  Future<void> _searchPlaces(String query) async {
-    if (mounted) setState(() => _isSearching = true);
-    final apiKey = dotenv.env['GOONG_API_KEY'] ?? '';
-    final location = _isLocationLoaded
-        ? '${_currentLocation.lat},${_currentLocation.lng}'
-        : '';
-    final url = Uri.parse(
-      'https://rsapi.goong.io/Place/AutoComplete?api_key=$apiKey&input=${Uri.encodeComponent(query)}${location.isNotEmpty ? '&location=$location&radius=50' : ''}',
-    );
+    if (coordinates.isNotEmpty) {
+      await _polylineAnnotationManager?.create(
+        PolylineAnnotationOptions(
+          geometry: LineString(coordinates: coordinates).toJson(),
+          lineColor: AppTheme.primaryColor.value,
+          lineWidth: 5.0,
+        ),
+      );
+      
+      if (_startLocation != null && _endLocation != null) {
+         double lat1 = _startLocation!.lat.toDouble();
+         double lng1 = _startLocation!.lng.toDouble();
+         double lat2 = _endLocation!.lat.toDouble();
+         double lng2 = _endLocation!.lng.toDouble();
+         
+         double centerLat = (lat1 + lat2) / 2;
+         double centerLng = (lng1 + lng2) / 2;
+         
+         double latDiff = (lat1 - lat2).abs();
+         double lngDiff = (lng1 - lng2).abs();
+         double maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
+         
+         double zoom = 14.0;
+         if (maxDiff > 0.1) zoom = 10.0;
+         if (maxDiff > 0.5) zoom = 8.0;
+         if (maxDiff > 1.0) zoom = 6.0;
 
-    try {
-      var response = await http.get(url);
-      var jsonResponse = jsonDecode(response.body);
-      if (jsonResponse['predictions'] != null) {
-        if (mounted) {
-          setState(() {
-            _searchResults = jsonResponse['predictions'];
-          });
-        }
+         _updateCamera(Position(centerLng, centerLat), zoom);
       }
-    } catch (e) {
-      debugPrint("Lỗi tìm kiếm: $e");
-    } finally {
-      if (mounted) setState(() => _isSearching = false);
     }
   }
 
-  Future<void> _selectPlace(String placeId, String description) async {
-    HapticFeedback.mediumImpact();
-    FocusScope.of(context).unfocus();
-    setState(() {
-      _isSearching = true;
-      _searchResults = [];
-      _searchController.clear();
-    });
-
-    final apiKey = dotenv.env['GOONG_API_KEY'] ?? '';
-    final url = Uri.parse(
-      'https://rsapi.goong.io/Place/Detail?place_id=$placeId&api_key=$apiKey',
-    );
-
-    try {
-      var response = await http.get(url);
-      var jsonResponse = jsonDecode(response.body);
-      if (jsonResponse['result'] != null) {
-        var location = jsonResponse['result']['geometry']['location'];
-        final position = Position(location['lng'], location['lat']);
-        final name = jsonResponse['result']['name'] ?? description;
-
-        if (mounted) {
+  void _openSearchSheet(bool isStart) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => LocationSearchSheet(
+        isStart: isStart,
+        isLocationLoaded: _isLocationLoaded,
+        currentLocation: _currentLocation,
+        onPlaceSelected: (position, address) {
+          Navigator.pop(context);
           setState(() {
-            if (_selectionMode == SelectionMode.start) {
+            if (isStart) {
               _startLocation = position;
-              _startAddress = name;
+              _startAddress = address;
               _selectionMode = SelectionMode.none;
-            } else if (_selectionMode == SelectionMode.end) {
+            } else {
               _endLocation = position;
-              _endAddress = name;
+              _endAddress = address;
               _selectionMode = SelectionMode.none;
             }
           });
-
           _drawMarkers();
           _updateCamera(position, 15.0);
           _fetchRouteInfo();
-        }
-      }
-    } catch (e) {
-      debugPrint("Lỗi lấy chi tiết địa điểm: $e");
-    } finally {
-      if (mounted) setState(() => _isSearching = false);
-    }
+        },
+        onSelectOnMap: () {
+          Navigator.pop(context);
+          setState(() {
+            _selectionMode = isStart ? SelectionMode.start : SelectionMode.end;
+          });
+        },
+      ),
+    );
   }
 
   Future<void> _useCurrentLocationAsStart() async {
@@ -438,8 +454,6 @@ class _CreateTripScreenState extends State<CreateTripScreen>
   @override
   void dispose() {
     _titleController.dispose();
-    _searchController.dispose();
-    _debounce?.cancel();
     _panelAnimationController.dispose();
     _positionStream?.cancel();
     super.dispose();
@@ -447,46 +461,67 @@ class _CreateTripScreenState extends State<CreateTripScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.read<ThemeProvider>().isDarkMode;
     final mapboxToken = dotenv.env['MAPBOX_ACCESS_TOKEN'] ?? '';
 
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, child) {
-        final isDark = themeProvider.isDarkMode;
-
-        return Scaffold(
-          backgroundColor: AppTheme.adaptiveBackground(isDark),
-          resizeToAvoidBottomInset: false,
-          body: Stack(
-            children: [
+    return Scaffold(
+      backgroundColor: AppTheme.adaptiveSurface(isDark),
+      resizeToAvoidBottomInset: false,
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+        child: Stack(
+          children: [
+            if (mapboxToken.isNotEmpty)
               MapWidget(
-                key: const ValueKey("createTripMapWidget"),
+                key: const ValueKey("mapWidget"),
                 resourceOptions: ResourceOptions(accessToken: mapboxToken),
                 onMapCreated: _onMapCreated,
                 onStyleLoadedListener: _onStyleLoaded,
-                onTapListener: (coordinate) {
-                  if (_selectionMode != SelectionMode.none) {
-                    _handleMapTap(coordinate);
-                  }
-                },
+                onTapListener: _handleMapTap,
+                styleUri: 'mapbox://styles/mapbox/navigation-day-v1',
+                cameraOptions: CameraOptions(
+                  center: Point(
+                    coordinates: Position(105.8342, 21.0278),
+                  ).toJson(),
+                  zoom: 12.0,
+                ),
+              )
+            else
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.map_rounded,
+                      size: 64,
+                      color: AppTheme.adaptiveSubtext(isDark),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Bản đồ không khả dụng',
+                      style: TextStyle(
+                        color: AppTheme.adaptiveText(isDark),
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              _buildTopBar(isDark),
-              if (_searchResults.isNotEmpty || _isSearching)
-                _buildSearchResults(isDark),
-              _buildBottomPanel(isDark),
-              if (_selectionMode != SelectionMode.none)
-                _buildSelectionIndicator(isDark),
-            ],
-          ),
-        );
-      },
+            _buildTopBar(isDark),
+            _buildBottomPanel(isDark),
+            if (_selectionMode != SelectionMode.none)
+              _buildSelectionIndicator(isDark),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildSelectionIndicator(bool isDark) {
     return Positioned(
-      bottom: 420, 
-      left: UIConsts.spacingXL,
-      right: UIConsts.spacingXL,
+      top: MediaQuery.of(context).padding.top + 80,
+      left: 16,
+      right: 16,
       child: EntranceAnimation(
         type: EntranceType.fadeSlideUp,
         child: Container(
@@ -520,8 +555,8 @@ class _CreateTripScreenState extends State<CreateTripScreen>
               const SizedBox(width: 14),
               Expanded(
                 child: Text(
-                  _selectionMode == SelectionMode.start 
-                      ? 'Chạm vào bản đồ để chọn điểm BẮT ĐẦU' 
+                  _selectionMode == SelectionMode.start
+                      ? 'Chạm vào bản đồ để chọn điểm BẮT ĐẦU'
                       : 'Chạm vào bản đồ để chọn điểm KẾT THÚC',
                   style: const TextStyle(
                     color: Colors.white,
@@ -552,251 +587,31 @@ class _CreateTripScreenState extends State<CreateTripScreen>
 
   Widget _buildTopBar(bool isDark) {
     return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: Container(
-        padding: EdgeInsets.fromLTRB(
-          UIConsts.spacingLG,
-          MediaQuery.of(context).padding.top + 8,
-          UIConsts.spacingLG,
-          UIConsts.spacing3XL,
-        ),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppTheme.adaptiveBackground(isDark).withOpacity(0.9),
-              AppTheme.adaptiveBackground(isDark).withOpacity(0.4),
-              Colors.transparent,
-            ],
-          ),
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                PressScale(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: AppTheme.glassDecoration(isDark: isDark).copyWith(
-                      borderRadius: BorderRadius.circular(UIConsts.radiusMD),
-                    ),
-                    child: Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      color: AppTheme.adaptiveText(isDark),
-                      size: 16,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: UIConsts.spacingLG),
-                Expanded(
-                  child: Text(
-                    'Lên Lịch Trình',
-                    style: TextStyle(
-                      color: AppTheme.adaptiveText(isDark),
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.8,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: UIConsts.spacingXL),
-            _buildSearchBar(isDark),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSearchBar(bool isDark) {
-    return EntranceAnimation(
-      delay: const Duration(milliseconds: 200),
-      child: Container(
-        decoration: AppTheme.glassDecoration(isDark: isDark).copyWith(
-          borderRadius: BorderRadius.circular(UIConsts.radiusLG),
-          border: Border.all(
-            color: _selectionMode != SelectionMode.none
-                ? AppTheme.primaryColor.withOpacity(0.5)
-                : (isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
-            width: _selectionMode != SelectionMode.none ? 2 : 1,
-          ),
-        ),
-        child: TextField(
-          controller: _searchController,
-          onChanged: _onSearchChanged,
-          style: TextStyle(
-            color: AppTheme.adaptiveText(isDark),
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-          decoration: InputDecoration(
-            hintText: _selectionMode == SelectionMode.start
-                ? 'Tìm điểm bắt đầu...'
-                : _selectionMode == SelectionMode.end
-                ? 'Tìm điểm kết thúc...'
-                : 'Tìm kiếm địa điểm...',
-            hintStyle: TextStyle(
-              color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.4),
-              fontSize: 15,
-            ),
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: UIConsts.spacingLG,
-              vertical: 14,
-            ),
-            prefixIcon: Icon(
-              Icons.search_rounded,
-              color: _selectionMode != SelectionMode.none 
-                  ? AppTheme.primaryColor 
-                  : AppTheme.adaptiveSubtext(isDark),
-              size: 22,
-            ),
-            suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: Icon(Icons.clear_rounded, color: AppTheme.adaptiveSubtext(isDark), size: 18),
-                    onPressed: () {
-                      _searchController.clear();
-                      setState(() => _searchResults = []);
-                    },
-                  )
-                : _isSearching
-                ? Container(
-                    width: 20,
-                    height: 20,
-                    padding: const EdgeInsets.all(14),
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-                    ),
-                  )
-                : null,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSearchResults(bool isDark) {
-    return Positioned(
-      top: MediaQuery.of(context).padding.top + 140,
-      left: UIConsts.spacingLG,
-      right: UIConsts.spacingLG,
-      child: EntranceAnimation(
-        type: EntranceType.fadeSlideUp,
-        child: Container(
-          constraints: const BoxConstraints(maxHeight: 400),
-          decoration: BoxDecoration(
-            color: AppTheme.adaptiveSurface(isDark).withOpacity(0.98),
-            borderRadius: BorderRadius.circular(UIConsts.radius2XL),
-            border: Border.all(
-              color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.adaptiveShadow(isDark).withOpacity(isDark ? 0.6 : 0.2),
-                blurRadius: 40,
-                spreadRadius: 2,
-                offset: const Offset(0, 20),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(UIConsts.radius2XL),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_isSearching && _searchResults.isEmpty)
-                    _buildSearchLoading(isDark)
-                  else
-                    Flexible(
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        padding: const EdgeInsets.symmetric(vertical: UIConsts.spacingSM),
-                        itemCount: _searchResults.length,
-                        separatorBuilder: (_, __) => ModernDivider(isDark: isDark, indent: 72),
-                        itemBuilder: (context, index) {
-                          var place = _searchResults[index];
-                          String mainText = place['structured_formatting']?['main_text'] ?? place['description'] ?? "";
-                          String secondaryText = place['structured_formatting']?['secondary_text'] ?? "";
-
-                          return ListTile(
-                            onTap: () => _selectPlace(place['place_id'], place['description']),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                            leading: ModernIconContainer(
-                              icon: Icons.location_on_rounded,
-                              color: AppTheme.primaryColor,
-                              size: 40,
-                              iconSize: 18,
-                            ),
-                            title: Text(
-                              mainText,
-                              style: TextStyle(
-                                color: AppTheme.adaptiveText(isDark),
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(
-                              secondaryText,
-                              style: TextStyle(
-                                color: AppTheme.adaptiveSubtext(isDark),
-                                fontSize: 12,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.2),
-                              size: 14,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
+      top: MediaQuery.of(context).padding.top + 16,
+      left: 16,
+      child: PressScale(
+        onTap: () => Navigator.pop(context),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.black.withOpacity(0.6) : Colors.white.withOpacity(0.85),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 10)),
                 ],
               ),
+              child: Padding(
+                padding: const EdgeInsets.only(right: 2),
+                child: Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.adaptiveText(isDark), size: 20),
+              ),
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSearchLoading(bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.all(40),
-      child: Column(
-        children: [
-          const SizedBox(
-            width: 32,
-            height: 32,
-            child: CircularProgressIndicator(
-              strokeWidth: 3,
-              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Đang tìm kiếm...',
-            style: TextStyle(
-              color: AppTheme.adaptiveSubtext(isDark),
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -814,64 +629,161 @@ class _CreateTripScreenState extends State<CreateTripScreen>
             child: child,
           );
         },
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppTheme.adaptiveSurface(isDark).withOpacity(0.95),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.adaptiveShadow(isDark).withOpacity(0.3),
-                blurRadius: 40,
-                offset: const Offset(0, -10),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0, bottom: 16.0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildHandle(isDark),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(24, 0, 24, MediaQuery.of(context).padding.bottom + 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSectionLabel(isDark, "THÔNG TIN HÀNH TRÌNH"),
-                        const SizedBox(height: 12),
-                        _buildTitleInput(isDark),
-                        const SizedBox(height: 24),
-                        _buildSectionLabel(isDark, "ĐIỂM ĐI & ĐIỂM ĐẾN"),
-                        const SizedBox(height: 12),
-                        _buildLocationSelectors(isDark),
-                        if (_startLocation != null && _endLocation != null) ...[
-                          const SizedBox(height: 24),
-                          _buildTripSummary(isDark),
-                        ],
-                        const SizedBox(height: 32),
-                        _buildCreateButton(isDark),
-                      ],
-                    ),
+                  _buildFloatingButton(
+                    isDark: isDark,
+                    icon: Icons.my_location_rounded,
+                    onTap: () {
+                      if (_isLocationLoaded) {
+                        _updateCamera(_currentLocation, 15.0);
+                      }
+                      HapticFeedback.lightImpact();
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _buildFloatingButton(
+                    isDark: isDark,
+                    icon: _is3DMode ? Icons.layers_clear_rounded : Icons.layers_rounded,
+                    onTap: _toggleMapMode,
                   ),
                 ],
               ),
             ),
+            Container(
+              margin: const EdgeInsets.only(left: 16, right: 16, bottom: 24),
+              decoration: BoxDecoration(
+            color: AppTheme.adaptiveSurface(isDark).withOpacity(0.95),
+            borderRadius: BorderRadius.circular(32),
+            border: Border.all(
+              color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.4 : 0.1),
+                blurRadius: 40,
+                offset: const Offset(0, 15),
+                spreadRadius: 5,
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(32),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => setState(() => _isFormExpanded = !_isFormExpanded),
+                      onVerticalDragEnd: (details) {
+                        if (details.primaryVelocity! > 0) {
+                          setState(() => _isFormExpanded = false);
+                        } else if (details.primaryVelocity! < 0) {
+                          setState(() => _isFormExpanded = true);
+                        }
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 5,
+                              margin: const EdgeInsets.only(bottom: 8),
+                              decoration: BoxDecoration(
+                                color: isDark ? Colors.white.withOpacity(0.3) : Colors.black.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _buildSectionLabel(isDark, "THÔNG TIN HÀNH TRÌNH"),
+                                Icon(
+                                  _isFormExpanded ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_up_rounded,
+                                  color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.6),
+                                  size: 20,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOutCubic,
+                      child: _isFormExpanded
+                          ? Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 12),
+                                _buildTitleInput(isDark),
+                                const SizedBox(height: 24),
+                                _buildSectionLabel(isDark, "ĐIỂM ĐI & ĐIỂM ĐẾN"),
+                                const SizedBox(height: 12),
+                                _buildLocationSelectors(isDark),
+                                if (_startLocation != null && _endLocation != null) ...[
+                                  const SizedBox(height: 24),
+                                  _buildTripSummary(isDark),
+                                ],
+                                const SizedBox(height: 24),
+                                _buildCreateButton(isDark),
+                              ],
+                            )
+                          : const SizedBox(width: double.infinity),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
+      ],
+      ),
       ),
     );
   }
 
-  Widget _buildHandle(bool isDark) {
-    return Container(
-      width: 40,
-      height: 4,
-      margin: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        color: AppTheme.adaptiveDivier(isDark).withOpacity(0.2),
-        borderRadius: BorderRadius.circular(2),
+  Widget _buildFloatingButton({
+    required bool isDark,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return PressScale(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.black.withOpacity(0.6) : Colors.white.withOpacity(0.85),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4)),
+              ],
+            ),
+            child: Icon(icon, color: AppTheme.primaryColor, size: 24),
+          ),
+        ),
       ),
     );
   }
@@ -880,8 +792,8 @@ class _CreateTripScreenState extends State<CreateTripScreen>
     return Text(
       label,
       style: TextStyle(
-        color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.5),
-        fontSize: 10,
+        color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.6),
+        fontSize: 11,
         fontWeight: FontWeight.w900,
         letterSpacing: 1.5,
       ),
@@ -891,9 +803,11 @@ class _CreateTripScreenState extends State<CreateTripScreen>
   Widget _buildTitleInput(bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02),
-        borderRadius: BorderRadius.circular(UIConsts.radiusLG),
-        border: Border.all(color: AppTheme.adaptiveDivier(isDark)),
+        color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.02),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
+        ),
       ),
       child: TextField(
         controller: _titleController,
@@ -906,7 +820,7 @@ class _CreateTripScreenState extends State<CreateTripScreen>
         decoration: InputDecoration(
           hintText: 'Tên chuyến đi của bạn...',
           hintStyle: TextStyle(
-            color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.3),
+            color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.4),
             fontSize: 16,
             fontWeight: FontWeight.w500,
           ),
@@ -915,11 +829,11 @@ class _CreateTripScreenState extends State<CreateTripScreen>
           prefixIcon: Container(
             margin: const EdgeInsets.all(10),
             padding: const EdgeInsets.all(8),
-            decoration: AppTheme.iconContainerDecoration(
-              isDark: isDark,
-              color: AppTheme.primaryColor,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withOpacity(0.15),
+              shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.edit_note_rounded, color: Colors.white, size: 18),
+            child: const Icon(Icons.edit_note_rounded, color: AppTheme.primaryColor, size: 18),
           ),
         ),
       ),
@@ -930,38 +844,39 @@ class _CreateTripScreenState extends State<CreateTripScreen>
     return Column(
       children: [
         _buildLocationRow(
-          isStart: true,
           icon: Icons.my_location_rounded,
           color: AppTheme.primaryColor,
-          label: 'Điểm bắt đầu',
+          label: 'Điểm khởi hành',
           address: _startAddress.isNotEmpty ? _startAddress : 'Chọn điểm khởi hành...',
           isSelected: _selectionMode == SelectionMode.start,
           hasValue: _startLocation != null,
-          onTap: () => setState(() => _selectionMode = SelectionMode.start),
+          onTap: () => _openSearchSheet(true),
           onLongPress: _isLocationLoaded ? _useCurrentLocationAsStart : null,
           isDark: isDark,
         ),
         Container(
-          margin: const EdgeInsets.only(left: 38),
-          height: 20,
+          margin: const EdgeInsets.only(left: 20),
+          height: 24,
           width: 2,
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [AppTheme.primaryColor.withOpacity(0.5), AppTheme.accentColor.withOpacity(0.5)],
+              colors: [
+                AppTheme.primaryColor.withOpacity(0.5),
+                AppTheme.accentColor.withOpacity(0.5),
+              ],
             ),
           ),
         ),
         _buildLocationRow(
-          isStart: false,
           icon: Icons.location_on_rounded,
           color: AppTheme.accentColor,
-          label: 'Điểm kết thúc',
+          label: 'Điểm đến',
           address: _endAddress.isNotEmpty ? _endAddress : 'Chọn điểm đến...',
           isSelected: _selectionMode == SelectionMode.end,
           hasValue: _endLocation != null,
-          onTap: () => setState(() => _selectionMode = SelectionMode.end),
+          onTap: () => _openSearchSheet(false),
           isDark: isDark,
         ),
       ],
@@ -969,7 +884,6 @@ class _CreateTripScreenState extends State<CreateTripScreen>
   }
 
   Widget _buildLocationRow({
-    required bool isStart,
     required IconData icon,
     required Color color,
     required String label,
@@ -981,18 +895,21 @@ class _CreateTripScreenState extends State<CreateTripScreen>
     required bool isDark,
   }) {
     return GestureDetector(
-      onTap: onTap,
       onLongPress: onLongPress,
-      child: AnimatedContainer(
-        duration: UIConsts.animNormal,
-        padding: const EdgeInsets.all(14),
+      child: PressScale(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: isSelected 
-              ? color.withOpacity(0.08) 
-              : (isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.01)),
-          borderRadius: BorderRadius.circular(UIConsts.radiusLG),
+          color: isSelected
+              ? color.withOpacity(0.08)
+              : (isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02)),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? color : AppTheme.adaptiveDivier(isDark),
+            color: isSelected
+                ? color.withOpacity(0.5)
+                : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03)),
             width: isSelected ? 1.5 : 1,
           ),
         ),
@@ -1001,7 +918,7 @@ class _CreateTripScreenState extends State<CreateTripScreen>
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withOpacity(0.15),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 18),
@@ -1012,20 +929,19 @@ class _CreateTripScreenState extends State<CreateTripScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    label.toUpperCase(),
+                    label,
                     style: TextStyle(
-                      color: color.withOpacity(0.8),
-                      fontSize: 9,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
+                      color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.6),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     address,
                     style: TextStyle(
                       color: hasValue ? AppTheme.adaptiveText(isDark) : AppTheme.adaptiveSubtext(isDark).withOpacity(0.5),
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: hasValue ? FontWeight.w700 : FontWeight.w500,
                     ),
                     maxLines: 1,
@@ -1035,46 +951,54 @@ class _CreateTripScreenState extends State<CreateTripScreen>
               ),
             ),
             if (hasValue)
-              const Icon(Icons.check_circle_rounded, color: AppTheme.successColor, size: 20)
-            else
-              Icon(Icons.add_location_alt_outlined, color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.3), size: 18),
+              Container(
+                margin: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_rounded, color: Colors.green, size: 12),
+              ),
           ],
         ),
       ),
-    );
+    ));
   }
 
   Widget _buildTripSummary(bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            AppTheme.secondaryColor.withOpacity(0.15),
-            AppTheme.secondaryColor.withOpacity(0.05),
+            isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.02),
+            isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.01),
           ],
         ),
-        borderRadius: BorderRadius.circular(UIConsts.radiusXL),
-        border: Border.all(color: AppTheme.secondaryColor.withOpacity(0.2)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+        ),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildSummaryItem(
             icon: Icons.route_rounded,
-            value: _distance.isNotEmpty ? _distance : '-- km',
-            label: 'QUÃNG ĐƯỜNG',
+            value: _distance.isNotEmpty ? _distance : '--',
+            label: 'KHOẢNG CÁCH',
             isDark: isDark,
           ),
           Container(
             width: 1,
             height: 30,
-            margin: const EdgeInsets.symmetric(horizontal: 20),
-            color: AppTheme.secondaryColor.withOpacity(0.1),
+            color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1),
           ),
           _buildSummaryItem(
-            icon: Icons.schedule_rounded,
-            value: _duration.isNotEmpty ? _duration : '-- phút',
-            label: 'THỜI GIAN',
+            icon: Icons.timer_rounded,
+            value: _duration.isNotEmpty ? _duration : '--',
+            label: 'THỜI GIAN DỰ KIẾN',
             isDark: isDark,
           ),
         ],
@@ -1131,6 +1055,220 @@ class _CreateTripScreenState extends State<CreateTripScreen>
       icon: Icons.check_circle_outline_rounded,
       color: AppTheme.primaryColor,
       borderRadius: UIConsts.radiusXL,
+    );
+  }
+}
+
+class LocationSearchSheet extends StatefulWidget {
+  final bool isStart;
+  final bool isLocationLoaded;
+  final Position? currentLocation;
+  final Function(Position, String) onPlaceSelected;
+  final VoidCallback onSelectOnMap;
+
+  const LocationSearchSheet({
+    Key? key,
+    required this.isStart,
+    required this.isLocationLoaded,
+    this.currentLocation,
+    required this.onPlaceSelected,
+    required this.onSelectOnMap,
+  }) : super(key: key);
+
+  @override
+  State<LocationSearchSheet> createState() => _LocationSearchSheetState();
+}
+
+class _LocationSearchSheetState extends State<LocationSearchSheet> {
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
+  List<dynamic> _searchResults = [];
+  bool _isSearching = false;
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      if (query.isNotEmpty) {
+        _searchPlaces(query);
+      } else {
+        if (mounted) setState(() => _searchResults = []);
+      }
+    });
+  }
+
+  Future<void> _searchPlaces(String query) async {
+    if (mounted) setState(() => _isSearching = true);
+    final apiKey = dotenv.env['GOONG_API_KEY'] ?? '';
+    final location = widget.isLocationLoaded && widget.currentLocation != null
+        ? '${widget.currentLocation!.lat},${widget.currentLocation!.lng}'
+        : '';
+    final url = Uri.parse(
+      'https://rsapi.goong.io/Place/AutoComplete?api_key=$apiKey&input=${Uri.encodeComponent(query)}${location.isNotEmpty ? '&location=$location&radius=50' : ''}',
+    );
+
+    try {
+      var response = await http.get(url);
+      var jsonResponse = jsonDecode(response.body);
+      if (jsonResponse['predictions'] != null) {
+        if (mounted) {
+          setState(() {
+            _searchResults = jsonResponse['predictions'];
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Lỗi tìm kiếm: $e");
+    } finally {
+      if (mounted) setState(() => _isSearching = false);
+    }
+  }
+
+  Future<void> _selectPlace(String placeId, String description) async {
+    FocusScope.of(context).unfocus();
+    if (mounted) setState(() => _isSearching = true);
+
+    final apiKey = dotenv.env['GOONG_API_KEY'] ?? '';
+    final url = Uri.parse(
+      'https://rsapi.goong.io/Place/Detail?place_id=$placeId&api_key=$apiKey',
+    );
+
+    try {
+      var response = await http.get(url);
+      var jsonResponse = jsonDecode(response.body);
+      if (jsonResponse['result'] != null) {
+        var location = jsonResponse['result']['geometry']['location'];
+        final position = Position(location['lng'], location['lat']);
+        final name = jsonResponse['result']['name'] ?? description;
+
+        widget.onPlaceSelected(position, name);
+      }
+    } catch (e) {
+      debugPrint("Lỗi lấy chi tiết địa điểm: $e");
+    } finally {
+      if (mounted) setState(() => _isSearching = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = context.read<ThemeProvider>().isDarkMode;
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.85,
+      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom),
+      decoration: BoxDecoration(
+        color: AppTheme.adaptiveSurface(isDark),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: Icon(Icons.close_rounded, color: AppTheme.adaptiveText(isDark)),
+                onPressed: () => Navigator.pop(context),
+              ),
+              Expanded(
+                child: Text(
+                  widget.isStart ? 'Chọn điểm khởi hành' : 'Chọn điểm đến',
+                  style: TextStyle(
+                    color: AppTheme.adaptiveText(isDark),
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(width: 48),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              autofocus: true,
+              style: TextStyle(color: AppTheme.adaptiveText(isDark)),
+              decoration: InputDecoration(
+                hintText: 'Tìm kiếm địa điểm...',
+                hintStyle: TextStyle(color: AppTheme.adaptiveSubtext(isDark).withOpacity(0.5)),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.primaryColor),
+                suffixIcon: _isSearching
+                    ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2))
+                    : _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear_rounded),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _searchResults = []);
+                            },
+                          )
+                        : null,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_searchResults.isEmpty) ...[
+            if (widget.isLocationLoaded)
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: AppTheme.primaryColor.withOpacity(0.1), shape: BoxShape.circle),
+                  child: const Icon(Icons.my_location_rounded, color: AppTheme.primaryColor, size: 20),
+                ),
+                title: Text('Chọn vị trí hiện tại', style: TextStyle(color: AppTheme.adaptiveText(isDark), fontWeight: FontWeight.bold)),
+                onTap: () {
+                  widget.onPlaceSelected(widget.currentLocation!, 'Vị trí hiện tại');
+                },
+              ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: AppTheme.accentColor.withOpacity(0.1), shape: BoxShape.circle),
+                child: const Icon(Icons.map_rounded, color: AppTheme.accentColor, size: 20),
+              ),
+              title: Text('Chọn trên bản đồ', style: TextStyle(color: AppTheme.adaptiveText(isDark), fontWeight: FontWeight.bold)),
+              onTap: widget.onSelectOnMap,
+            ),
+          ],
+          if (_searchResults.isNotEmpty)
+            Expanded(
+              child: ListView.separated(
+                itemCount: _searchResults.length,
+                separatorBuilder: (context, index) => ModernDivider(isDark: isDark, indent: 64),
+                itemBuilder: (context, index) {
+                  var place = _searchResults[index];
+                  String mainText = place['structured_formatting']?['main_text'] ?? place['description'] ?? "";
+                  String secondaryText = place['structured_formatting']?['secondary_text'] ?? "";
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    leading: ModernIconContainer(
+                      icon: Icons.location_on_rounded,
+                      color: AppTheme.primaryColor,
+                      size: 40,
+                      iconSize: 18,
+                    ),
+                    title: Text(mainText, style: TextStyle(color: AppTheme.adaptiveText(isDark), fontWeight: FontWeight.w700)),
+                    subtitle: Text(secondaryText, style: TextStyle(color: AppTheme.adaptiveSubtext(isDark))),
+                    onTap: () => _selectPlace(place['place_id'], place['description']),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

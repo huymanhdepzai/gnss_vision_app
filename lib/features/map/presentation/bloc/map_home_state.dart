@@ -11,6 +11,7 @@ class MapHomeState extends Equatable {
   final bool isLocationLoaded;
   final String destinationName;
   final String destinationAddress;
+  final String? destinationPlaceId;
   final double? destinationLat;
   final double? destinationLng;
   final String distance;
@@ -35,6 +36,7 @@ class MapHomeState extends Equatable {
     this.isLocationLoaded = false,
     this.destinationName = '',
     this.destinationAddress = '',
+    this.destinationPlaceId,
     this.destinationLat,
     this.destinationLng,
     this.distance = 'Đang tính...',
@@ -60,6 +62,7 @@ class MapHomeState extends Equatable {
     bool? isLocationLoaded,
     String? destinationName,
     String? destinationAddress,
+    String? destinationPlaceId,
     double? destinationLat,
     double? destinationLng,
     String? distance,
@@ -84,6 +87,7 @@ class MapHomeState extends Equatable {
       isLocationLoaded: isLocationLoaded ?? this.isLocationLoaded,
       destinationName: destinationName ?? this.destinationName,
       destinationAddress: destinationAddress ?? this.destinationAddress,
+      destinationPlaceId: destinationPlaceId ?? this.destinationPlaceId,
       destinationLat: destinationLat ?? this.destinationLat,
       destinationLng: destinationLng ?? this.destinationLng,
       distance: distance ?? this.distance,
@@ -111,6 +115,7 @@ class MapHomeState extends Equatable {
         isLocationLoaded,
         destinationName,
         destinationAddress,
+        destinationPlaceId,
         destinationLat,
         destinationLng,
         distance,

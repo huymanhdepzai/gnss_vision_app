@@ -8,6 +8,8 @@ class MapFloatingButtons extends StatelessWidget {
   final bool isDark;
   final VoidCallback onMyLocation;
   final VoidCallback onToggleAssistant;
+  final VoidCallback onToggleMapMode;
+  final bool is3DMode;
   final Animation<double> fabScaleAnimation;
   final Animation<double> pulseAnimation;
 
@@ -17,6 +19,8 @@ class MapFloatingButtons extends StatelessWidget {
     required this.isDark,
     required this.onMyLocation,
     required this.onToggleAssistant,
+    required this.onToggleMapMode,
+    required this.is3DMode,
     required this.fabScaleAnimation,
     required this.pulseAnimation,
   }) : super(key: key);
@@ -47,6 +51,19 @@ class MapFloatingButtons extends StatelessWidget {
                     width: 24,
                     height: 24,
                   ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Map Mode Toggle Button
+              FloatingActionButton(
+                heroTag: "btn_map_mode",
+                backgroundColor: isDark ? AppTheme.cardDark : Colors.white,
+                elevation: 6,
+                shape: const CircleBorder(),
+                onPressed: onToggleMapMode,
+                child: Icon(
+                  is3DMode ? Icons.view_in_ar_rounded : Icons.map_rounded,
+                  color: AppTheme.primaryColor,
                 ),
               ),
               const SizedBox(height: 12),

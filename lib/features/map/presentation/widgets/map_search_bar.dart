@@ -4,6 +4,9 @@ import '../../../../core/app_theme.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../data/datasources/goong_search_data_source.dart';
 import '../bloc/map_home_state.dart';
+import '../bloc/map_home_bloc.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../pages/map_search_page.dart';
 
 class MapSearchBar extends StatelessWidget {
   final MapHomeState state;
@@ -62,10 +65,6 @@ class MapSearchBar extends StatelessWidget {
         child: Column(
           children: [
             _buildSearchInput(context),
-            if (state.searchResults.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _buildSearchResults(context),
-            ],
           ],
         ),
       ),
@@ -149,12 +148,23 @@ class MapSearchBar extends StatelessWidget {
                 else if (state.viewState == MapViewState.explore)
                   Expanded(
                     child: TextField(
+                      readOnly: true,
+                      onTap: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => BlocProvider.value(
+                              value: context.read<MapHomeBloc>(),
+                              child: const MapSearchPage(),
+                            ),
+                          ),
+                        );
+                        if (result != null && result is Map<String, String>) {
+                          onSelectPlace(result['placeId']!, result['description']!);
+                        }
+                      },
                       controller: TextEditingController(
-                              text: state.searchQuery)
-                          ..selection = TextSelection.fromPosition(
-                              TextPosition(
-                                  offset: state.searchQuery.length)),
-                      onChanged: onSearchChanged,
+                              text: state.searchQuery),
                       style: TextStyle(
                           color: textColor,
                           fontSize: 16,
@@ -260,189 +270,6 @@ class MapSearchBar extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildSearchResults(BuildContext context) {
-    final textColor = isDark ? Colors.white : AppTheme.textDark;
-    final subtextColor =
-        isDark ? Colors.white.withOpacity(0.45) : Colors.black.withOpacity(0.5);
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-      child: Container(
-        constraints: const BoxConstraints(maxHeight: 350),
-        decoration: BoxDecoration(
-          color: isDark
-              ? AppTheme.cardDark.withOpacity(0.9)
-              : Colors.white.withOpacity(0.98),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-              color: isDark
-                  ? Colors.white.withOpacity(0.08)
-                  : AppTheme.primaryColor.withOpacity(0.1),
-              width: 1),
-          boxShadow: [
-            BoxShadow(
-                color: isDark
-                    ? Colors.black.withOpacity(0.5)
-                    : AppTheme.primaryColor.withOpacity(0.06),
-                blurRadius: 30,
-                offset: const Offset(0, 12)),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-            child: ListView.separated(
-              shrinkWrap: true,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: state.searchResults.length,
-              separatorBuilder: (_, __) => Divider(
-                  height: 1,
-                  indent: 56,
-                  color: isDark
-                      ? Colors.white.withOpacity(0.04)
-                      : Colors.black.withOpacity(0.05)),
-              itemBuilder: (context, index) {
-                final place = state.searchResults[index];
-                int delay = (index * 40).clamp(0, 250);
-                return TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0.0, end: 1.0),
-                  duration: Duration(milliseconds: 250 + delay),
-                  curve: Curves.easeOutCubic,
-                  builder: (context, value, child) {
-                    return Transform.translate(
-                        offset: Offset(15 * (1 - value), 0),
-                        child: Opacity(opacity: value, child: child));
-                  },
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => onSelectPlace(
-                          place.placeId, place.description),
-                      splashColor: AppTheme.primaryColor.withOpacity(0.08),
-                      highlightColor:
-                          AppTheme.primaryColor.withOpacity(0.04),
-                      child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                      child: Row(
-                      children: [
-                        SizedBox(
-                          width: 55,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: isDark
-                                        ? [
-                                            AppTheme.primaryColor
-                                                .withOpacity(0.15),
-                                            AppTheme.secondaryColor
-                                                .withOpacity(0.1)
-                                          ]
-                                        : [
-                                            AppTheme.primaryColor
-                                                .withOpacity(0.12),
-                                            AppTheme.secondaryColor
-                                                .withOpacity(0.06)
-                                          ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                      color: isDark
-                                          ? AppTheme.primaryColor
-                                              .withOpacity(0.12)
-                                          : AppTheme.primaryColor
-                                              .withOpacity(0.1),
-                                      width: 1),
-                                  boxShadow: [
-                                    BoxShadow(
-                                        color: AppTheme.primaryColor
-                                            .withOpacity(
-                                                isDark ? 0.1 : 0.08),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 3))
-                                  ],
-                                ),
-                                child: ShaderMask(
-                                  shaderCallback: (bounds) => AppTheme
-                                      .primaryGradient
-                                      .createShader(bounds),
-                                  child: Icon(Icons.location_on_rounded,
-                                      color: Colors.white,
-                                      size: isDark ? 18 : 20),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                place.distance != null
-                                    ? _formatDistance(place.distance!)
-                                    : "dist",
-                                maxLines: 1,
-                                style: TextStyle(
-                                  color: isDark
-                                      ? AppTheme.secondaryColor
-                                      : AppTheme.primaryColor,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                      place.mainText ??
-                                          place.description,
-                                      maxLines: 1,
-                                      overflow:
-                                          TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize:
-                                              isDark ? 15 : 14,
-                                          color: textColor,
-                                          height: 1.3)),
-                                  if ((place.secondaryText ?? '')
-                                      .isNotEmpty) ...[
-                                    const SizedBox(height: 2),
-                                    Text(place.secondaryText!,
-                                        maxLines: 1,
-                                        overflow:
-                                            TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                            color: subtextColor,
-                                            fontSize: 12,
-                                            height: 1.3)),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-      ),
     );
   }
 

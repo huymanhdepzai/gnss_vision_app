@@ -13,6 +13,7 @@ import '../pages/settings_page.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/pages/login_page.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class AppDrawer extends StatefulWidget {
   final VoidCallback onNavigateToVision;
@@ -141,7 +142,7 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
                             isDark, 
                             'assets/icons/logout.svg', 
                             'Đăng xuất', 
-                            () => _showLogoutDialog(context, isDark),
+                            () => _handleLogoutTap(context, isDark),
                             isLogout: true,
                           ),
                         ],
@@ -349,19 +350,46 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
   Widget _buildFooter(bool isDark) {
     return Container(
       padding: const EdgeInsets.all(28),
-      child: Text(
-        'Phiên bản 1.0.0',
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: isDark ? Colors.white10 : Colors.black12,
-          letterSpacing: 1.0,
-        ),
+      child: FutureBuilder<PackageInfo>(
+        future: PackageInfo.fromPlatform(),
+        builder: (context, snapshot) {
+          final version = snapshot.hasData ? snapshot.data!.version : '...';
+          return Text(
+            'Phiên bản $version',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white10 : Colors.black12,
+              letterSpacing: 1.0,
+            ),
+          );
+        },
       ),
     );
   }
 
-  void _showLogoutDialog(BuildContext context, bool isDark) {
+  void _handleLogoutTap(BuildContext context, bool isDark) {
+    final tripController = context.read<TripController>();
+    final hasUnsyncedTrips = tripController.trips.any((trip) => !trip.isSynced);
+
+    if (hasUnsyncedTrips) {
+      _showLogoutDialog(context, isDark, hasUnsyncedTrips: true);
+    } else {
+      _performLogout(context);
+    }
+  }
+
+  Future<void> _performLogout(BuildContext context) async {
+    await context.read<TripController>().clearLocalData();
+    if (!context.mounted) return;
+    context.read<AuthBloc>().add(const AuthEvent.logoutRequested());
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (route) => false,
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context, bool isDark, {bool hasUnsyncedTrips = false}) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -379,7 +407,12 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
             Text('Đăng xuất', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: isDark ? Colors.white : AppTheme.textDark)),
           ],
         ),
-        content: Text('Bạn có chắc chắn muốn đăng xuất không?', style: TextStyle(fontSize: 14, color: isDark ? Colors.white70 : Colors.black87)),
+        content: Text(
+          hasUnsyncedTrips 
+              ? 'Bạn có hành trình chưa được đồng bộ lên Cloud. Đăng xuất sẽ xóa dữ liệu trên thiết bị. Bạn có chắc chắn muốn đăng xuất không?'
+              : 'Bạn có chắc chắn muốn đăng xuất không?', 
+          style: TextStyle(fontSize: 14, color: isDark ? Colors.white70 : Colors.black87)
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -392,12 +425,8 @@ class _AppDrawerState extends State<AppDrawer> with TickerProviderStateMixin {
             ),
             child: ElevatedButton(
               onPressed: () async {
-                await ctx.read<TripController>().clearLocalData();
-                ctx.read<AuthBloc>().add(const AuthEvent.logoutRequested());
-                Navigator.of(ctx).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const LoginPage()),
-                  (route) => false,
-                );
+                Navigator.pop(ctx);
+                await _performLogout(context);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,

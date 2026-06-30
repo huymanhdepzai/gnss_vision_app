@@ -34,6 +34,18 @@ class _FlowScreenV2State extends State<FlowScreenV2>
 
   bool _wasStopSignDetected = false;
 
+  double _continuousHeading = 0.0;
+  double _lastHeading = 0.0;
+
+  double _getContinuousHeading(double newHeading) {
+    double diff = newHeading - _lastHeading;
+    if (diff > 180) diff -= 360;
+    else if (diff < -180) diff += 360;
+    _continuousHeading += diff;
+    _lastHeading = newHeading;
+    return _continuousHeading;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -113,7 +125,9 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                   _buildVideoBackground(isDark),
                   _buildHeadingIndicator(isDark),
                   _buildDetectionOverlay(isDark),
+                  _buildTrackingStatusBanner(topPadding, isDark),
                   _buildStopSignWarning(isDark),
+                  _buildRelativeWarning(isDark),
                   _buildBackButton(topPadding, isDark),
                   if (_controller.isPlaying)
                     _buildBottomDashboard(topPadding, bottomPadding, isDark),
@@ -123,6 +137,120 @@ class _FlowScreenV2State extends State<FlowScreenV2>
           ),
         );
       },
+    );
+  }
+
+  Widget _buildTrackingStatusBanner(double topPadding, bool isDark) {
+    if (!_controller.isPlaying) return const SizedBox.shrink();
+
+    return Positioned(
+      top: topPadding + 16,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: ValueListenableBuilder<Rect?>(
+          valueListenable: _controller.targetBoxNotifier,
+          builder: (context, targetBox, _) {
+            final isLocked = targetBox != null;
+            final color = isLocked ? Colors.greenAccent : Colors.cyanAccent;
+            final text = isLocked ? "ĐÃ KHÓA MỤC TIÊU" : "ĐANG QUÉT MÔI TRƯỜNG";
+            final icon = isLocked ? Icons.my_location_rounded : Icons.radar_rounded;
+
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0D1117).withOpacity(0.6) : Colors.white.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: color.withOpacity(0.5),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(isLocked ? 0.4 : 0.1),
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, color: color, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        text,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : AppTheme.textDark,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRelativeWarning(bool isDark) {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 150,
+      left: 16,
+      right: 16,
+      child: ValueListenableBuilder<String?>(
+        valueListenable: _controller.relativeWarningNotifier,
+        builder: (context, warning, _) {
+          if (warning == null || warning.isEmpty) return const SizedBox.shrink();
+
+          return Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.orangeAccent.withOpacity(isDark ? 0.8 : 0.9),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orangeAccent.withOpacity(0.5),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                  ),
+                ],
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.5),
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.warning_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    warning,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -137,15 +265,22 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             HapticFeedback.lightImpact();
             Navigator.pop(context);
           },
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: AppTheme.glassDecoration(isDark: isDark).copyWith(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(
-              Icons.arrow_back_ios_new_rounded,
-              color: isDark ? Colors.white : AppTheme.textDark,
-              size: 20,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: AppTheme.glassDecoration(isDark: isDark).copyWith(
+                  borderRadius: BorderRadius.circular(16),
+                  color: isDark ? Colors.black.withOpacity(0.4) : Colors.white.withOpacity(0.6),
+                ),
+                child: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: isDark ? Colors.white : AppTheme.textDark,
+                  size: 20,
+                ),
+              ),
             ),
           ),
         ),
@@ -155,27 +290,37 @@ class _FlowScreenV2State extends State<FlowScreenV2>
 
   Widget _buildDetectionOverlay(bool isDark) {
     return Positioned.fill(
-      child: IgnorePointer(
+      child: Transform.translate(
+        offset: const Offset(0, -80),
+        child: IgnorePointer(
         child: ValueListenableBuilder<double>(
           valueListenable: _controller.headingNotifier,
           builder: (context, heading, _) {
             return ValueListenableBuilder<List<DetectedObject>>(
               valueListenable: _controller.aiObstaclesNotifier,
               builder: (context, obstacles, _) {
-                return CustomPaint(
-                  painter: FlowPainter(
-                    points: _controller.pointsToDraw,
-                    imageSize: _controller.imageSize,
-                    staticRois: _controller.staticRois,
-                    aiObstacles: obstacles,
-                    isDebugMode: _isDebugMode,
-                    confidence: null,
-                    moveVector: null,
-                  ),
-                );
-              },
-            );
-          },
+                return ValueListenableBuilder<Rect?>(
+                valueListenable: _controller.targetBoxNotifier,
+                builder: (context, targetBox, _) {
+                  return CustomPaint(
+                    size: Size.infinite,
+                    painter: FlowPainter(
+                      points: _controller.pointsToDraw,
+                      imageSize: _controller.imageSize,
+                      staticRois: _controller.staticRois,
+                      aiObstacles: obstacles,
+                      isDebugMode: _isDebugMode,
+                      confidence: null,
+                      moveVector: null,
+                      targetBox: targetBox,
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
         ),
       ),
     );
@@ -197,39 +342,52 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             animation: _pulseController,
             builder: (context, child) {
               return Opacity(
-                opacity: 0.7 + (_pulseController.value * 0.3),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent.withOpacity(isDark ? 0.85 : 0.95),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.redAccent.withOpacity(0.5 * _pulseController.value),
-                        blurRadius: 20,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.5),
-                      width: 2,
-                    ),
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.stop_circle_rounded, color: Colors.white, size: 40),
-                      SizedBox(width: 16),
-                      Text(
-                        'CẢNH BÁO: BIỂN STOP!',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
+                opacity: 0.8 + (_pulseController.value * 0.2),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withOpacity(isDark ? 0.75 : 0.85),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.redAccent.withOpacity(0.5 * _pulseController.value),
+                            blurRadius: 20,
+                            spreadRadius: 5,
+                          ),
+                        ],
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.6),
+                          width: 2,
                         ),
                       ),
-                    ],
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.stop_circle_rounded, color: Colors.white, size: 40),
+                          const SizedBox(width: 16),
+                          Text(
+                            'CẢNH BÁO: BIỂN STOP!',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.2,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               );
@@ -247,7 +405,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
         if (frame == null) return const SizedBox.shrink();
 
         return Positioned(
-          bottom: 180,
+          bottom: 240,
           left: 0,
           right: 0,
           child: IgnorePointer(
@@ -255,22 +413,115 @@ class _FlowScreenV2State extends State<FlowScreenV2>
               child: ValueListenableBuilder<double>(
                 valueListenable: _controller.headingNotifier,
                 builder: (context, heading, child) {
+                  final continuousHeading = _getContinuousHeading(heading);
                   return ValueListenableBuilder<double>(
                     valueListenable: _controller.turnIntensityNotifier,
                     builder: (context, turnIntensity, child) {
-                      return SizedBox(
-                        width: 120,
-                        height: 120,
-                        child: CustomPaint(
-                          painter: DirectionArrowPainter(
-                            heading: heading,
-                            primaryColor: AppTheme.primaryColor,
-                            accentColor: AppTheme.secondaryColor,
-                            confidence: 0.85,
-                            turnIntensity: turnIntensity,
-                            showPath: true,
-                          ),
-                        ),
+                      return TweenAnimationBuilder<double>(
+                        tween: Tween(begin: continuousHeading, end: continuousHeading),
+                        duration: const Duration(milliseconds: 200),
+                        builder: (context, animHeading, _) {
+                          return Stack(
+                            alignment: Alignment.center,
+                            clipBehavior: Clip.none,
+                            children: [
+                              // Glassmorphism background for the compass center
+                              Container(
+                                width: 140,
+                                height: 140,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: (isDark ? Colors.black : Colors.white).withOpacity(0.15),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppTheme.primaryColor.withOpacity(0.15),
+                                      blurRadius: 30,
+                                      spreadRadius: 5,
+                                    ),
+                                  ],
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.2),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: ClipOval(
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: RadialGradient(
+                                          colors: [
+                                            AppTheme.primaryColor.withOpacity(0.15),
+                                            Colors.transparent,
+                                          ],
+                                          stops: const [0.4, 1.0],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // Expanded CustomPaint to allow chevrons and text to render outside the center circle
+                              SizedBox(
+                                width: 300,
+                                height: 140,
+                                child: CustomPaint(
+                                  painter: DirectionArrowPainter(
+                                    heading: animHeading,
+                                    primaryColor: AppTheme.primaryColor,
+                                    accentColor: AppTheme.secondaryColor,
+                                    confidence: 0.85,
+                                    turnIntensity: turnIntensity,
+                                    showPath: true,
+                                  ),
+                                ),
+                              ),
+                              // Live Heading Degrees Display
+                              Positioned(
+                                bottom: -20,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0D1117).withOpacity(0.85),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: AppTheme.secondaryColor.withOpacity(0.6),
+                                      width: 1.5,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppTheme.secondaryColor.withOpacity(0.3),
+                                        blurRadius: 12,
+                                        spreadRadius: 2,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.explore_rounded,
+                                        color: AppTheme.secondaryColor,
+                                        size: 14,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '${((animHeading % 360 + 360) % 360).toStringAsFixed(0)}°',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 2,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       );
                     },
                   );
@@ -298,26 +549,37 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                     : [const Color(0xFFF8FAFC), const Color(0xFFF1F5F9)],
               ),
             ),
-            child: Center(
-              child: RepaintBoundary(
-                child: FittedBox(
+            child: Transform.translate(
+              offset: const Offset(0, -80),
+              child: SizedBox.expand(
+                child: ClipRect(
+                  child: FittedBox(
                   fit: BoxFit.contain,
                   child: SizedBox(
                     width: _controller.imageSize.width,
                     height: _controller.imageSize.height,
-                    child: Stack(
-                      children: [
-                        Image.memory(
-                          bytes,
-                          fit: BoxFit.contain,
-                          gaplessPlayback: true,
-                          filterQuality: FilterQuality.medium,
-                        ),
-                      ],
+                    child: GestureDetector(
+                      onTapDown: (details) {
+                        _controller.setTarget(
+                          details.localPosition.dx,
+                          details.localPosition.dy,
+                        );
+                      },
+                      child: Stack(
+                        children: [
+                          Image.memory(
+                            bytes,
+                            fit: BoxFit.contain,
+                            gaplessPlayback: true,
+                            filterQuality: FilterQuality.medium,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
+            ),
             ),
           );
         }
@@ -337,9 +599,11 @@ class _FlowScreenV2State extends State<FlowScreenV2>
               : [const Color(0xFFF8FAFC), const Color(0xFFF1F5F9)],
         ),
       ),
-      child: FadeTransition(
-        opacity: _fadeAnimation,
-        child: Column(
+      child: Transform.translate(
+        offset: const Offset(0, -80),
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _buildAnimatedLogo(isDark),
@@ -366,6 +630,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             _buildStartButton(isDark),
           ],
         ),
+      ),
       ),
     );
   }
@@ -710,28 +975,41 @@ class _FlowScreenV2State extends State<FlowScreenV2>
       bottom: bottomPadding + UIConsts.spacingLG,
       child: FadeTransition(
         opacity: _fadeAnimation,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: UIConsts.spacingLG, vertical: UIConsts.spacingMD),
-          decoration: AppTheme.glassDecoration(isDark: isDark),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildCompactProgressBar(isDark),
-              const SizedBox(height: UIConsts.spacingMD),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: UIConsts.spacingLG, vertical: UIConsts.spacingMD),
+              decoration: AppTheme.glassDecoration(isDark: isDark).copyWith(
+                color: isDark ? Colors.black.withOpacity(0.5) : Colors.white.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: (isDark ? Colors.white : Colors.black).withOpacity(0.1),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // --- Group 1: Speed ---
-                  _buildDashboardInfo(isDark),
-                  
-                  // --- Group 2: Primary Control (Center) ---
-                  _buildMainPlayButton(isDark),
-                  
-                  // --- Group 3: Options Menu ---
-                  _buildOptionsMenu(isDark),
+                  _buildCompactProgressBar(isDark),
+                  const SizedBox(height: UIConsts.spacingMD),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // --- Group 1: Speed ---
+                      _buildDashboardInfo(isDark),
+                      
+                      // --- Group 2: Primary Control (Center) ---
+                      _buildMainPlayButton(isDark),
+                      
+                      // --- Group 3: Options Menu ---
+                      _buildOptionsMenu(isDark),
+                    ],
+                  ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -756,6 +1034,7 @@ class _FlowScreenV2State extends State<FlowScreenV2>
         switch (value) {
           case 'pick': _showPickMediaSourceSheet(isDark); break;
           case 'voice': _controller.toggleVoice(); break;
+          case 'autofocus': _controller.toggleAutoFocus(); break;
           case 'debug': setState(() => _isDebugMode = !_isDebugMode); break;
           case 'reset': _controller.resetTracking(); break;
         }
@@ -775,6 +1054,13 @@ class _FlowScreenV2State extends State<FlowScreenV2>
           "Debug Mode: ${_isDebugMode ? 'Bật' : 'Tắt'}", 
           isDark,
           color: _isDebugMode ? AppTheme.secondaryColor : null,
+        ),
+        _buildPopupItem(
+          'autofocus',
+          _controller.autoFocusEnabledNotifier.value ? Icons.center_focus_strong_rounded : Icons.center_focus_weak_rounded,
+          "Tự động khóa: ${_controller.autoFocusEnabledNotifier.value ? 'Bật' : 'Tắt'}",
+          isDark,
+          color: _controller.autoFocusEnabledNotifier.value ? AppTheme.primaryColor : null,
         ),
         const PopupMenuDivider(),
         _buildPopupItem('reset', Icons.refresh_rounded, "Làm mới theo dõi", isDark),
@@ -800,29 +1086,51 @@ class _FlowScreenV2State extends State<FlowScreenV2>
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.speed_rounded, color: AppTheme.secondaryColor, size: 16),
+            const SizedBox(width: 4),
+            Text(
+              "TỐC ĐỘ",
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.secondaryColor.withOpacity(0.8),
+                letterSpacing: 1,
+              ),
+            ),
+          ],
+        ),
         ValueListenableBuilder<double>(
           valueListenable: _controller.speedNotifier,
           builder: (context, speed, _) {
             final displaySpeed = _controller.isDemoMode ? "60" : (speed * 3.6).toStringAsFixed(0);
-            return Text(
-              displaySpeed,
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
-                fontFamily: 'monospace',
-                color: isDark ? Colors.white : AppTheme.textDark,
-              ),
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  displaySpeed,
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'monospace',
+                    color: isDark ? Colors.white : AppTheme.textDark,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  "KM/H",
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.adaptiveSubtext(isDark),
+                  ),
+                ),
+              ],
             );
           },
-        ),
-        Text(
-          "KM/H",
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-            color: AppTheme.secondaryColor.withOpacity(0.8),
-            letterSpacing: 1,
-          ),
         ),
       ],
     );
