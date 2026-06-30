@@ -8,6 +8,8 @@ import 'package:provider/provider.dart';
 import '../../../../core/app_theme.dart';
 import '../../../../core/page_transitions.dart';
 import '../../../../core/providers/theme_provider.dart';
+import '../../../../core/widgets/modern_animations.dart';
+import '../../../../core/widgets/modern_ui.dart';
 import '../../../voice/presentation/controllers/voice_controller.dart';
 import '../../../vision/presentation/pages/satellite_page.dart';
 import '../../../vision/presentation/pages/flow_page.dart';
@@ -65,6 +67,8 @@ class _MapHomeViewState extends State<_MapHomeView>
   bool _isDrawingMarkers = false;
   MapHomeState? _latestStateToDraw;
   bool _showAssistant = false;
+  bool _isMapReady = false;
+  bool _is3DMode = false;
 
   late AnimationController _fabAnimationController;
   late AnimationController _sheetAnimationController;
@@ -220,6 +224,14 @@ class _MapHomeViewState extends State<_MapHomeView>
 
     if (state.isRouteActive && state.routeGeoJson != null) {
       await _drawRouteLine(state.routeGeoJson!);
+    }
+  }
+
+  void _onMapLoaded(MapLoadedEventData data) {
+    if (mounted) {
+      setState(() {
+        _isMapReady = true;
+      });
     }
   }
 
@@ -433,6 +445,11 @@ class _MapHomeViewState extends State<_MapHomeView>
     context.read<MapHomeBloc>().add(const MapHomeResetToExplore());
   }
 
+  void _handleReturnToPlaceDetail() {
+    HapticFeedback.mediumImpact();
+    context.read<MapHomeBloc>().add(const MapHomeReturnToPlaceDetail());
+  }
+
   void _startNavigationVision() {
     HapticFeedback.heavyImpact();
     Navigator.push(
@@ -441,6 +458,19 @@ class _MapHomeViewState extends State<_MapHomeView>
         child: const NavigationVisionPage(),
         type: PageTransitionType.slideUp,
       ),
+    );
+  }
+
+  void _handleToggleMapMode() {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _is3DMode = !_is3DMode;
+    });
+    _mapboxMap?.flyTo(
+      CameraOptions(
+        pitch: _is3DMode ? 60.0 : 0.0,
+      ),
+      MapAnimationOptions(duration: 800),
     );
   }
 
@@ -579,6 +609,7 @@ class _MapHomeViewState extends State<_MapHomeView>
                           ResourceOptions(accessToken: mapboxToken),
                       onMapCreated: _onMapCreated,
                       onStyleLoadedListener: _onStyleLoaded,
+                      onMapLoadedListener: _onMapLoaded,
                       onTapListener: (coordinate) {
                         if (state.viewState ==
                             MapViewState.placeDetail) {
@@ -586,6 +617,154 @@ class _MapHomeViewState extends State<_MapHomeView>
                         }
                         FocusScope.of(context).unfocus();
                       },
+                    ),
+                    IgnorePointer(
+                      ignoring: _isMapReady,
+                      child: AnimatedOpacity(
+                        opacity: _isMapReady ? 0.0 : 1.0,
+                        duration: const Duration(milliseconds: 800),
+                        curve: Curves.easeInOutCubic,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppTheme.adaptiveSurface(isDark),
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                AppTheme.adaptiveSurface(isDark),
+                                isDark ? const Color(0xFF1A1A24) : const Color(0xFFF5F7FA),
+                              ],
+                            ),
+                          ),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                AnimatedBuilder(
+                                  animation: _pulseAnimation,
+                                  builder: (context, child) {
+                                    return Transform.scale(
+                                      scale: _pulseAnimation.value,
+                                      child: Container(
+                                        width: 100,
+                                        height: 100,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: AppTheme.primaryColor.withOpacity(0.1),
+                                        ),
+                                        child: Center(
+                                          child: Container(
+                                            width: 76,
+                                            height: 76,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: AppTheme.primaryColor.withOpacity(0.2),
+                                            ),
+                                            child: Center(
+                                              child: child,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Transform.translate(
+                                    offset: Offset(0, -8 * ((_pulseAnimation.value - 1.0) / 0.15)),
+                                    child: Container(
+                                      width: 52,
+                                      height: 52,
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.primaryColor,
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: AppTheme.primaryColor.withOpacity(0.4),
+                                            blurRadius: 16,
+                                            spreadRadius: 4,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Icon(
+                                        Icons.map_rounded,
+                                        size: 28,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 36),
+                                TweenAnimationBuilder<double>(
+                                  tween: Tween(begin: 0.0, end: 1.0),
+                                  duration: const Duration(milliseconds: 800),
+                                  curve: Curves.easeOutCubic,
+                                  builder: (context, value, child) {
+                                    return Opacity(
+                                      opacity: value,
+                                      child: Transform.translate(
+                                        offset: Offset(0, 20 * (1 - value)),
+                                        child: child,
+                                      ),
+                                    );
+                                  },
+                                  child: Column(
+                                    children: [
+                                      AnimatedBuilder(
+                                        animation: _pulseAnimation,
+                                        builder: (context, child) {
+                                          final progress = (_pulseAnimation.value - 1.0) / 0.15;
+                                          return ShaderMask(
+                                            blendMode: BlendMode.srcIn,
+                                            shaderCallback: (bounds) {
+                                              return LinearGradient(
+                                                colors: [
+                                                  AppTheme.adaptiveText(isDark).withOpacity(0.4),
+                                                  AppTheme.adaptiveText(isDark),
+                                                  AppTheme.adaptiveText(isDark).withOpacity(0.4),
+                                                ],
+                                                stops: [
+                                                  progress - 0.3,
+                                                  progress,
+                                                  progress + 0.3,
+                                                ],
+                                                begin: const Alignment(-1.0, 0.0),
+                                                end: const Alignment(1.0, 0.0),
+                                              ).createShader(bounds);
+                                            },
+                                            child: const Text(
+                                              'Đang chuẩn bị bản đồ...',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 18,
+                                                letterSpacing: 0.2,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                      const SizedBox(height: 10),
+                                      AnimatedBuilder(
+                                        animation: _pulseAnimation,
+                                        builder: (context, child) {
+                                          final opacity = 0.3 + 0.7 * ((_pulseAnimation.value - 1.0) / 0.15);
+                                          return Text(
+                                            'Vui lòng đợi trong giây lát',
+                                            style: TextStyle(
+                                              color: AppTheme.adaptiveText(isDark).withOpacity(opacity),
+                                              fontWeight: FontWeight.w500,
+                                              fontSize: 14,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                     if (state.viewState == MapViewState.explore ||
                         state.viewState == MapViewState.placeDetail)
@@ -672,7 +851,7 @@ class _MapHomeViewState extends State<_MapHomeView>
                       MapNavigationPanel(
                         state: state,
                         isDark: isDark,
-                        onExitNavigation: _handleResetToExplore,
+                        onExitNavigation: _handleReturnToPlaceDetail,
                         onStartVision: _startNavigationVision,
                       ),
                     // Di chuyển Floating Buttons vào Stack để không bị đè
@@ -710,6 +889,8 @@ class _MapHomeViewState extends State<_MapHomeView>
                                   HapticFeedback.mediumImpact();
                                 }
                               },
+                              onToggleMapMode: _handleToggleMapMode,
+                              is3DMode: _is3DMode,
                               fabScaleAnimation: _fabScaleAnimation,
                               pulseAnimation: _pulseAnimation,
                             ),

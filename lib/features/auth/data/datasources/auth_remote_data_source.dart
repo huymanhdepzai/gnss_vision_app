@@ -6,12 +6,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
 import 'package:http/http.dart' as http;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
+import '../../domain/entities/saved_address_entity.dart';
 
 abstract class AuthRemoteDataSource {
   Future<UserModel> signInWithGoogle();
   Future<void> signOut();
   Future<UserModel?> getCurrentUser();
+  
+  // Saved Addresses
+  Future<void> updateHomeAddress(SavedAddressEntity address);
+  Future<void> updateWorkAddress(SavedAddressEntity address);
   
   // Biometric methods
   Future<bool> authenticateWithBiometrics();
@@ -64,10 +70,31 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       if (userCredential.user == null) {
         throw Exception('Không thể lấy thông tin User từ Firebase');
       }
-
-      return UserModel.fromFirebaseUser(userCredential.user!);
+      
+      return await _getUserModelFromFirebaseUser(userCredential.user!);
     } catch (e) {
       throw Exception('Lỗi đăng nhập Google: $e');
+    }
+  }
+
+  Future<UserModel> _getUserModelFromFirebaseUser(User firebaseUser) async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).get();
+      SavedAddressEntity? home;
+      SavedAddressEntity? work;
+      if (doc.exists) {
+        final data = doc.data()!;
+        if (data['homeAddress'] != null) home = SavedAddressEntity.fromJson(data['homeAddress']);
+        if (data['workAddress'] != null) work = SavedAddressEntity.fromJson(data['workAddress']);
+      }
+      return UserModel.fromFirebaseUser(
+        firebaseUser,
+        homeAddress: home,
+        workAddress: work,
+      );
+    } catch (e) {
+      debugPrint('Lỗi lấy dữ liệu từ Firestore: $e');
+      return UserModel.fromFirebaseUser(firebaseUser);
     }
   }
 
@@ -93,7 +120,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw Exception('Không thể lấy thông tin User từ Firebase');
       }
 
-      return UserModel.fromFirebaseUser(userCredential.user!);
+      return await _getUserModelFromFirebaseUser(userCredential.user!);
     } catch (e) {
       throw Exception('Lỗi đăng nhập nhanh: $e');
     }
@@ -168,8 +195,26 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   Future<UserModel?> getCurrentUser() async {
     final user = auth.currentUser;
     if (user != null) {
-      return UserModel.fromFirebaseUser(user);
+      return await _getUserModelFromFirebaseUser(user);
     }
     return null;
+  }
+
+  @override
+  Future<void> updateHomeAddress(SavedAddressEntity address) async {
+    final user = auth.currentUser;
+    if (user == null) throw Exception('Vui lòng đăng nhập');
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+      'homeAddress': address.toJson(),
+    }, SetOptions(merge: true));
+  }
+
+  @override
+  Future<void> updateWorkAddress(SavedAddressEntity address) async {
+    final user = auth.currentUser;
+    if (user == null) throw Exception('Vui lòng đăng nhập');
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+      'workAddress': address.toJson(),
+    }, SetOptions(merge: true));
   }
 }

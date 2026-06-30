@@ -31,6 +31,7 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
     on<MapHomeStartNavigation>(_onStartNavigation);
     on<MapHomeFetchRoute>(_onFetchRoute);
     on<MapHomeResetToExplore>(_onResetToExplore);
+    on<MapHomeReturnToPlaceDetail>(_onReturnToPlaceDetail);
     on<MapHomeClearSearch>(_onClearSearch);
     on<MapHomeLocationUpdated>(_onLocationUpdated);
     on<MapHomeThemeChanged>(_onThemeChanged);
@@ -151,11 +152,11 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
     final query = event.query;
 
     if (query.isEmpty) {
-      emit(state.copyWith(searchResults: [], searchQuery: ''));
+      emit(state.copyWith(searchResults: [], searchQuery: '', isSearching: false));
       return;
     }
 
-    emit(state.copyWith(searchQuery: query));
+    emit(state.copyWith(searchQuery: query, isSearching: true));
     _debounce = Timer(const Duration(milliseconds: 500), () {
       add(MapHomePerformSearch(query));
     });
@@ -212,6 +213,7 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
       final detail =
           await _searchDataSource.getPlaceDetail(event.placeId);
       emit(state.copyWith(
+        destinationPlaceId: event.placeId,
         destinationLat: detail.latitude,
         destinationLng: detail.longitude,
         destinationName:
@@ -308,6 +310,15 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
       isLocationLoaded: state.isLocationLoaded,
       viewState: MapViewState.explore,
       placeDetail: null,
+    ));
+  }
+
+  Future<void> _onReturnToPlaceDetail(
+    MapHomeReturnToPlaceDetail event,
+    Emitter<MapHomeState> emit,
+  ) async {
+    emit(state.copyWith(
+      viewState: MapViewState.placeDetail,
     ));
   }
 

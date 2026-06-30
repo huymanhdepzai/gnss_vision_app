@@ -136,11 +136,11 @@ class VideoFlowController extends ChangeNotifier {
         if (message['type'] == 'METADATA') {
           totalFrames = message['totalFrames'];
           fps = message['fps'];
-          notifyListeners();
+          if (!_isDisposed) notifyListeners();
         } else if (message['type'] == 'ERROR') {
           debugPrint("Worker Isolate Error: ${message['message']}");
           isPlaying = false;
-          notifyListeners();
+          if (!_isDisposed) notifyListeners();
         }
       }
     });
@@ -197,6 +197,7 @@ class VideoFlowController extends ChangeNotifier {
   int _consecutiveEmptyAiRuns = 0;
 
   void _handleFrameResult(IsolateResult res) async {
+    if (_isDisposed) return;
     _frameCounter++;
     pointsToDraw = res.points;
     imageSize = res.imageSize;
@@ -265,10 +266,13 @@ class VideoFlowController extends ChangeNotifier {
     }
 
     // Đảm bảo UI cập nhật các thuộc tính khác (imageSize, pointsToDraw, ...)
-    notifyListeners();
+    if (!_isDisposed) {
+      notifyListeners();
+    }
   }
 
   Future<void> _runAI(Uint8List bytes, Size size) async {
+    if (_isDisposed) return;
     _isAiBusy = true;
     try {
       final result = await vision.yoloOnImage(
@@ -278,6 +282,8 @@ class VideoFlowController extends ChangeNotifier {
         iouThreshold: 0.4,
         confThreshold: 0.25,
       );
+
+      if (_isDisposed) return;
 
       List<DetectedObject> detected = [];
       List<String> detectedLabels = [];
@@ -416,16 +422,34 @@ class VideoFlowController extends ChangeNotifier {
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  bool _isDisposed = false;
+
   @override
   void dispose() {
+    _isDisposed = true;
     _toWorkerPort?.send(IsolateCommand('STOP'));
     _fromWorkerPort.close();
-    _workerIsolate?.kill();
-    vision.closeYoloModel();
+    _workerIsolate?.kill(priority: Isolate.immediate);
     gpsSubscription?.cancel();
     imuSubscription?.cancel();
     voiceFeedback.dispose();
+    
+    _safeDisposeVision();
     super.dispose();
+  }
+
+  Future<void> _safeDisposeVision() async {
+    // Chờ AI xử lý xong (tối đa 2s) trước khi close model để tránh crash native
+    int waitMs = 0;
+    while (_isAiBusy && waitMs < 2000) {
+      await Future.delayed(const Duration(milliseconds: 50));
+      waitMs += 50;
+    }
+    try {
+      await vision.closeYoloModel();
+    } catch (e) {
+      debugPrint("Lỗi khi đóng YOLO model: $e");
+    }
   }
 
   // ================= WORKER ISOLATE (HÀM TÁCH BIỆT) =================

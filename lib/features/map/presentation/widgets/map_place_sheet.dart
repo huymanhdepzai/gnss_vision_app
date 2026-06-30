@@ -7,6 +7,10 @@ import '../bloc/map_home_state.dart';
 import '../bloc/map_home_bloc.dart';
 
 import '../../data/datasources/goong_search_data_source.dart';
+import '../../../../core/utils/injection_container.dart';
+import '../../../auth/domain/repositories/auth_repository.dart';
+import '../../../auth/domain/entities/saved_address_entity.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 
 class MapPlaceSheet extends StatefulWidget {
   final MapHomeState state;
@@ -44,6 +48,16 @@ class _MapPlaceSheetState extends State<MapPlaceSheet> {
   Widget build(BuildContext context) {
     final textColor = widget.isDark ? Colors.white : AppTheme.textDark;
     final detail = widget.state.placeDetail;
+
+    final authState = context.watch<AuthBloc>().state;
+    final user = authState.maybeMap(
+      authenticated: (s) => s.user,
+      orElse: () => null,
+    );
+    final homeAddress = user?.homeAddress;
+    final workAddress = user?.workAddress;
+    final isHome = homeAddress?.placeId == widget.state.destinationPlaceId;
+    final isWork = workAddress?.placeId == widget.state.destinationPlaceId;
 
     return Container(
       decoration: BoxDecoration(
@@ -116,7 +130,38 @@ class _MapPlaceSheetState extends State<MapPlaceSheet> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              const SizedBox(height: 4),
+                              if (isHome || isWork) ...[
+                                const SizedBox(height: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: (isHome ? Colors.blue : Colors.orange).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        isHome ? Icons.home_rounded : Icons.work_rounded,
+                                        size: 14,
+                                        color: isHome ? Colors.blue : Colors.orange,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        isHome ? "Nhà riêng" : "Công ty",
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: isHome ? Colors.blue : Colors.orange,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                              ] else ...[
+                                const SizedBox(height: 4),
+                              ],
                               if (detail?.rating != null)
                                 Row(
                                   children: [
@@ -154,6 +199,11 @@ class _MapPlaceSheetState extends State<MapPlaceSheet> {
                             ],
                           ),
                         ),
+                        if (widget.state.destinationPlaceId != null)
+                          IconButton(
+                            icon: Icon(Icons.bookmark_add_outlined, color: textColor),
+                            onPressed: () => _showSaveOptions(context),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -731,5 +781,135 @@ class _MapPlaceSheetState extends State<MapPlaceSheet> {
         ),
       ),
     );
+  }
+
+  void _showSaveOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: widget.isDark ? AppTheme.cardDark : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (BuildContext ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: widget.isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                "Lưu địa chỉ",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: widget.isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.home_rounded, color: Colors.blue),
+                ),
+                title: Text("Nhà riêng", style: TextStyle(color: widget.isDark ? Colors.white : Colors.black87)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _saveAddress(isHome: true);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.work_rounded, color: Colors.orange),
+                ),
+                title: Text("Công ty", style: TextStyle(color: widget.isDark ? Colors.white : Colors.black87)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _saveAddress(isHome: false);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _saveAddress({required bool isHome}) async {
+    final placeId = widget.state.destinationPlaceId;
+    if (placeId == null) return;
+    
+    final address = SavedAddressEntity(
+      placeId: placeId,
+      description: widget.state.destinationName,
+      lat: widget.state.destinationLat ?? 0,
+      lng: widget.state.destinationLng ?? 0,
+    );
+    try {
+      if (isHome) {
+        await sl<AuthRepository>().updateHomeAddress(address);
+      } else {
+        await sl<AuthRepository>().updateWorkAddress(address);
+      }
+      if (mounted) {
+        context.read<AuthBloc>().add(const AuthEvent.authCheckRequested());
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isHome ? "Đã lưu địa chỉ nhà riêng" : "Đã lưu địa chỉ công ty",
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+            ),
+            backgroundColor: AppTheme.primaryColor,
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.only(
+              bottom: MediaQuery.of(context).size.height - 160,
+              left: 16,
+              right: 16,
+            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              "Lỗi khi lưu địa chỉ",
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+            ),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.only(
+              bottom: MediaQuery.of(context).size.height - 160,
+              left: 16,
+              right: 16,
+            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 }

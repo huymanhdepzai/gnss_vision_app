@@ -1,5 +1,6 @@
 import 'package:dartz/dartz.dart';
 import '../../domain/entities/user_entity.dart';
+import '../../domain/entities/saved_address_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_data_source.dart';
 
@@ -85,6 +86,26 @@ class AuthRepositoryImpl implements AuthRepository {
       return Right(result);
     } catch (e) {
       return Left(Failure('Không thể đọc cài đặt sinh trắc học: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> updateHomeAddress(SavedAddressEntity address) async {
+    try {
+      await remoteDataSource.updateHomeAddress(address);
+      return const Right(null);
+    } catch (e) {
+      return Left(Failure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> updateWorkAddress(SavedAddressEntity address) async {
+    try {
+      await remoteDataSource.updateWorkAddress(address);
+      return const Right(null);
+    } catch (e) {
+      return Left(Failure(e.toString()));
     }
   }
 }
