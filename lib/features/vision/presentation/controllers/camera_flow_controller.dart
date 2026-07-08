@@ -197,6 +197,7 @@ class CameraFlowController extends ChangeNotifier {
   int _consecutiveEmptyAiRuns = 0;
 
   void _handleFrameResult(IsolateResult res) async {
+    _isProcessingCameraFrame = false;
     _frameCounter++;
     pointsToDraw = res.points;
     imageSize = res.imageSize;
@@ -222,9 +223,7 @@ class CameraFlowController extends ChangeNotifier {
       visionQuality: res.quality,
     );
 
-    if (!isUsingCamera) {
-      frameNotifier.value = res.imageBytes;
-    }
+    frameNotifier.value = res.imageBytes;
     headingNotifier.value = finalFusedHeading;
     turnIntensityNotifier.value = (appliedDx / 20).clamp(-1.0, 1.0);
     progressNotifier.value = res.currentFrame;
@@ -350,7 +349,7 @@ class CameraFlowController extends ChangeNotifier {
       isPlaying = true;
       isPaused = false;
       
-      _toWorkerPort?.send(IsolateCommand('CAMERA_START'));
+      _toWorkerPort?.send(IsolateCommand('CAMERA_START', value: cameras.first.sensorOrientation.toDouble()));
 
       _cameraController!.startImageStream((CameraImage image) {
         if (_isProcessingCameraFrame || _toWorkerPort == null) return;
@@ -362,9 +361,8 @@ class CameraFlowController extends ChangeNotifier {
           imageData: bytes,
           width: image.width,
           height: image.height,
+          bytesPerRow: image.planes[0].bytesPerRow,
         ));
-        
-        _isProcessingCameraFrame = false;
       });
       
       notifyListeners();
@@ -454,6 +452,7 @@ class CameraFlowController extends ChangeNotifier {
     bool isPlaying = false;
     bool isPaused = false;
     bool isCamera = false;
+    int sensorOrientation = 90;
     double speed = 1.0;
     List<Rect> obstacles = [];
 
@@ -467,6 +466,7 @@ class CameraFlowController extends ChangeNotifier {
             isCamera = true;
             isPlaying = true;
             isPaused = false;
+            sensorOrientation = message.value?.toInt() ?? 90;
             cap?.release();
             cap = null;
             cvCore?.resetTracking();
@@ -476,14 +476,37 @@ class CameraFlowController extends ChangeNotifier {
             
             final frameW = message.width!;
             final frameH = message.height!;
+            final bytesPerRow = message.bytesPerRow ?? frameW;
+            
+            Uint8List yPlane = message.imageData!;
+            if (bytesPerRow > frameW) {
+              final newBytes = Uint8List(frameW * frameH);
+              for (var i = 0; i < frameH; i++) {
+                newBytes.setRange(i * frameW, (i + 1) * frameW, yPlane, i * bytesPerRow);
+              }
+              yPlane = newBytes;
+            }
             
             // Khởi tạo Mat từ Plane Y (Grayscale)
-            cv.Mat frame = cv.Mat.fromList(frameH, frameW, cv.MatType.CV_8UC1, message.imageData!);
+            cv.Mat frame = cv.Mat.fromList(frameH, frameW, cv.MatType.CV_8UC1, yPlane);
+            
+            // Đảo hướng ảnh (xoay) theo sensorOrientation để ảnh trên AI và Optical Flow đúng chiều (Portrait)
+            cv.Mat rotatedFrame;
+            if (sensorOrientation == 90) {
+              rotatedFrame = cv.rotate(frame, cv.ROTATE_90_CLOCKWISE);
+            } else if (sensorOrientation == 270) {
+              rotatedFrame = cv.rotate(frame, cv.ROTATE_90_COUNTERCLOCKWISE);
+            } else if (sensorOrientation == 180) {
+              rotatedFrame = cv.rotate(frame, cv.ROTATE_180);
+            } else {
+              rotatedFrame = frame.clone();
+            }
+            frame.dispose();
             
             // Tăng độ phân giải lên 640px để hình ảnh rõ nét hơn (gốc là 240px)
-            double scale = 640.0 / frameW;
-            cv.Mat smallGray = cv.resize(frame, (640, (frameH * scale).toInt()));
-            frame.dispose();
+            double scale = 640.0 / rotatedFrame.cols;
+            cv.Mat smallGray = cv.resize(rotatedFrame, (640, (rotatedFrame.rows * scale).toInt()));
+            rotatedFrame.dispose();
 
             // Convert sang BGR để CVCore xử lý đồng bộ
             cv.Mat smallBGR = cv.cvtColor(smallGray, cv.COLOR_GRAY2BGR);

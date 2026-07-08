@@ -45,6 +45,7 @@ class IsolateCommand {
   final Uint8List? imageData;
   final int? width;
   final int? height;
+  final int? bytesPerRow;
   final Offset? point;
 
   IsolateCommand(this.type, {
@@ -54,6 +55,7 @@ class IsolateCommand {
     this.imageData,
     this.width,
     this.height,
+    this.bytesPerRow,
     this.point,
   });
 }

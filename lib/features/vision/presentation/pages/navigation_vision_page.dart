@@ -6,6 +6,7 @@ import 'package:camera/camera.dart';
 import '../../../../core/app_theme.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../controllers/camera_flow_controller.dart';
+import '../controllers/vision_isolate_models.dart';
 import '../widgets/flow_painter.dart';
 import '../widgets/navigation_map_widget.dart';
 import '../widgets/turn_instruction_card.dart';
@@ -355,49 +356,12 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
   }
 
   Widget _buildPiPVideoContent(bool isDark) {
-    if (_flowController.isUsingCamera && _flowController.cameraController != null) {
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          GestureDetector(
-            onTapDown: (details) {
-              _flowController.setTarget(
-                details.localPosition.dx,
-                details.localPosition.dy,
-              );
-            },
-            child: CameraPreview(_flowController.cameraController!),
-          ),
-          ValueListenableBuilder<Rect?>(
-            valueListenable: _flowController.targetBoxNotifier,
-            builder: (context, targetBox, _) {
-              return ValueListenableBuilder(
-                valueListenable: _flowController.headingNotifier,
-                builder: (context, heading, _) {
-                  return CustomPaint(
-                    painter: FlowPainter(
-                      points: _flowController.pointsToDraw,
-                      imageSize: _flowController.imageSize,
-                      staticRois: _flowController.staticRois,
-                      aiObstacles: _flowController.aiObstaclesNotifier.value,
-                      isDebugMode: _isDebugMode,
-                      confidence: null,
-                      moveVector: null,
-                      targetBox: targetBox,
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        ],
-      );
-    }
-
-    return ValueListenableBuilder(
+    return ValueListenableBuilder<Uint8List?>(
       valueListenable: _flowController.frameNotifier,
       builder: (context, bytes, child) {
-        if (bytes != null && _flowController.imageSize != Size.zero) {
+        final isLiveCamera = _flowController.isUsingCamera && _flowController.cameraController != null;
+        
+        if ((isLiveCamera || bytes != null) && _flowController.imageSize != Size.zero) {
           return FittedBox(
             fit: BoxFit.cover,
             child: SizedBox(
@@ -412,29 +376,39 @@ class _NavigationVisionPageState extends State<NavigationVisionPage>
                 },
                 child: Stack(
                   children: [
-                    Image.memory(
-                      bytes,
-                      fit: BoxFit.cover,
-                      gaplessPlayback: true,
-                      filterQuality: FilterQuality.medium,
-                    ),
+                    if (isLiveCamera)
+                      SizedBox.expand(
+                        child: CameraPreview(_flowController.cameraController!),
+                      )
+                    else if (bytes != null)
+                      Image.memory(
+                        bytes,
+                        fit: BoxFit.cover,
+                        gaplessPlayback: true,
+                        filterQuality: FilterQuality.medium,
+                      ),
                     ValueListenableBuilder<Rect?>(
                       valueListenable: _flowController.targetBoxNotifier,
                       builder: (context, targetBox, _) {
-                        return ValueListenableBuilder(
+                        return ValueListenableBuilder<double>(
                           valueListenable: _flowController.headingNotifier,
                           builder: (context, heading, _) {
-                            return CustomPaint(
-                              painter: FlowPainter(
-                                points: _flowController.pointsToDraw,
-                                imageSize: _flowController.imageSize,
-                                staticRois: _flowController.staticRois,
-                                aiObstacles: _flowController.aiObstaclesNotifier.value,
-                                isDebugMode: _isDebugMode,
-                                confidence: null,
-                                moveVector: null,
-                                targetBox: targetBox,
-                              ),
+                            return ValueListenableBuilder<List<DetectedObject>>(
+                              valueListenable: _flowController.aiObstaclesNotifier,
+                              builder: (context, obstacles, _) {
+                                return CustomPaint(
+                                  painter: FlowPainter(
+                                    points: _flowController.pointsToDraw,
+                                    imageSize: _flowController.imageSize,
+                                    staticRois: _flowController.staticRois,
+                                    aiObstacles: obstacles,
+                                    isDebugMode: _isDebugMode,
+                                    confidence: null,
+                                    moveVector: null,
+                                    targetBox: targetBox,
+                                  ),
+                                );
+                              },
                             );
                           },
                         );

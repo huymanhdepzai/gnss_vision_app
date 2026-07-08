@@ -721,9 +721,6 @@ class _NavigationMapWidgetState extends State<NavigationMapWidget> {
         }
       }
 
-      if (await style.styleLayerExists("user_location_layer")) {
-        await style.moveStyleLayer("user_location_layer", null);
-      }
     } catch (e) {
       debugPrint('Error updating user location marker: $e');
     }
