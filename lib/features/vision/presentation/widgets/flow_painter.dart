@@ -79,16 +79,18 @@ class FlowPainter extends CustomPainter {
   void _drawObstacles(Canvas canvas, Size size, double scaleX, double scaleY, double dx, double dy) {
     if (aiObstacles == null || aiObstacles!.isEmpty) return;
 
-    final borderPaint = Paint()
-      ..color = Colors.red
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.0;
-
-    final fillPaint = Paint()
-      ..color = Colors.red.withOpacity(0.15)
-      ..style = PaintingStyle.fill;
-
     for (var obj in aiObstacles!) {
+      final objColor = _getColorForLabel(obj.label);
+
+      final borderPaint = Paint()
+        ..color = objColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.0;
+
+      final fillPaint = Paint()
+        ..color = objColor.withOpacity(0.15)
+        ..style = PaintingStyle.fill;
+
       final box = obj.rect;
       double left = box.left;
       double top = box.top;
@@ -113,7 +115,7 @@ class FlowPainter extends CustomPainter {
       canvas.drawRRect(
         RRect.fromRectAndRadius(scaledBox, const Radius.circular(8)),
         Paint()
-          ..color = Colors.red.withOpacity(0.4)
+          ..color = objColor.withOpacity(0.4)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 6
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
@@ -122,59 +124,37 @@ class FlowPainter extends CustomPainter {
       canvas.drawRRect(RRect.fromRectAndRadius(scaledBox, const Radius.circular(8)), fillPaint);
       canvas.drawRRect(RRect.fromRectAndRadius(scaledBox, const Radius.circular(8)), borderPaint);
 
-      _drawBoldCorners(canvas, scaledBox);
-      _drawLabelToBackground(canvas, size, scaledBox, obj.label, dx, dy);
+      _drawBoldCorners(canvas, scaledBox, objColor);
+      _drawDirectLabel(canvas, scaledBox, obj.label, objColor);
     }
   }
 
-  void _drawLabelToBackground(Canvas canvas, Size screenSize, Rect box, String label, double dx, double dy) {
-    final leaderPaint = Paint()
-      ..color = Colors.red.withOpacity(0.5)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-
-    Offset start, end;
-    bool isLeft = box.center.dx < screenSize.width / 2;
-    bool isTop = box.center.dy < screenSize.height / 2;
-
-    // --- Optimized Exit Direction (Exclude Bottom) ---
-    if (isTop && dy > 30) {
-      // Priority 1: Top Area for objects in the upper half
-      start = Offset(box.center.dx, box.top);
-      double targetY = dy / 2;
-      double targetX = (box.center.dx).clamp(40.0, screenSize.width - 40.0);
-      end = Offset(targetX, targetY);
-    } else if (dx > 25) {
-      // Priority 2: Left/Right Sides for everything else (or if Top is small)
-      start = isLeft ? Offset(box.left, box.top) : Offset(box.right, box.top);
-      double targetX = isLeft ? dx / 2 : screenSize.width - (dx / 2);
-      double targetY = (box.top - 20).clamp(50.0, screenSize.height - 180.0); // Stay away from bottom controls
-      end = Offset(targetX, targetY);
-    } else {
-      // Fallback: Default to Top-Sides, avoiding downward lines
-      start = isLeft ? Offset(box.left, box.top) : Offset(box.right, box.top);
-      end = isLeft ? Offset(box.left - 40, box.top - 30) : Offset(box.right + 40, box.top - 30);
+  Color _getColorForLabel(String label) {
+    final l = label.toLowerCase();
+    switch (l) {
+      case 'person': return Colors.blueAccent;
+      case 'car': return Colors.greenAccent;
+      case 'motorcycle': return Colors.orangeAccent;
+      case 'bus': return Colors.purpleAccent;
+      case 'truck': return Colors.amberAccent;
+      case 'bicycle': return Colors.cyanAccent;
+      case 'stop sign': return Colors.redAccent;
+      case 'traffic light': return Colors.yellowAccent;
+      default:
+        final int hash = label.hashCode;
+        return HSLColor.fromAHSL(1.0, (hash.abs() % 360).toDouble(), 0.8, 0.6).toColor();
     }
+  }
 
-    // Draw a subtle "elbow" path for a tech look
-    final path = Path()
-      ..moveTo(start.dx, start.dy)
-      ..lineTo(end.dx, end.dy);
-
-    canvas.drawPath(path, leaderPaint);
-    
-    // Tiny node at the start
-    canvas.drawCircle(start, 2.5, Paint()..color = Colors.red.withOpacity(0.8));
-
-    // --- Draw Label ---
+  void _drawDirectLabel(Canvas canvas, Rect box, String label, Color color) {
     final textPainter = TextPainter(
       text: TextSpan(
         text: ' ${label.toUpperCase()} ',
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 9,
+        style: TextStyle(
+          color: color.computeLuminance() > 0.5 ? Colors.black : Colors.white,
+          fontSize: 10,
           fontWeight: FontWeight.w900,
-          backgroundColor: Colors.red,
+          backgroundColor: color,
           letterSpacing: 1.2,
         ),
       ),
@@ -183,18 +163,19 @@ class FlowPainter extends CustomPainter {
 
     textPainter.layout();
     
-    // Center label on the end point
-    double drawX = isLeft ? end.dx : end.dx - textPainter.width;
-    if (dx <= 30 && dy <= 30) { // Fallback for small background
-       drawX = isLeft ? end.dx - textPainter.width : end.dx;
+    // Draw label directly above the box. If it goes off-screen, draw inside the box.
+    double drawX = box.left;
+    double drawY = box.top - textPainter.height - 2;
+    if (drawY < 0) {
+      drawY = box.top + 2; // draw inside if not enough space above
     }
     
-    textPainter.paint(canvas, Offset(drawX, end.dy - textPainter.height / 2));
+    textPainter.paint(canvas, Offset(drawX, drawY));
   }
 
-  void _drawBoldCorners(Canvas canvas, Rect rect) {
+  void _drawBoldCorners(Canvas canvas, Rect rect, Color color) {
     final cornerPaint = Paint()
-      ..color = Colors.red
+      ..color = color
       ..style = PaintingStyle.stroke
       ..strokeWidth = 5
       ..strokeCap = StrokeCap.round;

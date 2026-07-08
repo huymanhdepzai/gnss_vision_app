@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'dart:math' as math;
 import '../../../../core/app_theme.dart';
 import '../bloc/map_home_state.dart';
 
@@ -12,6 +13,7 @@ class MapFloatingButtons extends StatelessWidget {
   final bool is3DMode;
   final Animation<double> fabScaleAnimation;
   final Animation<double> pulseAnimation;
+  final bool hasNewMessage;
 
   const MapFloatingButtons({
     Key? key,
@@ -23,6 +25,7 @@ class MapFloatingButtons extends StatelessWidget {
     required this.is3DMode,
     required this.fabScaleAnimation,
     required this.pulseAnimation,
+    this.hasNewMessage = false,
   }) : super(key: key);
 
   @override
@@ -37,21 +40,88 @@ class MapFloatingButtons extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               // Assistant Button
-              FloatingActionButton(
-                heroTag: "btn_assistant",
-                backgroundColor: Colors.white,
-                elevation: 6,
-                shape: const CircleBorder(),
-                onPressed: onToggleAssistant,
-                child: Center(
-                  child: SvgPicture.asset(
-                    'assets/icons/bot-svg.svg',
-                    colorFilter: const ColorFilter.mode(
-                        AppTheme.primaryColor, BlendMode.srcIn),
-                    width: 24,
-                    height: 24,
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  AnimatedBuilder(
+                    animation: pulseAnimation,
+                    builder: (context, child) {
+                      // Calculate wiggle angle based on pulseAnimation
+                      final t = (pulseAnimation.value - 1.0) / 0.15;
+                      // Shake when there's a new message
+                      final angle = hasNewMessage ? math.sin(t * math.pi * 3) * 0.12 : 0.0;
+                      return Transform.rotate(
+                        angle: angle,
+                        child: FloatingActionButton(
+                          heroTag: "btn_assistant",
+                          backgroundColor: isDark ? AppTheme.cardDark : Colors.white,
+                          elevation: hasNewMessage ? 8 : 6,
+                          shape: const CircleBorder(),
+                          onPressed: onToggleAssistant,
+                          child: Center(
+                            child: SvgPicture.asset(
+                              'assets/icons/bot-svg.svg',
+                              colorFilter: const ColorFilter.mode(
+                                  AppTheme.primaryColor, BlendMode.srcIn),
+                              width: 24,
+                              height: 24,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ),
+                  if (hasNewMessage)
+                    Positioned(
+                      right: -4,
+                      top: -4,
+                      child: AnimatedBuilder(
+                        animation: pulseAnimation,
+                        builder: (context, child) {
+                          // Extra pop for the badge scaling
+                          final scale = 1.0 + ((pulseAnimation.value - 1.0) * 1.5);
+                          return Transform.scale(
+                            scale: scale,
+                            child: Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFFF5252), Color(0xFFD32F2F)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isDark ? AppTheme.cardDark : Colors.white,
+                                  width: 2.5,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFFF5252).withOpacity(0.6),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  '1',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w900,
+                                    height: 1.1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 12),
               // Map Mode Toggle Button

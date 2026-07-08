@@ -346,12 +346,28 @@ class TripController extends ChangeNotifier {
     }
   }
 
+  double _globalSyncProgress = 0.0;
+  double get globalSyncProgress => _globalSyncProgress;
+
   Future<bool> syncAllFromCloud() async {
     debugPrint('TripController: Starting sync all from cloud');
     _isLoading = true;
     _isSyncingFromCloud = true;
+    _globalSyncProgress = 0.0;
     _error = null;
     notifyListeners();
+
+    // Start a timer to simulate progress up to 90%
+    bool isDone = false;
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(milliseconds: 200));
+      if (isDone) return false;
+      if (_globalSyncProgress < 0.9) {
+        _globalSyncProgress += (0.9 - _globalSyncProgress) * 0.1;
+        notifyListeners();
+      }
+      return true;
+    });
 
     try {
       final result = await _tripRepository.syncAllFromCloud();
@@ -368,8 +384,16 @@ class TripController extends ChangeNotifier {
           return true;
         },
       );
+      isDone = true;
+      _globalSyncProgress = 1.0;
+      notifyListeners();
+      
+      // Keep it at 100% for a brief moment before hiding
+      await Future.delayed(const Duration(milliseconds: 300));
+      
       _isLoading = false;
       _isSyncingFromCloud = false;
+      _globalSyncProgress = 0.0;
       notifyListeners();
       return success;
     } catch (e) {

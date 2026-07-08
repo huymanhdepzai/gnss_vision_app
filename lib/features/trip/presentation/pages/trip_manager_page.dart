@@ -238,14 +238,27 @@ class _TripManagerScreenState extends State<TripManagerScreen>
         ),
         background: Stack(
           children: [
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppTheme.primaryColor.withOpacity(isDark ? 0.1 : 0.05),
+                    Colors.transparent,
+                    AppTheme.secondaryColor.withOpacity(isDark ? 0.05 : 0.02),
+                  ],
+                ),
+              ),
+            ),
             Positioned(
               right: -50,
               top: -20,
               child: Opacity(
-                opacity: isDark ? 0.1 : 0.05,
+                opacity: isDark ? 0.15 : 0.08,
                 child: Icon(
                   Icons.map_rounded,
-                  size: 200,
+                  size: 220,
                   color: AppTheme.primaryColor,
                 ),
               ),
@@ -373,8 +386,9 @@ class _TripManagerScreenState extends State<TripManagerScreen>
   }
 
   Widget _buildLoadingState(bool isDark) {
-    final tripController = context.read<TripController>();
+    final tripController = context.watch<TripController>();
     final isSyncing = tripController.isSyncingFromCloud;
+    final progress = tripController.globalSyncProgress;
 
     return Center(
       child: Padding(
@@ -383,15 +397,40 @@ class _TripManagerScreenState extends State<TripManagerScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (isSyncing) ...[
-              SvgPicture.asset(
-                'assets/icons/cloud.svg',
-                width: 64,
-                height: 64,
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.8, end: 1.0),
+                duration: const Duration(seconds: 1),
+                curve: Curves.easeInOut,
+                builder: (context, value, child) {
+                  return Transform.scale(
+                    scale: value,
+                    child: child,
+                  );
+                },
+                child: SvgPicture.asset(
+                  'assets/icons/cloud.svg',
+                  width: 64,
+                  height: 64,
+                ),
               ),
               const SizedBox(height: UIConsts.spacingXL),
-              const LinearProgressIndicator(
-                backgroundColor: AppTheme.primaryColor,
-                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.secondaryColor),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progress > 0 ? progress : null,
+                  minHeight: 6,
+                  backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                  valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.secondaryColor),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${(progress * 100).toInt()}%',
+                style: const TextStyle(
+                  color: AppTheme.secondaryColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
               ),
             ] else
               const CircularProgressIndicator(
@@ -522,21 +561,28 @@ class _TripManagerScreenState extends State<TripManagerScreen>
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    AppTheme.primaryColor.withOpacity(0.1),
-                    AppTheme.secondaryColor.withOpacity(0.1),
+                    AppTheme.primaryColor.withOpacity(isDark ? 0.2 : 0.1),
+                    AppTheme.secondaryColor.withOpacity(isDark ? 0.2 : 0.1),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.primaryColor.withOpacity(isDark ? 0.1 : 0.15),
+                    blurRadius: 30,
+                    spreadRadius: 5,
+                  ),
+                ],
               ),
-              child: const Icon(
-                Icons.explore_outlined,
+              child: Icon(
+                Icons.explore_rounded,
                 size: 80,
-                color: AppTheme.primaryColor,
+                color: AppTheme.primaryColor.withOpacity(0.9),
               ),
             ),
-            const SizedBox(height: UIConsts.spacing2XL),
+            const SizedBox(height: UIConsts.spacing3XL),
             Text(
               'Chưa có hành trình nào',
               style: TextStyle(
@@ -610,9 +656,29 @@ class _TripManagerScreenState extends State<TripManagerScreen>
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: UIConsts.spacingLG),
-        decoration: AppTheme.cardDecoration(
-          isDark: isDark,
-          accentColor: trip.isActive ? AppTheme.successColor : null,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF23232F) : Colors.white,
+          borderRadius: BorderRadius.circular(UIConsts.radiusXL),
+          border: Border.all(
+            color: trip.isActive 
+                ? AppTheme.successColor.withOpacity(0.5) 
+                : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03)),
+            width: trip.isActive ? 2 : 1,
+          ),
+          boxShadow: [
+            if (trip.isActive)
+              BoxShadow(
+                color: AppTheme.successColor.withOpacity(0.15),
+                blurRadius: 20,
+                spreadRadius: 2,
+              )
+            else
+              BoxShadow(
+                color: isDark ? Colors.black.withOpacity(0.3) : Colors.black.withOpacity(0.04),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+          ],
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(UIConsts.radiusXL),
@@ -629,9 +695,21 @@ class _TripManagerScreenState extends State<TripManagerScreen>
                       children: [
                         Container(
                           padding: const EdgeInsets.all(UIConsts.spacingMD),
-                          decoration: AppTheme.iconContainerDecoration(
-                            isDark: isDark,
-                            color: trip.isActive ? AppTheme.successColor : AppTheme.primaryColor,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: trip.isActive 
+                                  ? [AppTheme.successColor.withOpacity(0.2), AppTheme.successColor.withOpacity(0.1)]
+                                  : [AppTheme.primaryColor.withOpacity(isDark ? 0.2 : 0.1), AppTheme.primaryColor.withOpacity(0.05)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(UIConsts.radiusLG),
+                            border: Border.all(
+                              color: trip.isActive 
+                                  ? AppTheme.successColor.withOpacity(0.3) 
+                                  : AppTheme.primaryColor.withOpacity(0.2),
+                              width: 1,
+                            ),
                           ),
                           child: SvgPicture.asset(
                             'assets/icons/route.svg',
@@ -860,35 +938,61 @@ class _TripManagerScreenState extends State<TripManagerScreen>
   }
 
   Widget _buildActiveBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppTheme.successColor.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(UIConsts.radiusFull),
-        border: Border.all(color: AppTheme.successColor.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: const BoxDecoration(
-              color: AppTheme.successColor,
-              shape: BoxShape.circle,
-            ),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.8, end: 1.0),
+      duration: const Duration(milliseconds: 1000),
+      curve: Curves.easeInOut,
+      builder: (context, value, child) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppTheme.successColor.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(UIConsts.radiusFull),
+            border: Border.all(color: AppTheme.successColor.withOpacity(0.3 * value)),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.successColor.withOpacity(0.2 * value),
+                blurRadius: 8 * value,
+                spreadRadius: 2 * value,
+              ),
+            ],
           ),
-          const SizedBox(width: 6),
-          const Text(
-            'Đang đi',
-            style: TextStyle(
-              color: AppTheme.successColor,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: AppTheme.successColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.successColor.withOpacity(0.5),
+                      blurRadius: 4 * value,
+                      spreadRadius: 1 * value,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Đang đi',
+                style: TextStyle(
+                  color: AppTheme.successColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
+      onEnd: () {
+        // We can't loop TweenAnimationBuilder infinitely easily without state,
+        // but it will look good as an initial pulse.
+      },
     );
   }
 
@@ -912,14 +1016,14 @@ class _TripManagerScreenState extends State<TripManagerScreen>
             padding: const EdgeInsets.only(left: 7),
             child: Container(
               width: 1.5,
-              height: 16,
+              height: 24,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    AppTheme.primaryColor,
-                    AppTheme.secondaryColor.withOpacity(0.5),
+                    AppTheme.primaryColor.withOpacity(0.8),
+                    AppTheme.secondaryColor.withOpacity(0.3),
                   ],
                 ),
               ),

@@ -126,8 +126,9 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                   _buildHeadingIndicator(isDark),
                   _buildDetectionOverlay(isDark),
                   _buildTrackingStatusBanner(topPadding, isDark),
+                  _buildTargetStatsPanel(topPadding, isDark),
+                  _buildProximityWarning(isDark),
                   _buildStopSignWarning(isDark),
-                  _buildRelativeWarning(isDark),
                   _buildBackButton(topPadding, isDark),
                   if (_controller.isPlaying)
                     _buildBottomDashboard(topPadding, bottomPadding, isDark),
@@ -154,7 +155,6 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             final isLocked = targetBox != null;
             final color = isLocked ? Colors.greenAccent : Colors.cyanAccent;
             final text = isLocked ? "ĐÃ KHÓA MỤC TIÊU" : "ĐANG QUÉT MÔI TRƯỜNG";
-            final icon = isLocked ? Icons.my_location_rounded : Icons.radar_rounded;
 
             return ClipRRect(
               borderRadius: BorderRadius.circular(20),
@@ -181,8 +181,6 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(icon, color: color, size: 18),
-                      const SizedBox(width: 8),
                       Text(
                         text,
                         style: TextStyle(
@@ -203,46 +201,51 @@ class _FlowScreenV2State extends State<FlowScreenV2>
     );
   }
 
-  Widget _buildRelativeWarning(bool isDark) {
+  Widget _buildProximityWarning(bool isDark) {
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 150,
+      bottom: 220,
       left: 16,
       right: 16,
       child: ValueListenableBuilder<String?>(
         valueListenable: _controller.relativeWarningNotifier,
         builder: (context, warning, _) {
-          if (warning == null || warning.isEmpty) return const SizedBox.shrink();
+          if (warning == null || !warning.toLowerCase().contains("gần")) return const SizedBox.shrink();
 
           return Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
               decoration: BoxDecoration(
-                color: Colors.orangeAccent.withOpacity(isDark ? 0.8 : 0.9),
-                borderRadius: BorderRadius.circular(16),
+                color: Colors.redAccent.withOpacity(0.85),
+                borderRadius: BorderRadius.circular(30),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.orangeAccent.withOpacity(0.5),
-                    blurRadius: 10,
-                    spreadRadius: 2,
+                    color: Colors.redAccent.withOpacity(0.5),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                    offset: const Offset(0, 4),
                   ),
                 ],
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.5),
-                  width: 1.5,
+                  color: Colors.white.withOpacity(0.8),
+                  width: 2,
                 ),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.warning_rounded, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
+                  Icon(Icons.warning_rounded, color: Colors.white, size: 28),
+                  SizedBox(width: 12),
                   Text(
-                    warning,
-                    style: const TextStyle(
+                    "KHOẢNG CÁCH ĐANG HẸP LẠI!\nCHÚ Ý PHANH!",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.0,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.2,
+                      height: 1.2,
                     ),
                   ),
                 ],
@@ -250,6 +253,113 @@ class _FlowScreenV2State extends State<FlowScreenV2>
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildTargetStatsPanel(double topPadding, bool isDark) {
+    return Positioned(
+      top: topPadding + 70,
+      right: 16,
+      child: ValueListenableBuilder<Rect?>(
+        valueListenable: _controller.targetBoxNotifier,
+        builder: (context, targetBox, _) {
+          if (targetBox == null) return const SizedBox.shrink();
+
+          final centerX = targetBox.center.dx.toStringAsFixed(1);
+          final centerY = targetBox.center.dy.toStringAsFixed(1);
+          
+          String objectLabel = "Đang quét...";
+          String objectConf = "--";
+
+          final obstacles = _controller.aiObstaclesNotifier.value;
+          double maxIoU = 0.0;
+          for (var obj in obstacles) {
+             final intersection = targetBox.intersect(obj.rect);
+             if (intersection.width > 0 && intersection.height > 0) {
+                final areaInt = intersection.width * intersection.height;
+                final areaT = targetBox.width * targetBox.height;
+                final areaO = obj.rect.width * obj.rect.height;
+                final iou = areaInt / (areaT + areaO - areaInt);
+                if (iou > maxIoU) {
+                   maxIoU = iou;
+                   objectLabel = obj.label.toUpperCase();
+                   objectConf = "${(obj.confidence * 100).toStringAsFixed(0)}%";
+                }
+             }
+          }
+
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                width: 170,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.black.withOpacity(0.5) : Colors.white.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.greenAccent.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          "THÔNG TIN",
+                          style: TextStyle(
+                            color: isDark ? Colors.white : Colors.black87,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _buildStatRow("Vật thể", objectLabel, isDark, valueColor: Colors.cyanAccent),
+                    _buildStatRow("Tin cậy", objectConf, isDark),
+                    _buildStatRow("Tọa độ", "X: $centerX\nY: $centerY", isDark),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStatRow(String label, String value, bool isDark, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: isDark ? Colors.white70 : Colors.black54,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: valueColor ?? (isDark ? Colors.white : Colors.black),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -500,20 +610,22 @@ class _FlowScreenV2State extends State<FlowScreenV2>
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(
-                                        Icons.explore_rounded,
-                                        color: AppTheme.secondaryColor,
-                                        size: 14,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        '${((animHeading % 360 + 360) % 360).toStringAsFixed(0)}°',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: 2,
-                                        ),
+                                      Builder(
+                                        builder: (context) {
+                                          double normalized = (animHeading % 360 + 360) % 360;
+                                          if (normalized > 180) {
+                                            normalized = 360 - normalized;
+                                          }
+                                          return Text(
+                                            '${normalized.toStringAsFixed(0)}°',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 2,
+                                            ),
+                                          );
+                                        }
                                       ),
                                     ],
                                   ),

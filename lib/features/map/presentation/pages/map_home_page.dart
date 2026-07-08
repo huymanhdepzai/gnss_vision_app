@@ -69,6 +69,7 @@ class _MapHomeViewState extends State<_MapHomeView>
   bool _showAssistant = false;
   bool _isMapReady = false;
   bool _is3DMode = false;
+  bool _hasNewMessage = true; // Added state for messenger-like notification
 
   late AnimationController _fabAnimationController;
   late AnimationController _sheetAnimationController;
@@ -884,6 +885,9 @@ class _MapHomeViewState extends State<_MapHomeView>
                               onToggleAssistant: () {
                                 setState(() {
                                   _showAssistant = !_showAssistant;
+                                  if (_showAssistant) {
+                                    _hasNewMessage = false;
+                                  }
                                 });
                                 if (_showAssistant) {
                                   HapticFeedback.mediumImpact();
@@ -893,6 +897,7 @@ class _MapHomeViewState extends State<_MapHomeView>
                               is3DMode: _is3DMode,
                               fabScaleAnimation: _fabScaleAnimation,
                               pulseAnimation: _pulseAnimation,
+                              hasNewMessage: _hasNewMessage,
                             ),
                           );
                         },
@@ -910,6 +915,13 @@ class _MapHomeViewState extends State<_MapHomeView>
                         child: ChatAssistantOverlay(
                           isDark: isDark,
                           onClose: () => setState(() => _showAssistant = false),
+                          onAction: (action) {
+                            setState(() => _showAssistant = false);
+                            if (action == 'gnss-vision' || action == 'satellite') {
+                              _handleVoiceCommand(action);
+                            }
+                            // 'search' just closes the assistant so the user can use the search bar
+                          },
                         ),
                       ),
                   ],
