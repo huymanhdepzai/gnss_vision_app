@@ -924,6 +924,12 @@ class _MapHomeViewState extends State<_MapHomeView>
                           },
                         ),
                       ),
+                    if (state.viewState != MapViewState.navigating && state.isLocationLoaded)
+                      Positioned(
+                        left: 16,
+                        top: MediaQuery.of(context).padding.top + 80,
+                        child: _buildGnssQualityIndicator(isDark, state.locationAccuracy),
+                      ),
                   ],
                 ),
               );
@@ -931,6 +937,72 @@ class _MapHomeViewState extends State<_MapHomeView>
           ),
         );
       },
+    );
+  }
+
+  Widget _buildGnssQualityIndicator(bool isDark, double accuracy) {
+    Color color;
+    String label;
+    IconData icon;
+    
+    // Accuracy is in meters. Lower is better.
+    if (accuracy <= 10.0) {
+      color = AppTheme.successColor;
+      label = 'GNSS Tốt';
+      icon = Icons.signal_cellular_alt_rounded;
+    } else if (accuracy <= 30.0) {
+      color = AppTheme.warningColor;
+      label = 'GNSS Khá';
+      icon = Icons.signal_cellular_alt_2_bar_rounded;
+    } else {
+      color = AppTheme.errorDark;
+      label = 'GNSS Yếu';
+      icon = Icons.signal_cellular_connected_no_internet_0_bar_rounded;
+    }
+
+    // Hide if accuracy is 0 (probably not yet initialized properly)
+    if (accuracy <= 0.0) return const SizedBox.shrink();
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: Container(
+        key: ValueKey(label),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF23232F).withOpacity(0.9) : Colors.white.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: color.withOpacity(0.3),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: color,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: isDark ? Colors.white.withOpacity(0.9) : Colors.black87,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

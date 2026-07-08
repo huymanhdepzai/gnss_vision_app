@@ -59,10 +59,11 @@ class MapHomeClearSearch extends MapHomeEvent {
 class MapHomeLocationUpdated extends MapHomeEvent {
   final double lat;
   final double lng;
-  const MapHomeLocationUpdated(this.lat, this.lng);
+  final double accuracy;
+  const MapHomeLocationUpdated(this.lat, this.lng, this.accuracy);
 
   @override
-  List<Object?> get props => [lat, lng];
+  List<Object?> get props => [lat, lng, accuracy];
 }
 
 class MapHomeThemeChanged extends MapHomeEvent {

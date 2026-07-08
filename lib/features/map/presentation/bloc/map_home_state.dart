@@ -8,6 +8,7 @@ class MapHomeState extends Equatable {
   final MapViewState viewState;
   final double currentLat;
   final double currentLng;
+  final double locationAccuracy;
   final bool isLocationLoaded;
   final String destinationName;
   final String destinationAddress;
@@ -33,6 +34,7 @@ class MapHomeState extends Equatable {
     this.viewState = MapViewState.explore,
     this.currentLat = 21.028511,
     this.currentLng = 105.804817,
+    this.locationAccuracy = 0.0,
     this.isLocationLoaded = false,
     this.destinationName = '',
     this.destinationAddress = '',
@@ -59,6 +61,7 @@ class MapHomeState extends Equatable {
     MapViewState? viewState,
     double? currentLat,
     double? currentLng,
+    double? locationAccuracy,
     bool? isLocationLoaded,
     String? destinationName,
     String? destinationAddress,
@@ -84,6 +87,7 @@ class MapHomeState extends Equatable {
       viewState: viewState ?? this.viewState,
       currentLat: currentLat ?? this.currentLat,
       currentLng: currentLng ?? this.currentLng,
+      locationAccuracy: locationAccuracy ?? this.locationAccuracy,
       isLocationLoaded: isLocationLoaded ?? this.isLocationLoaded,
       destinationName: destinationName ?? this.destinationName,
       destinationAddress: destinationAddress ?? this.destinationAddress,
@@ -112,6 +116,7 @@ class MapHomeState extends Equatable {
         viewState,
         currentLat,
         currentLng,
+        locationAccuracy,
         isLocationLoaded,
         destinationName,
         destinationAddress,

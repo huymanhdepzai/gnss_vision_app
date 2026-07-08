@@ -113,9 +113,11 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
       final position = await geo.Geolocator.getCurrentPosition(
         desiredAccuracy: geo.LocationAccuracy.high,
       );
+
       emit(state.copyWith(
         currentLat: position.latitude,
         currentLng: position.longitude,
+        locationAccuracy: position.accuracy,
         isLocationLoaded: true,
       ));
     } catch (e) {
@@ -125,10 +127,10 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
     _positionStream = geo.Geolocator.getPositionStream(
       locationSettings: const geo.LocationSettings(
         accuracy: geo.LocationAccuracy.high,
-        distanceFilter: 5,
+        distanceFilter: 10,
       ),
-    ).listen((position) {
-      add(MapHomeLocationUpdated(position.latitude, position.longitude));
+    ).listen((geo.Position position) {
+      add(MapHomeLocationUpdated(position.latitude, position.longitude, position.accuracy));
     });
   }
 
@@ -136,11 +138,15 @@ class MapHomeBloc extends Bloc<MapHomeEvent, MapHomeState> {
     MapHomeLocationUpdated event,
     Emitter<MapHomeState> emit,
   ) async {
-    emit(state.copyWith(
-      currentLat: event.lat,
-      currentLng: event.lng,
-      isLocationLoaded: true,
-    ));
+    // Only update if not navigating
+    if (state.viewState != MapViewState.navigating) {
+      emit(state.copyWith(
+        currentLat: event.lat,
+        currentLng: event.lng,
+        locationAccuracy: event.accuracy,
+        isLocationLoaded: true,
+      ));
+    }
   }
 
   Future<void> _onSearchChanged(
